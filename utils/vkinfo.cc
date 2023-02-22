@@ -17,10 +17,10 @@ namespace
 
 constexpr auto k_application_info = vk::ApplicationInfo{
     .pApplicationName = "vkinfo",
-    .applicationVersion = VK_MAKE_VERSION( 0, 0, 1 ),
+    .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
     .pEngineName = "no engine",
-    .engineVersion = VK_MAKE_VERSION( 0, 0, 1 ),
-    .apiVersion = VK_VERSION_1_1 };
+    .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+    .apiVersion = VK_MAKE_VERSION( 1, 1, 0 ) };
 
 std::string
 versionToString ( uint32_t version )
@@ -59,11 +59,14 @@ int
 main ()
 try
 {
-    const auto instance_create_info = vk::InstanceCreateInfo{ .pApplicationInfo = &k_application_info };
+    const auto instance_create_info = vk::InstanceCreateInfo{
+        .pApplicationInfo = &k_application_info,
+    };
+
     auto instance = vk::createInstanceUnique( instance_create_info );
 
-    const auto physical_devices = instance->enumeratePhysicalDevices();
-    for ( const auto& device : physical_devices )
+    auto physical_devices = instance->enumeratePhysicalDevices();
+    for ( auto device : physical_devices )
     {
         printPhysicalDeviceProperties( device );
     }
