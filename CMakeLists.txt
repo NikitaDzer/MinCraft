@@ -34,7 +34,7 @@ find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
 # Quality of life external libs
 add_subdirectory ( 3rd-party/fmt EXCLUDE_FROM_ALL )
 
-function (add_spirv_shader TARGET_NAME INPUT_FILE)
+function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
         COMMAND ${glslc} -c ${INPUT_FILE} -o ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
