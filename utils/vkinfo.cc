@@ -22,7 +22,8 @@ versionToString ( uint32_t version )
     const auto ver_minor = VK_VERSION_MINOR( version );
     const auto ver_patch = VK_VERSION_PATCH( version );
 
-    return fmt::format( "{}.{}.{}",
+    return fmt::format(
+        "{}.{}.{}",
         ver_major,
         ver_minor,
         ver_patch // This is a workaround for clang-format
@@ -35,14 +36,16 @@ printPhysicalDeviceProperties ( vk::PhysicalDevice device )
     const auto extensions = device.enumerateDeviceExtensionProperties();
     const auto properties = device.getProperties();
 
-    fmt::println( "Found physical device: [id = {}, type = {}, name = {}, version = {}]",
+    fmt::println(
+        "Found physical device: [id = {}, type = {}, name = {}, version = {}]",
         properties.deviceID,
         vk::to_string( properties.deviceType ),
         properties.deviceName,
         versionToString( properties.apiVersion ) //
     );
 
-    const auto extensions_string = std::accumulate( extensions.begin(),
+    const auto extensions_string = std::accumulate(
+        extensions.begin(),
         extensions.end(),
         std::string{},
         [] ( auto str, auto ext ) {
@@ -50,7 +53,8 @@ printPhysicalDeviceProperties ( vk::PhysicalDevice device )
         } //
     );
 
-    fmt::println( "Physical device [{}] supports following extensions: {}",
+    fmt::println(
+        "Physical device [{}] supports following extensions: {}",
         properties.deviceName,
         extensions_string //
     );
@@ -59,7 +63,8 @@ printPhysicalDeviceProperties ( vk::PhysicalDevice device )
     const auto qf_info = device.getQueueFamilyProperties();
     for ( uint32_t i = 0; const auto& info : qf_info )
     {
-        fmt::println( "[{}]. [queue_count = {}] of the type {}",
+        fmt::println(
+            "[{}]. [queue_count = {}] of the type {}",
             i,
             info.queueCount,
             vk::to_string( info.queueFlags ) //
