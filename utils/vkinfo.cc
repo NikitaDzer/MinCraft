@@ -50,10 +50,23 @@ printPhysicalDeviceProperties ( vk::PhysicalDevice device )
         } //
     );
 
-    fmt::println( "Device [{}] supports following extensions: {}",
+    fmt::println( "Physical device [{}] supports following extensions: {}",
         properties.deviceName,
         extensions_string //
     );
+
+    fmt::println( "Physical device [{}] has following queue families", properties.deviceName );
+    const auto qf_info = device.getQueueFamilyProperties();
+    for ( uint32_t i = 0; const auto& info : qf_info )
+    {
+        fmt::println( "[{}]. [queue_count = {}] of the type {}",
+            i,
+            info.queueCount,
+            vk::to_string( info.queueFlags ) //
+        );
+
+        ++i;
+    }
 }
 
 constexpr auto k_application_info = vk::ApplicationInfo{
