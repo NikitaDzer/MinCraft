@@ -16,7 +16,7 @@ namespace
 {
 
 std::string
-versionToString ( uint32_t version )
+versionToString( uint32_t version )
 {
     const auto ver_major = VK_VERSION_MAJOR( version );
     const auto ver_minor = VK_VERSION_MINOR( version );
@@ -31,7 +31,7 @@ versionToString ( uint32_t version )
 }
 
 void
-printPhysicalDeviceProperties ( vk::PhysicalDevice device )
+printPhysicalDeviceProperties( vk::PhysicalDevice device )
 {
     const auto extensions = device.enumerateDeviceExtensionProperties();
     const auto properties = device.getProperties();
@@ -48,7 +48,7 @@ printPhysicalDeviceProperties ( vk::PhysicalDevice device )
         extensions.begin(),
         extensions.end(),
         std::string{},
-        [] ( auto str, auto ext ) {
+        []( auto str, auto ext ) {
             return str + " " + ext.extensionName.data();
         } //
     );
@@ -85,7 +85,7 @@ constexpr auto k_application_info = vk::ApplicationInfo{
 } // namespace
 
 int
-main ()
+main()
 try
 {
     const auto instance_create_info = vk::InstanceCreateInfo{
