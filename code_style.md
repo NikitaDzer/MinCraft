@@ -27,14 +27,11 @@ Agreements for using suffixes in filenames:
 Every header file should be protected from double include using #pragma once:
 
 ```cpp
-
 #pragma once
 
 /**
- * file content.
+ * File content.
  */
-
- 
 ```
 
 ### Header file structure
@@ -60,21 +57,52 @@ funcName( int first_parameter,
           long second_parameter,
           char* p_third_parameter );
 ```
+
+Member function declaration should look like this:
+```cpp
+class SomeUsefulClass
+{
+    void someFunctionMember( int first_parameter,
+                             long second_parameter );
+};
+```
 ### Function definition
+* Leave comment with brief function description.
+* Leave comment next to each parameter.
+* Leave function name in comment after definition.
+
 Function definition should look like this and placed in source file:
 ```cpp
 /*
-Brief function description
-*/
-
+ * Brief function description.
+ */
 static void
-funcName( int first_parameter, /* comment for first parameter */
-          long second_parameter, /* comment for second parameter */
+funcName( int first_parameter,      /* comment for first parameter */
+          long second_parameter,    /* comment for second parameter */
           char* p_third_parameter ) /* comment for third parameter */
 {
     printf( "%d %ld %s\\n",
-            first_parameter, second_parameter, third_parameter_p );
-}
+            first_parameter, second_parameter, p_third_parameter );
+} // funcName
+```
+
+For member function definition code style is different.
+* Rules for comments are optional.
+* Leave return-type on line with function name.
+* Small member functions may be written in one line.
+
+Member function definition should look like this:
+```cpp
+class SomeUsefulClass
+{
+    void someFunctionMember( int first_parameter,
+                             long second_parameter )
+    {
+        // Your code
+    }
+
+    void smallFunctionMember( int parameter ) { /* Your code */ }
+};
 ```
 
 ### Space and tabs
@@ -119,7 +147,6 @@ switch( value )
 	default:
 	// Your code
 }
-
 ```
 
 ### Naming rules
@@ -132,7 +159,6 @@ switch( value )
 * Pointer to variable should use *p_* prefix.
 
 ```cpp
-
 // lower case letters for namespace
 namespace mincraft
 {
@@ -140,11 +166,11 @@ namespace mincraft
 class SomeUsefulClass
 {
 public:
-    void 
-	someFunctionMember();
+    void someFunctionMember();
+
 private:
     // use m_ prefix for class members
-    m_some_member;
+    int m_some_member;
 };
 
 #define SOME_MACRO( X ) X
@@ -163,10 +189,5 @@ enum EnumType
 };
 
 // use p_ for pointers
-void 
-someFunction( int* p_some_int );
-
-};
-
-
+int* p_some_int = nullptr;
 ```
