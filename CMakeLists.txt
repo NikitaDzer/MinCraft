@@ -46,7 +46,7 @@ function ( add_spirv_shader TARGET_NAME INPUT_FILE )
 endfunction ()
 
 add_executable ( vkinfo utils/vkinfo.cc )
-target_include_directories ( vkinfo PRIVATE include/unified_includes )
+target_include_directories ( vkinfo PRIVATE include/common )
 target_link_libraries( vkinfo PRIVATE glfw Vulkan::Vulkan fmt )
 target_enable_linter ( vkinfo )
 target_compile_features ( vkinfo PUBLIC cxx_std_20 )

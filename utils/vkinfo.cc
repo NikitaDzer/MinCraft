@@ -10,7 +10,7 @@
 #include <sstream>
 #include <string>
 
-#include "unified_includes/vulkan_include.h"
+#include "common/vulkan_include.h"
 
 namespace
 {
@@ -28,7 +28,7 @@ versionToString( uint32_t version )
         ver_minor,
         ver_patch // This is a workaround for clang-format
     );
-}
+} // versionToString
 
 void
 printPhysicalDeviceProperties( vk::PhysicalDevice device )
@@ -72,7 +72,7 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
 
         ++i;
     }
-}
+} // printPhysicalDeviceProperties
 
 constexpr auto k_application_info = vk::ApplicationInfo{
     .pApplicationName = "vkinfo",
