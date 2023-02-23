@@ -190,4 +190,6 @@ enum EnumType
 
 // use p_ for pointers
 int* p_some_int = nullptr;
+
+}
 ```
