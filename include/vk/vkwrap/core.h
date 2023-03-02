@@ -167,6 +167,9 @@ class DebugMessenger
         m_loader = { instance, vkGetInstanceProcAddr };
         m_handle = instance.createDebugUtilsMessengerEXTUnique( create_info, nullptr, m_loader );
     }
+
+    // Note [Sergei]: Use with caution, can lead to data races when callback is called from another thread.
+    void updateCallback( std::function<CallbackType> new_callback ) { *m_callback = new_callback; }
 };
 
 inline std::string
@@ -290,6 +293,9 @@ class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, priv
 
     const vk::Instance& get() const& override { return RawInstanceImpl::get(); }
     vk::Instance& get() & override { return RawInstanceImpl::get(); }
+
+    // Note [Sergei]: Use with caution, can lead to data races when callback is called from another thread.
+    using DebugMessenger::updateCallback;
 };
 
 class GenericInstance final
@@ -303,6 +309,9 @@ class GenericInstance final
     GenericInstance( HandleType handle ) { m_handle = std::move( handle ); }
 
   public:
+    GenericInstance( Instance handle ) { m_handle = std::make_unique<Instance>( std::move( handle ) ); }
+    GenericInstance( DebuggedInstance handle ) { m_handle = std::make_unique<DebuggedInstance>( std::move( handle ) ); }
+
     template <typename T, typename... Ts> static GenericInstance make( Ts&&... args )
     {
         return GenericInstance{ std::make_unique<T>( std::forward<Ts>( args )... ) };
