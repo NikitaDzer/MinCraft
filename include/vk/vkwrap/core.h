@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/spdlog_inlcude.h"
 #include "common/utility.h"
 #include "common/vulkan_include.h"
 
@@ -8,6 +7,9 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view.hpp>
 #include <range/v3/view/concat.hpp>
+
+#include <spdlog/fmt/bundled/core.h>
+#include <spdlog/spdlog.h>
 
 #include <array>
 #include <cstdint>
@@ -24,7 +26,12 @@ namespace vkwrap
 class IInstance
 {
   public:
-    virtual vk::Instance get() const = 0;
+    virtual const vk::Instance& get() const& = 0;
+    virtual vk::Instance& get() & = 0;
+
+    vk::Instance* operator->() { return std::addressof( get() ); }
+    const vk::Instance* operator->() const { return std::addressof( get() ); }
+
     virtual ~IInstance() {}
 };
 
@@ -95,7 +102,8 @@ class Instance : public IInstance, private detail::RawInstanceImpl
     using RawInstanceImpl::operator*;
     using RawInstanceImpl::operator->;
 
-    vk::Instance get() const override { return RawInstanceImpl::get(); }
+    const vk::Instance& get() const& override { return RawInstanceImpl::get(); }
+    vk::Instance& get() & override { return RawInstanceImpl::get(); }
 };
 
 using MsgSev = vk::DebugUtilsMessageSeverityFlagBitsEXT;
@@ -131,11 +139,11 @@ class DebugMessenger
 
         // NOTE[Sergei]: I'm not sure if callback_data ptr can be nullptr. Look here
         // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/PFN_vkDebugUtilsMessengerCallbackEXT.html
-        assert( callback_data );
-        auto severity = static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>( message_severity );
-        auto types = static_cast<vk::DebugUtilsMessageTypeFlagsEXT>( message_types );
-        auto data = *reinterpret_cast<const vk::DebugUtilsMessengerCallbackDataEXT*>( callback_data );
-        auto result = ( *ptr )( severity, types, data );
+        assert( callback_data && "[Debug]: Broken custom user data pointer, can't call user callback " );
+        const auto severity = static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>( message_severity );
+        const auto types = static_cast<vk::DebugUtilsMessageTypeFlagsEXT>( message_types );
+        const auto data = *reinterpret_cast<const vk::DebugUtilsMessengerCallbackDataEXT*>( callback_data );
+        const auto result = ( *ptr )( severity, types, data );
 
         return ( result ? VK_TRUE : VK_FALSE );
     }
@@ -166,7 +174,8 @@ assembleDebugMessage(
     vk::DebugUtilsMessageTypeFlagsEXT message_types,
     const vk::DebugUtilsMessengerCallbackDataEXT& data )
 {
-    std::stringstream ss;
+    std::string output;
+    auto oit = std::back_inserter( output );
 
     std::span<const vk::DebugUtilsLabelEXT> queues = { data.pQueueLabels, data.queueLabelCount },
                                             cmdbufs = { data.pCmdBufLabels, data.cmdBufLabelCount };
@@ -183,34 +192,40 @@ assembleDebugMessage(
         return input.substr( pos_first != std::string::npos ? pos_first : 0, ( pos_last - pos_first ) + 1 );
     };
 
-    ss << "Message [id_name = <" << data.pMessageIdName << ">, id_num = " << data.messageIdNumber
-       << ", types = " << vk::to_string( message_types ) << "]: " << trimLeadingTrailingSpaces( data.pMessage ) << "\n";
+    fmt::format_to(
+        oit,
+        "Message [id_name = <{}>, id_num = {}, types = {}]: {}\n",
+        data.pMessageIdName,
+        data.messageIdNumber,
+        vk::to_string( message_types ),
+        trimLeadingTrailingSpaces( data.pMessage ) //
+    );
 
     if ( !queues.empty() )
-        ss << " -- Associated Queues: --\n";
+        fmt::format_to( oit, " -- Associated Queues: --\n" );
     for ( uint32_t i = 0; const auto& v : queues )
     {
-        ss << "[" << i++ << "]. name = <" << v.pLabelName << ">\n";
+        fmt::format_to( oit, "[{}]. name = <{}>\n", i++, v.pLabelName );
     }
 
     if ( !cmdbufs.empty() )
-        ss << " -- Associated Command Buffers: --\n";
+        fmt::format_to( oit, " -- Associated Command Buffers: --\n" );
     for ( uint32_t i = 0; const auto& v : cmdbufs )
     {
-        ss << "[" << i++ << "]. name = <" << v.pLabelName << ">\n";
+        fmt::format_to( oit, "[{}]. name = <{}>\n", i++, v.pLabelName );
     }
 
     if ( !objects.empty() )
-        ss << " -- Associated Vulkan Objects: --\n";
+        fmt::format_to( oit, " -- Associated Vulkan Objects: --\n" );
     for ( uint32_t i = 0; const auto& v : objects )
     {
-        ss << "[" << i++ << "]. type = <" << vk::to_string( v.objectType ) << ">, handle = " << v.objectHandle;
+        fmt::format_to( oit, "[{}]. type = <{}>, handle = {}", i++, vk::to_string( v.objectType ), v.objectHandle );
         if ( v.pObjectName )
-            ss << ", name = <" << v.pObjectName << ">";
-        ss << "\n";
+            fmt::format_to( oit, ", name = <{}>", v.pObjectName );
+        fmt::format_to( oit, "\n" );
     }
 
-    return ss.str();
+    return output;
 };
 
 inline bool
@@ -273,7 +288,31 @@ class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, priv
     using RawInstanceImpl::operator*;
     using RawInstanceImpl::operator->;
 
-    vk::Instance get() const override { return RawInstanceImpl::get(); }
+    const vk::Instance& get() const& override { return RawInstanceImpl::get(); }
+    vk::Instance& get() & override { return RawInstanceImpl::get(); }
+};
+
+class GenericInstance final
+{
+  private:
+    using HandleType = std::unique_ptr<IInstance>;
+
+  private:
+    HandleType m_handle;
+
+    GenericInstance( HandleType handle ) { m_handle = std::move( handle ); }
+
+  public:
+    template <typename T, typename... Ts> static GenericInstance make( Ts&&... args )
+    {
+        return GenericInstance{ std::make_unique<T>( std::forward<Ts>( args )... ) };
+    }
+
+    const vk::Instance& get() const& { return ( *m_handle ).get(); }
+    vk::Instance& get() & { return ( *m_handle ).get(); }
+
+    vk::Instance* operator->() { return std::addressof( get() ); }
+    const vk::Instance* operator->() const { return std::addressof( get() ); }
 };
 
 } // namespace vkwrap

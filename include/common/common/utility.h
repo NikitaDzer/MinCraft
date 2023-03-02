@@ -28,7 +28,7 @@ concept convertibleToCStrRange = requires ()
 // clang-format on
 
 template <typename T>
-constexpr decltype( auto )
+constexpr auto
 convertToCStrVector( T&& range )
     requires ranges::contiguous_range<T> && std::convertible_to<ranges::range_value_t<T>, const char*>
 {
