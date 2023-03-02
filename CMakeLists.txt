@@ -33,8 +33,6 @@ find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
 
 # Quality of life external libs
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-
-set ( SPDLOG_FMT_EXTERNAL )
 add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
