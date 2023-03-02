@@ -27,22 +27,28 @@ concept convertibleToCStrRange = requires ()
 };
 // clang-format on
 
+// Overload set with concepts. If the range elements can be coerced into const char *, then we assume they are c-style
+// null-terminated strings and project those into a vector
 template <typename T>
 constexpr auto
 convertToCStrVector( T&& range )
     requires ranges::contiguous_range<T> && std::convertible_to<ranges::range_value_t<T>, const char*>
 {
     return range | ranges::views::transform( []( auto&& a ) { return static_cast<const char*>( a ); } ) |
-        ranges::to_vector;
+        ranges::to_vector; // Eager conversion to std::vector<const char *>
 }
 
+// Convert a range of std::string-like objects into a vector of const char * to null-terminated strings.
+// Range member type should have a .c_str member function. Note that std::string_view can't be used because it does not
+// guarantee that the underlying buffer is null-terminated.
 template <typename T>
 constexpr auto
 convertToCStrVector( T&& range )
     requires convertibleToCStrRange<T>
 {
     std::vector<const char*> raw_strings;
-    if constexpr ( ranges::random_access_range<T> )
+    if constexpr ( ranges::random_access_range<T> ) // If a range is random access then it's possible to prereserve the
+                                                    // space.
     {
         raw_strings.reserve( range.size() );
     }
