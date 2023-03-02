@@ -76,6 +76,19 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
     }
 } // printPhysicalDeviceProperties
 
+struct CountingCallback
+{
+    unsigned m_call_count = 0;
+    bool operator()(
+        vk::DebugUtilsMessageSeverityFlagBitsEXT sev,
+        vk::DebugUtilsMessageTypeFlagsEXT type,
+        const vk::DebugUtilsMessengerCallbackDataEXT& data )
+    {
+        m_call_count++;
+        return vkwrap::defaultDebugCallback( sev, type, data );
+    }
+};
+
 } // namespace
 
 int
@@ -85,10 +98,16 @@ try
     using vkwrap::DebuggedInstance;
     using vkwrap::GenericInstance;
 
+    auto counting_functor = std::make_shared<CountingCallback>();
+    auto callback = [ counting_functor ]( auto sev, auto type, auto data ) -> bool // Capture by shared ptr by value
+    {
+        return counting_functor->operator()( sev, type, data );
+    };
+
     auto instance = GenericInstance::make<DebuggedInstance>(
         vkwrap::VulkanVersion::e_version_1_3,
         nullptr,
-        vkwrap::defaultDebugCallback,
+        callback,
         std::to_array( { VK_EXT_DEBUG_UTILS_EXTENSION_NAME } ),
         std::to_array( { "VK_LAYER_KHRONOS_validation" } ) //
     );
@@ -99,6 +118,8 @@ try
     {
         printPhysicalDeviceProperties( device );
     }
+
+    fmt::print( "Number of callbacks = {}\n", counting_functor->m_call_count );
 } catch ( vk::Error& e )
 {
     fmt::print( "Vulkan error: {}\n", e.what() );
