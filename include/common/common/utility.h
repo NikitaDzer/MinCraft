@@ -30,9 +30,10 @@ concept convertibleToCStrRange = requires ()
 template <typename T>
 constexpr decltype( auto )
 convertToCStrVector( T&& range )
-    requires ranges::contiguous_range<T> && std::same_as<ranges::range_value_t<T>, const char*>
+    requires ranges::contiguous_range<T> && std::convertible_to<ranges::range_value_t<T>, const char*>
 {
-    return range;
+    return range | ranges::views::transform( []( auto&& a ) { return static_cast<const char*>( a ); } ) |
+        ranges::to_vector;
 }
 
 template <typename T>

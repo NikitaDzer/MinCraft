@@ -44,13 +44,17 @@ struct RawInstanceImpl : protected vk::UniqueInstance
   private:
     using BaseType = vk::UniqueInstance;
 
-    BaseType createHandle( VulkanVersion version, const vk::ApplicationInfo* p_info, auto&& extensions, auto&& layers )
+    BaseType createHandle(
+        VulkanVersion version,
+        const vk::ApplicationInfo* p_app_info,
+        auto&& extensions,
+        auto&& layers )
     {
         const auto app_info = vk::ApplicationInfo{ .apiVersion = utility::toUnderlying( version ) };
-        auto info_pointer = ( p_info ? p_info : &app_info );
+        auto info_pointer = ( p_app_info ? p_app_info : &app_info );
 
-        const auto raw_extensions = utility::convertToCStrVector( extensions ),
-                   raw_layers = utility::convertToCStrVector( layers );
+        const auto raw_extensions = utility::convertToCStrVector( extensions );
+        const auto raw_layers = utility::convertToCStrVector( layers );
 
         const auto create_info = vk::InstanceCreateInfo{
             .pApplicationInfo = info_pointer,
@@ -249,7 +253,7 @@ class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, priv
         return ranges::views::concat( // Overkill
                    ranges::views::transform( extensions, []( auto a ) { return std::string_view{ a }; } ),
                    k_debug_utils_ext_name ) |
-            ranges::to<std::vector<std::string>>;
+            ranges::views::unique | ranges::to<std::vector<std::string>>;
     }
 
   public:

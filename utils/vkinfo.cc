@@ -82,7 +82,13 @@ int
 main()
 try
 {
-    auto instance = vkwrap::DebuggedInstance{ vkwrap::VulkanVersion::e_version_1_3 };
+    auto instance = vkwrap::DebuggedInstance{
+        vkwrap::VulkanVersion::e_version_1_3,
+        nullptr,
+        vkwrap::defaultDebugCallback,
+        std::to_array( { VK_EXT_DEBUG_UTILS_EXTENSION_NAME } ),
+        std::to_array( { "VK_LAYER_KHRONOS_validation" } ) };
+
     auto physical_devices = instance->enumeratePhysicalDevices();
 
     for ( auto&& device : physical_devices )
