@@ -279,7 +279,7 @@ class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, priv
     DebuggedInstance(
         VulkanVersion version,
         const vk::ApplicationInfo* p_info = nullptr,
-        DebugMessenger::CallbackType callback = defaultDebugCallback,
+        std::function<DebugMessenger::CallbackType> callback = defaultDebugCallback,
         ExtType&& extensions = {},
         LayerType&& layers = {} )
         : RawInstanceImpl{ version, p_info, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ) },
