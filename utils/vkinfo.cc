@@ -2,15 +2,17 @@
  *
  */
 
-#include <fmt/core.h>
+#include "common/utility.h"
+#include "common/vulkan_include.h"
+#include "vkwrap/core.h"
+
+#include <spdlog/fmt/bundled/core.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <numeric>
 #include <sstream>
 #include <string>
-
-#include "common/vulkan_include.h"
 
 namespace
 {
@@ -36,8 +38,8 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
     const auto extensions = device.enumerateDeviceExtensionProperties();
     const auto properties = device.getProperties();
 
-    fmt::println(
-        "Found physical device: [id = {}, type = {}, name = {}, version = {}]",
+    fmt::print(
+        "Found physical device: [id = {}, type = {}, name = {}, version = {}]\n",
         properties.deviceID,
         vk::to_string( properties.deviceType ),
         properties.deviceName,
@@ -53,18 +55,18 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
         } //
     );
 
-    fmt::println(
-        "Physical device [{}] supports following extensions: {}",
+    fmt::print(
+        "Physical device [{}] supports following extensions: {}\n",
         properties.deviceName,
         extensions_string //
     );
 
-    fmt::println( "Physical device [{}] has following queue families", properties.deviceName );
+    fmt::print( "Physical device [{}] has following queue families\n", properties.deviceName );
     const auto qf_info = device.getQueueFamilyProperties();
     for ( uint32_t i = 0; const auto& info : qf_info )
     {
-        fmt::println(
-            "[{}]. [queue_count = {}] of the type {}",
+        fmt::print(
+            "[{}]. [queue_count = {}] of the type {}\n",
             i,
             info.queueCount,
             vk::to_string( info.queueFlags ) //
@@ -74,35 +76,23 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
     }
 } // printPhysicalDeviceProperties
 
-constexpr auto k_application_info = vk::ApplicationInfo{
-    .pApplicationName = "vkinfo",
-    .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-    .pEngineName = "no engine",
-    .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-    .apiVersion = VK_MAKE_VERSION( 1, 1, 0 ) //
-};
-
 } // namespace
 
 int
 main()
 try
 {
-    const auto instance_create_info = vk::InstanceCreateInfo{
-        .pApplicationInfo = &k_application_info,
-    };
-
-    auto instance = vk::createInstanceUnique( instance_create_info );
+    auto instance = vkwrap::DebuggedInstance{ vkwrap::VulkanVersion::e_version_1_3 };
     auto physical_devices = instance->enumeratePhysicalDevices();
 
-    for ( auto device : physical_devices )
+    for ( auto&& device : physical_devices )
     {
         printPhysicalDeviceProperties( device );
     }
 } catch ( vk::Error& e )
 {
-    fmt::println( "Vulkan error: {}", e.what() );
+    fmt::print( "Vulkan error: {}\n", e.what() );
 } catch ( std::exception& e )
 {
-    fmt::println( "Error: {}", e.what() );
+    fmt::print( "Error: {}\n", e.what() );
 }
