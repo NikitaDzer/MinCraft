@@ -4,7 +4,7 @@
 
 #include "common/utility.h"
 #include "common/vulkan_include.h"
-#include "vkwrap/core.h"
+#include "vkwrap/instance.h"
 
 #include <spdlog/fmt/bundled/core.h>
 

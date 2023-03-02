@@ -46,11 +46,16 @@ function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     set ( ${TARGET_NAME}_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv PARENT_SCOPE )
 endfunction ()
 
-add_library( vkwrap INTERFACE )
-target_include_directories( vkwrap INTERFACE include/vk include/common )
-target_link_libraries( vkwrap INTERFACE range-v3 spdlog )
+set ( VKWRAP_SOURCES
+    src/vk/debug.cc
+)
 
-add_executable ( vkinfo utils/vkinfo.cc )
+add_library( vkwrap ${VKWRAP_SOURCES} )
+target_include_directories( vkwrap PUBLIC include/vk include/common )
+target_link_libraries( vkwrap range-v3 spdlog )
+target_compile_features ( vkwrap PUBLIC cxx_std_20 )
+
+add_executable ( vkinfo examples/vkinfo.cc )
 target_include_directories ( vkinfo PRIVATE include/common )
 target_link_libraries( vkinfo PRIVATE glfw Vulkan::Vulkan vkwrap )
 target_enable_linter ( vkinfo )
