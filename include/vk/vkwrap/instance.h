@@ -27,6 +27,8 @@
 namespace vkwrap
 {
 
+// Interface, base class for Instance wrapper implementations. Defines virtual accessors and implements operator->
+// common to concrete wrappers.
 class IInstance
 {
   public:
@@ -46,6 +48,8 @@ struct InstanceImpl : protected vk::UniqueInstance
 {
   private:
     using BaseType = vk::UniqueInstance;
+
+  public:
     using SupportsResult = std::pair<bool, std::vector<std::string>>;
 
     [[nodiscard]] static SupportsResult supportsExtensions( auto&& find )
@@ -68,6 +72,7 @@ struct InstanceImpl : protected vk::UniqueInstance
         return std::make_pair( missing_layers.empty(), missing_layers | ranges::to<std::vector<std::string>> );
     } // supportsLayers
 
+  private:
     BaseType createHandle(
         VulkanVersion version,
         const vk::ApplicationInfo* p_app_info,
@@ -130,6 +135,7 @@ struct InstanceImpl : protected vk::UniqueInstance
     using BaseType::get;
     using BaseType::operator*;
     using BaseType::operator->;
+    using BaseType::operator bool;
 }; // InstanceImpl
 
 } // namespace detail
@@ -142,9 +148,14 @@ class Instance : public IInstance, private detail::InstanceImpl
     using InstanceImpl::get;
     using InstanceImpl::operator*;
     using InstanceImpl::operator->;
+    using InstanceImpl::operator bool;
 
     const vk::Instance& get() const& override { return InstanceImpl::get(); }
     vk::Instance& get() & override { return InstanceImpl::get(); }
+
+    using InstanceImpl::supportsExtensions;
+    using InstanceImpl::supportsLayers;
+    using InstanceImpl::SupportsResult;
 }; // Instance
 
 class DebuggedInstance : public IInstance, private detail::InstanceImpl, private DebugMessenger
@@ -180,6 +191,11 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
 
     const vk::Instance& get() const& override { return InstanceImpl::get(); }
     vk::Instance& get() & override { return InstanceImpl::get(); }
+
+    using InstanceImpl::supportsExtensions;
+    using InstanceImpl::supportsLayers;
+    using InstanceImpl::SupportsResult;
+    using InstanceImpl::operator bool;
 }; // DebuggedInstance
 
 class GenericInstance final

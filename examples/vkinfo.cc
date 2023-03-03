@@ -104,14 +104,22 @@ try
         return counting_functor->operator()( sev, type, data );
     };
 
+    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
+
+    // This assert is for testing purposes.
+    assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
     auto debugged_instance = DebuggedInstance{
         vkwrap::VulkanVersion::e_version_1_3,
         nullptr,
         callback,
         {}, // Use different types of string for testing
-        std::to_array( { std::string{ "VK_LAYER_KHRONOS_validation" } } ) };
+        layers,
+    };
 
+    assert( debugged_instance && "Checking that instance was actually created" );
     auto instance = GenericInstance{ std::move( debugged_instance ) };
+    assert( instance && "Checking that instance was actually created" );
+
     auto physical_devices = instance->enumeratePhysicalDevices();
 
     for ( auto&& device : physical_devices )
