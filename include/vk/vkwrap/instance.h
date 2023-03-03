@@ -140,6 +140,7 @@ struct InstanceImpl : protected vk::UniqueInstance
 
 } // namespace detail
 
+// Instance wrapper with simpler constructor.
 class Instance : public IInstance, private detail::InstanceImpl
 {
   public:
@@ -158,6 +159,7 @@ class Instance : public IInstance, private detail::InstanceImpl
     using InstanceImpl::SupportsResult;
 }; // Instance
 
+// Instance wrapper that provides a VkDebugUtilsExt debug messenger with configurable callback.
 class DebuggedInstance : public IInstance, private detail::InstanceImpl, private DebugMessenger
 {
   private:
@@ -204,6 +206,7 @@ class GenericInstance final
     using HandleType = std::unique_ptr<IInstance>;
 
   private:
+    // This wrapper is basically a PImpl that can either be a regular Instance or DebuggedInstance.
     HandleType m_handle;
 
     // Note that this constructor is private and other constructors never allow a nullptr std::unique_ptr to be created.
