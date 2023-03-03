@@ -2,7 +2,7 @@
  *
  */
 
-#include "common/utility.h"
+#include "common/utils.h"
 #include "common/vulkan_include.h"
 #include "vkwrap/instance.h"
 

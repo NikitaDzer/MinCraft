@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/utility.h"
+#include "common/utils.h"
 #include "common/vulkan_include.h"
 
 #include <range/v3/range.hpp>
@@ -52,7 +52,7 @@ struct InstanceImpl : protected vk::UniqueInstance
     {
         const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
         using ElemType = typename decltype( supported_extensions )::value_type;
-        const auto missing_extensions = utility::findAllMissing( supported_extensions, find, []( auto&& ext ) {
+        const auto missing_extensions = utils::findAllMissing( supported_extensions, find, []( auto&& ext ) {
             return std::string_view{ ext.extensionName };
         } );
         return std::make_pair( missing_extensions.empty(), missing_extensions | ranges::to<std::vector<std::string>> );
@@ -62,7 +62,7 @@ struct InstanceImpl : protected vk::UniqueInstance
     {
         const auto supported_layers = vk::enumerateInstanceLayerProperties();
         using ElemType = typename decltype( supported_layers )::value_type;
-        const auto missing_layers = utility::findAllMissing( supported_layers, find, []( auto&& layer ) {
+        const auto missing_layers = utils::findAllMissing( supported_layers, find, []( auto&& layer ) {
             return std::string_view{ layer.layerName };
         } );
         return std::make_pair( missing_layers.empty(), missing_layers | ranges::to<std::vector<std::string>> );
@@ -76,11 +76,11 @@ struct InstanceImpl : protected vk::UniqueInstance
     {
         validateExtensionsLayers( extensions, layers );
 
-        const auto app_info = vk::ApplicationInfo{ .apiVersion = utility::toUnderlying( version ) };
+        const auto app_info = vk::ApplicationInfo{ .apiVersion = utils::toUnderlying( version ) };
         auto info_pointer = ( p_app_info ? p_app_info : &app_info );
 
-        const auto raw_extensions = utility::convertToCStrVector( extensions );
-        const auto raw_layers = utility::convertToCStrVector( layers );
+        const auto raw_extensions = utils::convertToCStrVector( extensions );
+        const auto raw_layers = utils::convertToCStrVector( layers );
 
         const auto create_info = vk::InstanceCreateInfo{
             .pApplicationInfo = info_pointer,

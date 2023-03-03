@@ -10,7 +10,7 @@
 
 #include <utility>
 
-namespace utility
+namespace utils
 {
 
 // Algorithm to find all elements from `find` range of type FindRange that are not contained in `all`. Return a vector
@@ -72,4 +72,4 @@ convertToCStrVector( T&& range )
     return range | ranges::views::transform( []( auto&& a ) { return a.c_str(); } ) | ranges::to_vector;
 }
 
-}; // namespace utility
+}; // namespace utils

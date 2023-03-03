@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/utility.h"
+#include "common/utils.h"
 
 #include <stdexcept>
 #include <string>
