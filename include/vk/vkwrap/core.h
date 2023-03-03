@@ -13,6 +13,6 @@ enum class VulkanVersion : uint32_t
     e_version_1_1 = VK_MAKE_API_VERSION( 0, 1, 1, 0 ),
     e_version_1_2 = VK_MAKE_API_VERSION( 0, 1, 2, 0 ),
     e_version_1_3 = VK_MAKE_API_VERSION( 0, 1, 3, 0 ),
-};
+}; // VulkanVersion
 
 } // namespace vkwrap

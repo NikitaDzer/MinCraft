@@ -36,12 +36,12 @@ class IInstance
     const vk::Instance* operator->() const { return std::addressof( get() ); }
 
     virtual ~IInstance() {}
-};
+}; // IInstance
 
 namespace detail
 {
 
-struct RawInstanceImpl : protected vk::UniqueInstance
+struct InstanceImpl : protected vk::UniqueInstance
 {
   private:
     using BaseType = vk::UniqueInstance;
@@ -71,7 +71,7 @@ struct RawInstanceImpl : protected vk::UniqueInstance
 
   public:
     template <typename ExtType = ranges::empty_view<std::string>, typename LayerType = ranges::empty_view<std::string>>
-    RawInstanceImpl(
+    InstanceImpl(
         VulkanVersion version,
         const vk::ApplicationInfo* p_info = nullptr,
         ExtType&& extensions = {},
@@ -84,24 +84,24 @@ struct RawInstanceImpl : protected vk::UniqueInstance
     using BaseType::get;
     using BaseType::operator*;
     using BaseType::operator->;
-};
+}; // InstanceImpl
 
 } // namespace detail
 
-class Instance : public IInstance, private detail::RawInstanceImpl
+class Instance : public IInstance, private detail::InstanceImpl
 {
   public:
-    using RawInstanceImpl::RawInstanceImpl;
+    using InstanceImpl::InstanceImpl;
 
-    using RawInstanceImpl::get;
-    using RawInstanceImpl::operator*;
-    using RawInstanceImpl::operator->;
+    using InstanceImpl::get;
+    using InstanceImpl::operator*;
+    using InstanceImpl::operator->;
 
-    const vk::Instance& get() const& override { return RawInstanceImpl::get(); }
-    vk::Instance& get() & override { return RawInstanceImpl::get(); }
-};
+    const vk::Instance& get() const& override { return InstanceImpl::get(); }
+    vk::Instance& get() & override { return InstanceImpl::get(); }
+}; // Instance
 
-class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, private DebugMessenger
+class DebuggedInstance : public IInstance, private detail::InstanceImpl, private DebugMessenger
 {
   private:
     static constexpr auto k_debug_utils_ext_name =
@@ -113,7 +113,7 @@ class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, priv
                    ranges::views::transform( extensions, []( auto a ) { return std::string_view{ a }; } ),
                    k_debug_utils_ext_name ) |
             ranges::views::unique | ranges::to<std::vector<std::string>>;
-    }
+    } // addDebugUtilsExtension
 
   public:
     template <typename ExtType = ranges::empty_view<std::string>, typename LayerType = ranges::empty_view<std::string>>
@@ -123,18 +123,18 @@ class DebuggedInstance : public IInstance, private detail::RawInstanceImpl, priv
         std::function<DebugMessenger::CallbackType> callback = defaultDebugCallback,
         ExtType&& extensions = {},
         LayerType&& layers = {} )
-        : RawInstanceImpl{ version, p_info, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ) },
-          DebugMessenger{ RawInstanceImpl::get(), callback }
+        : InstanceImpl{ version, p_info, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ) },
+          DebugMessenger{ InstanceImpl::get(), callback }
     {
     }
 
-    using RawInstanceImpl::get;
-    using RawInstanceImpl::operator*;
-    using RawInstanceImpl::operator->;
+    using InstanceImpl::get;
+    using InstanceImpl::operator*;
+    using InstanceImpl::operator->;
 
-    const vk::Instance& get() const& override { return RawInstanceImpl::get(); }
-    vk::Instance& get() & override { return RawInstanceImpl::get(); }
-};
+    const vk::Instance& get() const& override { return InstanceImpl::get(); }
+    vk::Instance& get() & override { return InstanceImpl::get(); }
+}; // DebuggedInstance
 
 class GenericInstance final
 {
@@ -164,6 +164,7 @@ class GenericInstance final
     const vk::Instance* operator->() const { return std::addressof( get() ); }
 
     operator bool() { return static_cast<bool>( get() ); } // Type coercion to check whether handle is not empty.
-};
+
+}; // GenericInstance
 
 } // namespace vkwrap

@@ -63,10 +63,10 @@ class DebugMessenger
 
         m_loader = { instance, vkGetInstanceProcAddr };
         m_handle = instance.createDebugUtilsMessengerEXTUnique( create_info, nullptr, m_loader );
-    }
+    } // DebugMessenger
 
     operator bool() const { return m_handle.get(); }
-};
+}; // DebugMessenger
 
 std::string
 assembleDebugMessage(

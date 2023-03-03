@@ -70,7 +70,7 @@ assembleDebugMessage(
     }
 
     return output;
-};
+}; // assembleDebugMessage
 
 bool
 defaultDebugCallback(
@@ -99,7 +99,7 @@ defaultDebugCallback(
     }
 
     return false;
-};
+}; // defaultDebugCallback
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
 DebugMessenger::debugCallback(
@@ -119,6 +119,6 @@ DebugMessenger::debugCallback(
     const auto result = ( *func_ptr )( severity, types, data );
 
     return ( result ? VK_TRUE : VK_FALSE );
-}
+} // DebugMessenger::debugCallback
 
 } // namespace vkwrap

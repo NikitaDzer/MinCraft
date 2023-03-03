@@ -87,7 +87,7 @@ struct CountingCallback
         m_call_count++;
         return vkwrap::defaultDebugCallback( sev, type, data );
     }
-};
+}; // CountingCallback
 
 } // namespace
 
