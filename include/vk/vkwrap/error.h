@@ -48,6 +48,7 @@ struct UnsupportedEntry
 
 class UnsupportedError : public Error, private std::vector<UnsupportedEntry>
 {
+  private:
     using VectorBase = std::vector<UnsupportedEntry>;
 
   public:
