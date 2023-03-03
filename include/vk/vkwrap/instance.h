@@ -10,6 +10,7 @@
 
 #include "vkwrap/core.h"
 #include "vkwrap/debug.h"
+#include "vkwrap/error.h"
 
 #include <spdlog/fmt/bundled/core.h>
 #include <spdlog/spdlog.h>
@@ -45,6 +46,27 @@ struct InstanceImpl : protected vk::UniqueInstance
 {
   private:
     using BaseType = vk::UniqueInstance;
+    using SupportsResult = std::pair<bool, std::vector<std::string>>;
+
+    [[nodiscard]] static SupportsResult supportsExtensions( auto&& find )
+    {
+        const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
+        using ElemType = typename decltype( supported_extensions )::value_type;
+        const auto missing_extensions = utility::findAllMissing( supported_extensions, find, []( auto&& ext ) {
+            return std::string_view{ ext.extensionName };
+        } );
+        return std::make_pair( missing_extensions.empty(), missing_extensions | ranges::to<std::vector<std::string>> );
+    } // supportsExtensions
+
+    [[nodiscard]] static SupportsResult supportsLayers( auto&& find )
+    {
+        const auto supported_layers = vk::enumerateInstanceLayerProperties();
+        using ElemType = typename decltype( supported_layers )::value_type;
+        const auto missing_layers = utility::findAllMissing( supported_layers, find, []( auto&& layer ) {
+            return std::string_view{ layer.layerName };
+        } );
+        return std::make_pair( missing_layers.empty(), missing_layers | ranges::to<std::vector<std::string>> );
+    } // supportsLayers
 
     BaseType createHandle(
         VulkanVersion version,
@@ -52,6 +74,8 @@ struct InstanceImpl : protected vk::UniqueInstance
         auto&& extensions,
         auto&& layers )
     {
+        validateExtensionsLayers( extensions, layers );
+
         const auto app_info = vk::ApplicationInfo{ .apiVersion = utility::toUnderlying( version ) };
         auto info_pointer = ( p_app_info ? p_app_info : &app_info );
 
@@ -69,8 +93,30 @@ struct InstanceImpl : protected vk::UniqueInstance
         return vk::createInstanceUnique( create_info );
     }
 
+    // Check that the instance actually supports requested extensions/layers and throw an informative error when it
+    // doesn't.
+    void validateExtensionsLayers( auto&& extensions, auto&& layers )
+    {
+        auto [ ext_ok, missing_ext ] = supportsExtensions( extensions );
+        auto [ layers_ok, missing_layers ] = supportsLayers( layers );
+
+        if ( !ext_ok || !layers_ok )
+        {
+            auto tagged_ext = ranges::views::transform( missing_ext, []( auto&& elem ) {
+                return UnsupportedEntry{ UnsupportedTag::e_unsupported_extension, elem };
+            } );
+
+            auto tagged_layers = ranges::views::transform( missing_layers, []( auto&& elem ) {
+                return UnsupportedEntry{ UnsupportedTag::e_unsupported_layer, elem };
+            } );
+
+            auto missing = ranges::views::concat( tagged_ext, tagged_layers ) | ranges::to_vector;
+            throw UnsupportedError{ "Instance does not support all required layers (and/or) extensions", missing };
+        }
+    } // validateExtensionsLayers
+
   public:
-    template <typename ExtType = ranges::empty_view<std::string>, typename LayerType = ranges::empty_view<std::string>>
+    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
     InstanceImpl(
         VulkanVersion version,
         const vk::ApplicationInfo* p_info = nullptr,
@@ -116,7 +162,7 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
     } // addDebugUtilsExtension
 
   public:
-    template <typename ExtType = ranges::empty_view<std::string>, typename LayerType = ranges::empty_view<std::string>>
+    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
     DebuggedInstance(
         VulkanVersion version,
         const vk::ApplicationInfo* p_info = nullptr,

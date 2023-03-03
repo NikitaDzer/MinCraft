@@ -104,14 +104,14 @@ try
         return counting_functor->operator()( sev, type, data );
     };
 
-    auto instance = GenericInstance::make<DebuggedInstance>(
+    auto debugged_instance = DebuggedInstance{
         vkwrap::VulkanVersion::e_version_1_3,
         nullptr,
         callback,
-        std::to_array( { VK_EXT_DEBUG_UTILS_EXTENSION_NAME } ),
-        std::to_array( { "VK_LAYER_KHRONOS_validation" } ) //
-    );
+        {}, // Use different types of string for testing
+        std::to_array( { std::string{ "VK_LAYER_KHRONOS_validation" } } ) };
 
+    auto instance = GenericInstance{ std::move( debugged_instance ) };
     auto physical_devices = instance->enumeratePhysicalDevices();
 
     for ( auto&& device : physical_devices )
@@ -120,6 +120,13 @@ try
     }
 
     fmt::print( "Number of callbacks = {}\n", counting_functor->m_call_count );
+} catch ( vkwrap::UnsupportedError& e )
+{
+    fmt::print( "Unsupported error: {}\n", e.what() );
+    for ( unsigned i = 0; auto&& entry : e )
+    {
+        fmt::print( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.m_tag ), entry.m_name );
+    }
 } catch ( vk::Error& e )
 {
     fmt::print( "Vulkan error: {}\n", e.what() );

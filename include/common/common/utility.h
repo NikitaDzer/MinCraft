@@ -3,13 +3,29 @@
 #include <spdlog/fmt/bundled/core.h>
 
 #include "range/v3/view/transform.hpp"
+#include <range/v3/algorithm/contains.hpp>
 #include <range/v3/algorithm/copy.hpp>
+#include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/range.hpp>
 
 #include <utility>
 
 namespace utility
 {
+
+// Algorithm to find all elements from `find` range of type FindRange that are not contained in `all`. Return a vector
+// of type range_value_t<FindRange>;
+template <typename AllRange, typename FindRange, typename Proj>
+auto
+findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
+{
+    std::vector<typename ranges::range_value_t<std::remove_reference_t<FindRange>>> missing;
+    ranges::for_each( find, [ &all, &proj, &missing ]( auto&& elem ) {
+        if ( !ranges::contains( all, elem, proj ) )
+            missing.push_back( elem );
+    } );
+    return missing;
+}
 
 // Replacement for yet unimplemented C++23 to_underlying
 constexpr auto

@@ -16,3 +16,5 @@ enum class VulkanVersion : uint32_t
 }; // VulkanVersion
 
 } // namespace vkwrap
+
+#include "vkwrap/error.h"
