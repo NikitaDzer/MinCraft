@@ -108,7 +108,7 @@ DebugMessenger::debugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data )
 {
-    auto* func_ptr = static_cast<std::function<CallbackType>*>( user_data );
+    const auto* func_ptr = static_cast<std::function<CallbackType>*>( user_data );
 
     // NOTE[Sergei]: I'm not sure if callback_data ptr can be nullptr. Look here
     // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/PFN_vkDebugUtilsMessengerCallbackEXT.html
@@ -116,7 +116,15 @@ DebugMessenger::debugCallback(
     const auto severity = static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>( message_severity );
     const auto types = static_cast<vk::DebugUtilsMessageTypeFlagsEXT>( message_types );
     const auto data = *reinterpret_cast<const vk::DebugUtilsMessengerCallbackDataEXT*>( callback_data );
-    const auto result = ( *func_ptr )( severity, types, data );
+
+    bool result = true;
+    if ( func_ptr )
+    {
+        result = ( *func_ptr )( severity, types, data );
+    } else
+    {
+        result = defaultDebugCallback( severity, types, data );
+    }
 
     return ( result ? VK_TRUE : VK_FALSE );
 } // DebugMessenger::debugCallback
