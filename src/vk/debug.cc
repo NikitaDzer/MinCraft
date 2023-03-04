@@ -12,6 +12,19 @@
 namespace vkwrap
 {
 
+static std::string
+trimLeadingTrailingSpaces( std::string input )
+{
+    if ( input.empty() )
+    {
+        return {};
+    }
+
+    auto pos_first = input.find_first_not_of( " \t\n" );
+    auto pos_last = input.find_last_not_of( " \t\n" );
+    return input.substr( pos_first != std::string::npos ? pos_first : 0, ( pos_last - pos_first ) + 1 );
+};
+
 std::string
 assembleDebugMessage(
     vk::DebugUtilsMessageTypeFlagsEXT message_types,
@@ -20,21 +33,9 @@ assembleDebugMessage(
     std::string output;
     auto oit = std::back_inserter( output );
 
-    std::span<const vk::DebugUtilsLabelEXT> queues = { data.pQueueLabels, data.queueLabelCount };
-    std::span<const vk::DebugUtilsLabelEXT> cmdbufs = { data.pCmdBufLabels, data.cmdBufLabelCount };
-
-    std::span<const vk::DebugUtilsObjectNameInfoEXT> objects = { data.pObjects, data.objectCount };
-
-    const auto trimLeadingTrailingSpaces = []( std::string input ) -> std::string {
-        if ( input.empty() )
-        {
-            return {};
-        }
-
-        auto pos_first = input.find_first_not_of( " \t\n" );
-        auto pos_last = input.find_last_not_of( " \t\n" );
-        return input.substr( pos_first != std::string::npos ? pos_first : 0, ( pos_last - pos_first ) + 1 );
-    };
+    const auto queues = std::span<const vk::DebugUtilsLabelEXT>{ data.pQueueLabels, data.queueLabelCount };
+    const auto cmdbufs = std::span<const vk::DebugUtilsLabelEXT>{ data.pCmdBufLabels, data.cmdBufLabelCount };
+    const auto objects = std::span<const vk::DebugUtilsObjectNameInfoEXT>{ data.pObjects, data.objectCount };
 
     fmt::format_to(
         oit,
@@ -78,24 +79,25 @@ defaultDebugCallback(
     vk::DebugUtilsMessageTypeFlagsEXT message_types,
     const vk::DebugUtilsMessengerCallbackDataEXT& callback_data )
 {
-    using msg_sev = vk::DebugUtilsMessageSeverityFlagBitsEXT;
 
     auto msg_str = assembleDebugMessage( message_types, callback_data );
-    if ( message_severity == msg_sev::eInfo )
+    switch ( message_severity )
     {
+    case MsgSev::eInfo:
         spdlog::info( msg_str );
-    } else if ( message_severity == msg_sev::eWarning )
-    {
+        break;
+    case MsgSev::eWarning:
         spdlog::warn( msg_str );
-    } else if ( message_severity == msg_sev::eVerbose )
-    {
+        break;
+    case MsgSev::eVerbose:
         spdlog::debug( msg_str );
-    } else if ( message_severity == msg_sev::eError )
-    {
+        break;
+    case MsgSev::eError:
         spdlog::error( msg_str );
-    } else
-    {
+        break;
+    default:
         assert( 0 && "[Debug]: Broken message severity enum" );
+        break;
     }
 
     return false;
