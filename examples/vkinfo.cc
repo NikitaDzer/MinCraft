@@ -109,7 +109,10 @@ try
     const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
 
     auto instance_builder = vkwrap::InstanceBuilder{};
-    instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 ).withDebugMessenger().withValidationLayers();
+    instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 )
+        .withDebugMessenger()
+        .withValidationLayers()
+        .withCallback( callback );
 
     // This assert is for testing purposes.
     assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
