@@ -23,7 +23,7 @@ trimLeadingTrailingSpaces( std::string input )
     auto pos_first = input.find_first_not_of( " \t\n" );
     auto pos_last = input.find_last_not_of( " \t\n" );
     return input.substr( pos_first != std::string::npos ? pos_first : 0, ( pos_last - pos_first ) + 1 );
-};
+} // trimLeadingTrailingSpaces
 
 std::string
 assembleDebugMessage(
@@ -110,7 +110,7 @@ DebugMessenger::debugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data )
 {
-    const auto* func_ptr = static_cast<std::function<CallbackType>*>( user_data );
+    const auto* func_ptr = static_cast<DebugUtilsCallbackFunctionType*>( user_data );
 
     // NOTE[Sergei]: I'm not sure if callback_data ptr can be nullptr. Look here
     // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/PFN_vkDebugUtilsMessengerCallbackEXT.html
@@ -120,6 +120,8 @@ DebugMessenger::debugCallback(
     const auto data = *reinterpret_cast<const vk::DebugUtilsMessengerCallbackDataEXT*>( callback_data );
 
     bool result = true;
+    // When this function is used as a callback for instance creation debugging, user_data can't be used to pass
+    // custom callbacks. Thus, it is necessary to use the fallback callback.
     if ( func_ptr )
     {
         result = ( *func_ptr )( severity, types, data );

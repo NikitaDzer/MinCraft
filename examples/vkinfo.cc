@@ -106,8 +106,6 @@ try
         return counting_functor->operator()( sev, type, data );
     };
 
-    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
-
     auto instance_builder = vkwrap::InstanceBuilder{};
     instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withDebugMessenger()
@@ -115,12 +113,12 @@ try
         .withCallback( callback );
 
     // This assert is for testing purposes.
+    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
     assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
     auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
 
     auto physical_devices = instance->enumeratePhysicalDevices();
-
     for ( auto&& device : physical_devices )
     {
         printPhysicalDeviceProperties( device );
