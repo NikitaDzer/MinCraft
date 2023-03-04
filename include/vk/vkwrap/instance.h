@@ -3,6 +3,7 @@
 #include "common/utils.h"
 #include "common/vulkan_include.h"
 
+#include <range/v3/iterator.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view.hpp>
@@ -95,7 +96,9 @@ struct InstanceImpl : protected vk::UniqueInstance
             .ppEnabledExtensionNames = raw_extensions.data(),
         };
 
-        return vk::createInstanceUnique( create_info );
+        auto instance = vk::createInstanceUnique( create_info );
+        VULKAN_HPP_DEFAULT_DISPATCHER.init( *instance );
+        return instance;
     }
 
     // Check that the instance actually supports requested extensions/layers and throw an informative error when it
@@ -231,5 +234,95 @@ class GenericInstance final
     operator bool() { return static_cast<bool>( get() ); } // Type coercion to check whether handle is not empty.
 
 }; // GenericInstance
+
+class InstanceBuilder
+{
+  public:
+    using CallbackFunctionType = std::function<DebugMessenger::CallbackType>;
+
+  private:
+    bool m_with_debug = false;
+    VulkanVersion m_version = VulkanVersion::e_version_1_0;
+
+    std::vector<std::string> m_extensions;
+    std::vector<std::string> m_layers;
+
+    vk::DebugUtilsMessageSeverityFlagsEXT severity_flags = k_default_severity_flags;
+    vk::DebugUtilsMessageTypeFlagsEXT type_flags = k_default_type_flags;
+
+    CallbackFunctionType m_callback = defaultDebugCallback;
+
+  private:
+    DebuggedInstance makeDebugInstance() const
+    {
+        return DebuggedInstance{
+            m_version,
+            nullptr,
+            m_callback,
+            m_extensions,
+            m_layers,
+        };
+    }
+
+    Instance makeInstance() const
+    {
+        return Instance{
+            m_version,
+            nullptr,
+            m_extensions,
+            m_layers,
+        };
+    }
+
+  public:
+    InstanceBuilder() = default;
+
+    GenericInstance make() const
+    {
+        if ( m_with_debug )
+        {
+            return makeDebugInstance();
+        }
+
+        return makeInstance();
+    }
+
+    InstanceBuilder& withDebugMessenger() &
+    {
+
+        m_with_debug = true;
+        return *this;
+    }
+
+    InstanceBuilder& withValidationLayers() &
+    {
+        m_layers.push_back( "VK_LAYER_KHRONOS_validation" );
+        return *this;
+    }
+
+    InstanceBuilder& withCallback( CallbackFunctionType func ) &
+    {
+        m_callback = func;
+        return *this;
+    }
+
+    InstanceBuilder& withExtensions( auto&& extensions ) &
+    {
+        ranges::copy( extensions, ranges::back_inserter( m_extensions ) );
+        return *this;
+    }
+
+    InstanceBuilder& withLayers( auto&& layers ) &
+    {
+        ranges::copy( layers, ranges::back_inserter( m_layers ) );
+        return *this;
+    }
+
+    InstanceBuilder& withVersion( VulkanVersion version ) &
+    {
+        m_version = version;
+        return *this;
+    }
+};
 
 } // namespace vkwrap

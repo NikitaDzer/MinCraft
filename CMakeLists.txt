@@ -54,6 +54,7 @@ endfunction ()
 
 set ( VKWRAP_SOURCES
     src/vk/debug.cc
+    src/vk/loader.cc
 )
 
 add_library( vkwrap ${VKWRAP_SOURCES} )

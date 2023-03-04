@@ -98,6 +98,8 @@ try
     using vkwrap::DebuggedInstance;
     using vkwrap::GenericInstance;
 
+    vkwrap::initializeLoader(); // Load basic functions that are instance independent
+
     auto counting_functor = std::make_shared<CountingCallback>();
     auto callback = [ counting_functor ]( auto sev, auto type, auto data ) -> bool // Capture by shared ptr by value
     {
@@ -106,18 +108,12 @@ try
 
     const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
 
+    auto instance_builder = vkwrap::InstanceBuilder{};
+    instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 ).withDebugMessenger().withValidationLayers();
+
     // This assert is for testing purposes.
     assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
-    auto debugged_instance = DebuggedInstance{
-        vkwrap::VulkanVersion::e_version_1_3,
-        nullptr,
-        callback,
-        {}, // Use different types of string for testing
-        layers,
-    };
-
-    assert( debugged_instance && "Checking that instance was actually created" );
-    auto instance = GenericInstance{ std::move( debugged_instance ) };
+    auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
 
     auto physical_devices = instance->enumeratePhysicalDevices();

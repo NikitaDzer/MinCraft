@@ -33,10 +33,9 @@ class DebugMessenger
   private:
     using HandleType = vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::DispatchLoaderDynamic>;
 
-    HandleType m_handle;
-    vk::DispatchLoaderDynamic m_loader;
     std::unique_ptr<std::function<CallbackType>> m_callback; // Here unqiue ptr is needed so that if the object is
                                                              // moved from, then user_data pointer does not change.
+    HandleType m_handle;
 
   private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -60,9 +59,7 @@ class DebugMessenger
             .messageType = type_flags,
             .pfnUserCallback = debugCallback,
             .pUserData = m_callback.get() };
-
-        m_loader = { instance, vkGetInstanceProcAddr };
-        m_handle = instance.createDebugUtilsMessengerEXTUnique( create_info, nullptr, m_loader );
+        m_handle = instance.createDebugUtilsMessengerEXTUnique( create_info, nullptr );
     } // DebugMessenger
 
     operator bool() const { return m_handle.get(); }
