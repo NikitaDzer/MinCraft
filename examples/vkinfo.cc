@@ -6,6 +6,7 @@
 #include "common/vulkan_include.h"
 #include "vkwrap/instance.h"
 
+#include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
 
 #include <algorithm>
@@ -97,6 +98,10 @@ try
 {
     using vkwrap::DebuggedInstance;
     using vkwrap::GenericInstance;
+
+    spdlog::cfg::load_env_levels();
+    // Use `export SPDLOG_LEVEL=debug` to set maximum logging level
+    // Or `export SPDLOG_LEVEL=warn` to print only warnings and errors
 
     vkwrap::initializeLoader(); // Load basic functions that are instance independent
 
