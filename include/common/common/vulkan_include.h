@@ -6,6 +6,6 @@
 
 #pragma once
 
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
-#define VULKAN_HPP_NO_CONSTRUCTORS // For C++20 designated initializers
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1 // Enable dynamic dispatch by default
+#define VULKAN_HPP_NO_CONSTRUCTORS           // For C++20 designated initializers
 #include <vulkan/vulkan.hpp>
