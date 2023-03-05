@@ -25,6 +25,12 @@ else ()
     endfunction ()
 endif ()
 
+option ( SANITIZE OFF )
+if ( SANITIZE )
+    add_compile_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
+    add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
+endif ()
+
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
@@ -48,11 +54,13 @@ endfunction ()
 
 set ( VKWRAP_SOURCES
     src/vk/debug.cc
+    src/vk/loader.cc
 )
 
 add_library( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories( vkwrap PUBLIC include/vk include/common )
 target_link_libraries( vkwrap range-v3 spdlog )
+target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
 add_executable ( vkinfo examples/vkinfo.cc )

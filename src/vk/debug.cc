@@ -12,6 +12,19 @@
 namespace vkwrap
 {
 
+static std::string
+trimLeadingTrailingSpaces( std::string input )
+{
+    if ( input.empty() )
+    {
+        return {};
+    }
+
+    auto pos_first = input.find_first_not_of( " \t\n" );
+    auto pos_last = input.find_last_not_of( " \t\n" );
+    return input.substr( pos_first != std::string::npos ? pos_first : 0, ( pos_last - pos_first ) + 1 );
+} // trimLeadingTrailingSpaces
+
 std::string
 assembleDebugMessage(
     vk::DebugUtilsMessageTypeFlagsEXT message_types,
@@ -20,21 +33,9 @@ assembleDebugMessage(
     std::string output;
     auto oit = std::back_inserter( output );
 
-    std::span<const vk::DebugUtilsLabelEXT> queues = { data.pQueueLabels, data.queueLabelCount };
-    std::span<const vk::DebugUtilsLabelEXT> cmdbufs = { data.pCmdBufLabels, data.cmdBufLabelCount };
-
-    std::span<const vk::DebugUtilsObjectNameInfoEXT> objects = { data.pObjects, data.objectCount };
-
-    const auto trimLeadingTrailingSpaces = []( std::string input ) -> std::string {
-        if ( input.empty() )
-        {
-            return {};
-        }
-
-        auto pos_first = input.find_first_not_of( " \t\n" );
-        auto pos_last = input.find_last_not_of( " \t\n" );
-        return input.substr( pos_first != std::string::npos ? pos_first : 0, ( pos_last - pos_first ) + 1 );
-    };
+    const auto queues = std::span<const vk::DebugUtilsLabelEXT>{ data.pQueueLabels, data.queueLabelCount };
+    const auto cmdbufs = std::span<const vk::DebugUtilsLabelEXT>{ data.pCmdBufLabels, data.cmdBufLabelCount };
+    const auto objects = std::span<const vk::DebugUtilsObjectNameInfoEXT>{ data.pObjects, data.objectCount };
 
     fmt::format_to(
         oit,
@@ -78,24 +79,25 @@ defaultDebugCallback(
     vk::DebugUtilsMessageTypeFlagsEXT message_types,
     const vk::DebugUtilsMessengerCallbackDataEXT& callback_data )
 {
-    using msg_sev = vk::DebugUtilsMessageSeverityFlagBitsEXT;
 
     auto msg_str = assembleDebugMessage( message_types, callback_data );
-    if ( message_severity == msg_sev::eInfo )
+    switch ( message_severity )
     {
+    case MsgSev::eInfo:
         spdlog::info( msg_str );
-    } else if ( message_severity == msg_sev::eWarning )
-    {
+        break;
+    case MsgSev::eWarning:
         spdlog::warn( msg_str );
-    } else if ( message_severity == msg_sev::eVerbose )
-    {
+        break;
+    case MsgSev::eVerbose:
         spdlog::debug( msg_str );
-    } else if ( message_severity == msg_sev::eError )
-    {
+        break;
+    case MsgSev::eError:
         spdlog::error( msg_str );
-    } else
-    {
+        break;
+    default:
         assert( 0 && "[Debug]: Broken message severity enum" );
+        break;
     }
 
     return false;
@@ -108,7 +110,7 @@ DebugMessenger::debugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data )
 {
-    auto* func_ptr = static_cast<std::function<CallbackType>*>( user_data );
+    const auto* func_ptr = static_cast<DebugUtilsCallbackFunctionType*>( user_data );
 
     // NOTE[Sergei]: I'm not sure if callback_data ptr can be nullptr. Look here
     // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/PFN_vkDebugUtilsMessengerCallbackEXT.html
@@ -116,7 +118,17 @@ DebugMessenger::debugCallback(
     const auto severity = static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>( message_severity );
     const auto types = static_cast<vk::DebugUtilsMessageTypeFlagsEXT>( message_types );
     const auto data = *reinterpret_cast<const vk::DebugUtilsMessengerCallbackDataEXT*>( callback_data );
-    const auto result = ( *func_ptr )( severity, types, data );
+
+    bool result = true;
+    // When this function is used as a callback for instance creation debugging, user_data can't be used to pass
+    // custom callbacks. Thus, it is necessary to use the fallback callback.
+    if ( func_ptr )
+    {
+        result = ( *func_ptr )( severity, types, data );
+    } else
+    {
+        result = defaultDebugCallback( severity, types, data );
+    }
 
     return ( result ? VK_TRUE : VK_FALSE );
 } // DebugMessenger::debugCallback

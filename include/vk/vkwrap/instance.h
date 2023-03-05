@@ -3,6 +3,7 @@
 #include "common/utils.h"
 #include "common/vulkan_include.h"
 
+#include <range/v3/iterator.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view.hpp>
@@ -20,6 +21,7 @@
 #include <functional>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -51,6 +53,7 @@ struct InstanceImpl : protected vk::UniqueInstance
 
   public:
     using SupportsResult = std::pair<bool, std::vector<std::string>>;
+    using OptionalDebugCreateInfo = std::optional<vk::DebugUtilsMessengerCreateInfoEXT>;
 
     [[nodiscard]] static SupportsResult supportsExtensions( auto&& find )
     {
@@ -73,30 +76,27 @@ struct InstanceImpl : protected vk::UniqueInstance
     } // supportsLayers
 
   private:
-    BaseType createHandle(
-        VulkanVersion version,
-        const vk::ApplicationInfo* p_app_info,
-        auto&& extensions,
-        auto&& layers )
+    BaseType createHandle( VulkanVersion version, auto&& extensions, auto&& layers, OptionalDebugCreateInfo debug_info )
     {
         validateExtensionsLayers( extensions, layers );
-
         const auto app_info = vk::ApplicationInfo{ .apiVersion = utils::toUnderlying( version ) };
-        auto info_pointer = ( p_app_info ? p_app_info : &app_info );
-
         const auto raw_extensions = utils::convertToCStrVector( extensions );
         const auto raw_layers = utils::convertToCStrVector( layers );
+        const auto debug_info_ptr = debug_info ? &debug_info.value() : nullptr;
 
         const auto create_info = vk::InstanceCreateInfo{
-            .pApplicationInfo = info_pointer,
+            .pNext = static_cast<const void*>( debug_info_ptr ),
+            .pApplicationInfo = &app_info,
             .enabledLayerCount = static_cast<uint32_t>( raw_layers.size() ),
             .ppEnabledLayerNames = raw_layers.data(),
             .enabledExtensionCount = static_cast<uint32_t>( raw_extensions.size() ),
             .ppEnabledExtensionNames = raw_extensions.data(),
         };
 
-        return vk::createInstanceUnique( create_info );
-    }
+        auto instance = vk::createInstanceUnique( create_info );
+        VULKAN_HPP_DEFAULT_DISPATCHER.init( *instance );
+        return instance;
+    } // createHandle
 
     // Check that the instance actually supports requested extensions/layers and throw an informative error when it
     // doesn't.
@@ -121,14 +121,9 @@ struct InstanceImpl : protected vk::UniqueInstance
     } // validateExtensionsLayers
 
   public:
-    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
-    InstanceImpl(
-        VulkanVersion version,
-        const vk::ApplicationInfo* p_info = nullptr,
-        ExtType&& extensions = {},
-        LayerType&& layers = {} )
-        : BaseType{
-              createHandle( version, p_info, std::forward<ExtType>( extensions ), std::forward<LayerType>( layers ) ) }
+    template <typename Ext = ranges::empty_view<const char*>, typename Layer = ranges::empty_view<const char*>>
+    InstanceImpl( VulkanVersion version, Ext&& ext = {}, Layer&& layers = {}, OptionalDebugCreateInfo p_debug = {} )
+        : BaseType{ createHandle( version, std::forward<Ext>( ext ), std::forward<Layer>( layers ), p_debug ) }
     {
     }
 
@@ -144,7 +139,11 @@ struct InstanceImpl : protected vk::UniqueInstance
 class Instance : public IInstance, private detail::InstanceImpl
 {
   public:
-    using InstanceImpl::InstanceImpl;
+    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
+    Instance( VulkanVersion version, ExtType&& extensions = {}, LayerType&& layers = {} )
+        : InstanceImpl{ version, std::forward<ExtType>( extensions ), std::forward<LayerType>( layers ) }
+    {
+    }
 
     using InstanceImpl::get;
     using InstanceImpl::operator*;
@@ -174,16 +173,20 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
             ranges::views::unique | ranges::to<std::vector<std::string>>;
     } // addDebugUtilsExtension
 
+    static vk::DebugUtilsMessengerCreateInfoEXT makeDebugCreateInfo( DebugMessengerConfig debug_config )
+    {
+        return DebugMessenger::makeCreateInfo( debug_config.m_severity_flags, debug_config.m_type_flags );
+    } // makeDebugCreateInfo
+
   public:
     template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
     DebuggedInstance(
         VulkanVersion version,
-        const vk::ApplicationInfo* p_info = nullptr,
-        std::function<DebugMessenger::CallbackType> callback = defaultDebugCallback,
+        DebugMessengerConfig debug_config = {},
         ExtType&& extensions = {},
         LayerType&& layers = {} )
-        : InstanceImpl{ version, p_info, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ) },
-          DebugMessenger{ InstanceImpl::get(), callback }
+        : InstanceImpl{ version, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ), makeDebugCreateInfo( debug_config ) },
+          DebugMessenger{ InstanceImpl::get(), debug_config }
     {
     }
 
@@ -220,7 +223,7 @@ class GenericInstance final
     template <typename T, typename... Ts> static GenericInstance make( Ts&&... args )
     {
         return GenericInstance{ std::make_unique<T>( std::forward<Ts>( args )... ) };
-    }
+    } // make
 
     const vk::Instance& get() const& { return ( *m_handle ).get(); }
     vk::Instance& get() & { return ( *m_handle ).get(); }
@@ -231,5 +234,79 @@ class GenericInstance final
     operator bool() { return static_cast<bool>( get() ); } // Type coercion to check whether handle is not empty.
 
 }; // GenericInstance
+
+class InstanceBuilder
+{
+  private:
+    VulkanVersion m_version = VulkanVersion::e_version_1_0;
+    bool m_with_debug = false;
+
+    std::vector<std::string> m_extensions;
+    std::vector<std::string> m_layers;
+
+    DebugMessengerConfig m_debug_config;
+
+  private:
+    static constexpr auto k_validation_layer_name = "VK_LAYER_KHRONOS_validation";
+
+  private:
+    DebuggedInstance makeDebugInstance() const
+    {
+        return DebuggedInstance{ m_version, m_debug_config, m_extensions, m_layers };
+    } // makeDebugInstance
+
+    Instance makeInstance() const { return Instance{ m_version, m_extensions, m_layers }; }
+
+  public:
+    InstanceBuilder() = default;
+
+    GenericInstance make() const
+    {
+        if ( m_with_debug )
+        {
+            return makeDebugInstance();
+        }
+        return makeInstance();
+    } // make
+
+    InstanceBuilder& withDebugMessenger() &
+    {
+        m_with_debug = true;
+        return *this;
+    } // withDebugMessenger
+
+    InstanceBuilder& withValidationLayers() &
+    {
+        m_layers.push_back( k_validation_layer_name );
+        return *this;
+    } // withValidationLayers
+
+    InstanceBuilder& withCallback(
+        DebugUtilsCallbackFunctionType func,
+        vk::DebugUtilsMessageSeverityFlagsEXT severity_flags = k_default_severity_flags,
+        vk::DebugUtilsMessageTypeFlagsEXT type_flags = k_default_type_flags ) &
+    {
+        m_debug_config = DebugMessengerConfig{ func, severity_flags, type_flags };
+        return *this;
+    } // withCallback
+
+    InstanceBuilder& withExtensions( auto&& extensions ) &
+    {
+        ranges::copy( extensions, ranges::back_inserter( m_extensions ) );
+        return *this;
+    } // withExtensions
+
+    InstanceBuilder& withLayers( auto&& layers ) &
+    {
+        ranges::copy( layers, ranges::back_inserter( m_layers ) );
+        return *this;
+    } // withLayers
+
+    InstanceBuilder& withVersion( VulkanVersion version ) &
+    {
+        m_version = version;
+        return *this;
+    } // withVersion
+};
 
 } // namespace vkwrap

@@ -17,6 +17,12 @@ enum class VulkanVersion : uint32_t
     e_version_1_3 = VK_MAKE_API_VERSION( 0, 1, 3, 0 ),
 }; // VulkanVersion
 
+// Call this to load instance/device independent functions. Do not call any vulkan function before calling this.
+// Note[Sergei]: It is way more convenient to use default Dynamic Dispatch in <vulkan.hpp> instead of passing a separate
+// loader everywhere.
+void
+initializeLoader();
+
 } // namespace vkwrap
 
 #include "vkwrap/error.h"

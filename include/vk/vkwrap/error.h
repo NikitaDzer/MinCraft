@@ -24,7 +24,7 @@ enum class UnsupportedTag
 {
     e_unsupported_extension,
     e_unsupported_layer,
-};
+}; // UnsupportedTag
 
 constexpr std::string_view
 unsupportedTagToStr( UnsupportedTag tag )
@@ -35,10 +35,10 @@ unsupportedTagToStr( UnsupportedTag tag )
         return "Extension";
     case UnsupportedTag::e_unsupported_layer:
         return "Layer";
+    default:
+        assert( 0 && "[Debug]: Broken UnsupportedTag enum" );
     }
-
-    assert( 0 && "Broken UnsupportedTag enum" );
-}
+} // unsupportedTagToStr
 
 struct UnsupportedEntry
 {

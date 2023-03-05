@@ -6,6 +6,7 @@
 #include "common/vulkan_include.h"
 #include "vkwrap/instance.h"
 
+#include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
 
 #include <algorithm>
@@ -98,30 +99,31 @@ try
     using vkwrap::DebuggedInstance;
     using vkwrap::GenericInstance;
 
+    spdlog::cfg::load_env_levels();
+    // Use `export SPDLOG_LEVEL=debug` to set maximum logging level
+    // Or `export SPDLOG_LEVEL=warn` to print only warnings and errors
+
+    vkwrap::initializeLoader(); // Load basic functions that are instance independent
+
     auto counting_functor = std::make_shared<CountingCallback>();
     auto callback = [ counting_functor ]( auto sev, auto type, auto data ) -> bool // Capture by shared ptr by value
     {
         return counting_functor->operator()( sev, type, data );
     };
 
-    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
+    auto instance_builder = vkwrap::InstanceBuilder{};
+    instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 )
+        .withDebugMessenger()
+        .withValidationLayers()
+        .withCallback( callback );
 
     // This assert is for testing purposes.
+    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
     assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
-    auto debugged_instance = DebuggedInstance{
-        vkwrap::VulkanVersion::e_version_1_3,
-        nullptr,
-        callback,
-        {}, // Use different types of string for testing
-        layers,
-    };
-
-    assert( debugged_instance && "Checking that instance was actually created" );
-    auto instance = GenericInstance{ std::move( debugged_instance ) };
+    auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
 
     auto physical_devices = instance->enumeratePhysicalDevices();
-
     for ( auto&& device : physical_devices )
     {
         printPhysicalDeviceProperties( device );
