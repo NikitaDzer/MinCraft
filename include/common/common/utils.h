@@ -28,6 +28,18 @@ findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
     return result;
 } // clang-format on
 
+// Overload with different templates parameters to specify the type of the return vector.
+template <typename T, typename AllRange, typename FindRange, typename Proj>
+auto
+findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
+{ // clang-format off
+    auto result = ranges::views::remove_if(
+        find,
+        [ &all, &proj ]( auto&& elem ) { return ranges::contains( all, elem, proj ); } 
+    ) | ranges::to<std::vector<T>>;
+    return result;
+} // clang-format on
+
 // Replacement for yet unimplemented C++23 to_underlying
 constexpr auto
 toUnderlying( auto val ) -> std::underlying_type_t<decltype( val )>

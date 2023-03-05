@@ -52,27 +52,25 @@ struct InstanceImpl : protected vk::UniqueInstance
     using BaseType = vk::UniqueInstance;
 
   public:
-    using SupportsResult = std::pair<bool, std::vector<std::string>>;
     using OptionalDebugCreateInfo = std::optional<vk::DebugUtilsMessengerCreateInfoEXT>;
 
     [[nodiscard]] static SupportsResult supportsExtensions( auto&& find )
     {
         const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
-        using ElemType = typename decltype( supported_extensions )::value_type;
-        const auto missing_extensions = utils::findAllMissing( supported_extensions, find, []( auto&& ext ) {
-            return std::string_view{ ext.extensionName };
-        } );
-        return std::make_pair( missing_extensions.empty(), missing_extensions | ranges::to<std::vector<std::string>> );
+        const auto missing_extensions =
+            utils::findAllMissing<std::string>( supported_extensions, find, []( auto&& ext ) {
+                return std::string_view{ ext.extensionName };
+            } );
+        return { missing_extensions.empty(), missing_extensions };
     } // supportsExtensions
 
     [[nodiscard]] static SupportsResult supportsLayers( auto&& find )
     {
         const auto supported_layers = vk::enumerateInstanceLayerProperties();
-        using ElemType = typename decltype( supported_layers )::value_type;
-        const auto missing_layers = utils::findAllMissing( supported_layers, find, []( auto&& layer ) {
+        const auto missing_layers = utils::findAllMissing<std::string>( supported_layers, find, []( auto&& layer ) {
             return std::string_view{ layer.layerName };
         } );
-        return std::make_pair( missing_layers.empty(), missing_layers | ranges::to<std::vector<std::string>> );
+        return { missing_layers.empty(), missing_layers };
     } // supportsLayers
 
   private:
@@ -155,7 +153,6 @@ class Instance : public IInstance, private detail::InstanceImpl
 
     using InstanceImpl::supportsExtensions;
     using InstanceImpl::supportsLayers;
-    using InstanceImpl::SupportsResult;
 }; // Instance
 
 // Instance wrapper that provides a VkDebugUtilsExt debug messenger with configurable callback.
@@ -199,7 +196,6 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
 
     using InstanceImpl::supportsExtensions;
     using InstanceImpl::supportsLayers;
-    using InstanceImpl::SupportsResult;
     using InstanceImpl::operator bool;
 }; // DebuggedInstance
 

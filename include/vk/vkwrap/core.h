@@ -5,6 +5,9 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace vkwrap
 {
@@ -22,6 +25,8 @@ enum class VulkanVersion : uint32_t
 // loader everywhere.
 void
 initializeLoader();
+
+using SupportsResult = std::pair<bool, std::vector<std::string>>;
 
 } // namespace vkwrap
 

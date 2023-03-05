@@ -4,7 +4,9 @@
 
 #include "common/utils.h"
 #include "common/vulkan_include.h"
+
 #include "vkwrap/instance.h"
+#include "vkwrap/selectors/pdev.h"
 
 #include <spdlog/fmt/bundled/core.h>
 
@@ -33,7 +35,7 @@ versionToString( uint32_t version )
 } // versionToString
 
 void
-printPhysicalDeviceProperties( vk::PhysicalDevice device )
+printPhysicalDeviceProperties( auto&& device )
 {
     const auto extensions = device.enumerateDeviceExtensionProperties();
     const auto properties = device.getProperties();
@@ -118,7 +120,10 @@ try
     auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
 
-    auto physical_devices = instance->enumeratePhysicalDevices();
+    auto physical_devices = vkwrap::enumerateSuitablePhysicalDevices(
+        instance.get(),
+        vkwrap::VulkanVersion::e_version_1_0,
+        ranges::empty_view<const char*>{} );
     for ( auto&& device : physical_devices )
     {
         printPhysicalDeviceProperties( device );
