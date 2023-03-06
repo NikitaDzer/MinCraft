@@ -10,6 +10,8 @@
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/range.hpp>
 
+#include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace utils
@@ -17,21 +19,22 @@ namespace utils
 
 // Algorithm to find all elements from `find` range of type FindRange that are not contained in `all`. Return a vector
 // of type range_value_t<FindRange>;
-template <typename AllRange, typename FindRange, typename Proj>
+template <ranges::range AllRange, ranges::range FindRange, typename Proj>
 auto
-findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
-{ // clang-format off
-    auto result = ranges::views::remove_if(
-        find,
-        [ &all, &proj ]( auto&& elem ) { return ranges::contains( all, elem, proj ); } 
-    ) | ranges::to_vector;
-    return result;
-} // clang-format on
+findAllMissing( AllRange&& all, FindRange&& find, Proj&& proj )
+{
+    return findAllMissing<ranges::range_value_t<std::remove_reference_t<FindRange>>>(
+        std::forward<AllRange>( all ),
+        std::forward<FindRange>( find ),
+        std::forward<Proj>( proj ) //
+    );
+}
 
 // Overload with different templates parameters to specify the type of the return vector.
-template <typename T, typename AllRange, typename FindRange, typename Proj>
+template <typename T, ranges::range AllRange, ranges::range FindRange, typename Proj>
+    requires std::convertible_to<ranges::range_value_t<FindRange>, T>
 auto
-findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
+findAllMissing( AllRange&& all, FindRange&& find, Proj&& proj )
 { // clang-format off
     auto result = ranges::views::remove_if(
         find,
@@ -58,10 +61,10 @@ concept convertibleToCStrRange = requires ()
 
 // Overload set with concepts. If the range elements can be coerced into const char *, then we assume they are c-style
 // null-terminated strings and project those into a vector
-template <typename T>
+template <ranges::contiguous_range T>
 constexpr auto
 convertToCStrVector( T&& range )
-    requires ranges::contiguous_range<T> && std::convertible_to<ranges::range_value_t<T>, const char*>
+    requires std::convertible_to<ranges::range_value_t<T>, const char*>
 {
     return range | ranges::views::transform( []( auto&& a ) { return static_cast<const char*>( a ); } ) |
         ranges::to_vector; // Eager conversion to std::vector<const char *>
@@ -70,7 +73,7 @@ convertToCStrVector( T&& range )
 // Convert a range of std::string-like objects into a vector of const char * to null-terminated strings.
 // Range member type should have a .c_str member function. Note that std::string_view can't be used because it does not
 // guarantee that the underlying buffer is null-terminated.
-template <typename T>
+template <ranges::range T>
 constexpr auto
 convertToCStrVector( T&& range )
     requires convertibleToCStrRange<T>
