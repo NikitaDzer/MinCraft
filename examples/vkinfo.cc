@@ -5,6 +5,7 @@
 #include "common/utils.h"
 #include "common/vulkan_include.h"
 #include "vkwrap/instance.h"
+#include "window/window.h"
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
@@ -130,6 +131,16 @@ try
     }
 
     fmt::print( "Number of callbacks = {}\n", counting_functor->m_call_count );
+
+    wnd::WindowManager::initialize();
+    wnd::Window window1{};
+
+    while ( window1.running() )
+    {
+        glfwPollEvents();
+    }
+
+
 } catch ( vkwrap::UnsupportedError& e )
 {
     fmt::print( "Unsupported error: {}\n", e.what() );

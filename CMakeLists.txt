@@ -63,8 +63,16 @@ target_link_libraries( vkwrap range-v3 spdlog )
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
+add_library( window
+    include/glfw/window/window.h
+    include/glfw/window/error.h  )
+target_include_directories( window PUBLIC include/glfw include/common )
+target_link_libraries( window glfw spdlog )
+target_enable_linter( window)
+target_compile_features( window PUBLIC cxx_std_20 )
+
 add_executable ( vkinfo examples/vkinfo.cc )
 target_include_directories ( vkinfo PRIVATE include/common )
-target_link_libraries( vkinfo PRIVATE glfw Vulkan::Vulkan vkwrap )
+target_link_libraries( vkinfo PRIVATE glfw Vulkan::Vulkan vkwrap window )
 target_enable_linter ( vkinfo )
 target_compile_features ( vkinfo PUBLIC cxx_std_20 )
