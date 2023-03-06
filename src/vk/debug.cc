@@ -9,7 +9,7 @@
 #include <span>
 #include <string>
 
-namespace vkwrap
+namespace vkwrap::debug
 {
 
 static std::string
@@ -133,4 +133,4 @@ DebugMessenger::debugCallback(
     return ( result ? VK_TRUE : VK_FALSE );
 } // DebugMessenger::debugCallback
 
-} // namespace vkwrap
+} // namespace vkwrap::debug

@@ -13,7 +13,7 @@
 #include <string_view>
 #include <utility>
 
-namespace vkwrap
+namespace vkwrap::debug
 {
 
 using MsgSev = vk::DebugUtilsMessageSeverityFlagBitsEXT;
@@ -90,4 +90,4 @@ class DebugMessenger
     operator bool() const { return m_handle.get(); }
 }; // DebugMessenger
 
-} // namespace vkwrap
+} // namespace vkwrap::debug

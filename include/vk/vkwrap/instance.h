@@ -160,7 +160,7 @@ class Instance : public IInstance, private detail::InstanceImpl
 }; // Instance
 
 // Instance wrapper that provides a VkDebugUtilsExt debug messenger with configurable callback.
-class DebuggedInstance : public IInstance, private detail::InstanceImpl, private DebugMessenger
+class DebuggedInstance : public IInstance, private detail::InstanceImpl, private debug::DebugMessenger
 {
   private:
     static constexpr auto k_debug_utils_ext_name =
@@ -174,7 +174,7 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
             ranges::views::unique | ranges::to<std::vector<std::string>>;
     } // addDebugUtilsExtension
 
-    static vk::DebugUtilsMessengerCreateInfoEXT makeDebugCreateInfo( DebugMessengerConfig debug_config )
+    static vk::DebugUtilsMessengerCreateInfoEXT makeDebugCreateInfo( debug::DebugMessengerConfig debug_config )
     {
         return DebugMessenger::makeCreateInfo( debug_config.m_severity_flags, debug_config.m_type_flags );
     } // makeDebugCreateInfo
@@ -185,7 +185,7 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
         ranges::range LayerType = ranges::empty_view<const char*>>
     DebuggedInstance(
         VulkanVersion version,
-        DebugMessengerConfig debug_config = {},
+        debug::DebugMessengerConfig debug_config = {},
         ExtType&& extensions = {},
         LayerType&& layers = {} )
         : InstanceImpl{ version, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ), makeDebugCreateInfo( debug_config ) },
@@ -246,7 +246,7 @@ class InstanceBuilder
     std::vector<std::string> m_extensions;
     std::vector<std::string> m_layers;
 
-    DebugMessengerConfig m_debug_config;
+    debug::DebugMessengerConfig m_debug_config;
 
   private:
     static constexpr auto k_validation_layer_name = "VK_LAYER_KHRONOS_validation";
@@ -284,11 +284,11 @@ class InstanceBuilder
     } // withValidationLayers
 
     InstanceBuilder& withCallback(
-        DebugUtilsCallbackFunctionType func,
-        vk::DebugUtilsMessageSeverityFlagsEXT severity_flags = k_default_severity_flags,
-        vk::DebugUtilsMessageTypeFlagsEXT type_flags = k_default_type_flags ) &
+        debug::DebugUtilsCallbackFunctionType func,
+        vk::DebugUtilsMessageSeverityFlagsEXT severity_flags = debug::k_default_severity_flags,
+        vk::DebugUtilsMessageTypeFlagsEXT type_flags = debug::k_default_type_flags ) &
     {
-        m_debug_config = DebugMessengerConfig{ func, severity_flags, type_flags };
+        m_debug_config = debug::DebugMessengerConfig{ func, severity_flags, type_flags };
         return *this;
     } // withCallback
 
