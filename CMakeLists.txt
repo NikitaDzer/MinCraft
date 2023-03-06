@@ -53,13 +53,14 @@ function ( add_spirv_shader TARGET_NAME INPUT_FILE )
 endfunction ()
 
 set ( VKWRAP_SOURCES
+    src/glfw.cc
     src/vk/debug.cc
     src/vk/loader.cc
 )
 
 add_library( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories( vkwrap PUBLIC include/vk include/common )
-target_link_libraries( vkwrap range-v3 spdlog )
+target_link_libraries( vkwrap range-v3 spdlog glfw)
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
