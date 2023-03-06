@@ -54,7 +54,7 @@ struct InstanceImpl : protected vk::UniqueInstance
   public:
     using OptionalDebugCreateInfo = std::optional<vk::DebugUtilsMessengerCreateInfoEXT>;
 
-    [[nodiscard]] static SupportsResult supportsExtensions( auto&& find )
+    template <ranges::range Range> [[nodiscard]] static SupportsResult supportsExtensions( Range&& find )
     {
         const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
         const auto missing_extensions =
@@ -64,7 +64,7 @@ struct InstanceImpl : protected vk::UniqueInstance
         return { missing_extensions.empty(), missing_extensions };
     } // supportsExtensions
 
-    [[nodiscard]] static SupportsResult supportsLayers( auto&& find )
+    template <ranges::range Range> [[nodiscard]] static SupportsResult supportsLayers( Range&& find )
     {
         const auto supported_layers = vk::enumerateInstanceLayerProperties();
         const auto missing_layers = utils::findAllMissing<std::string>( supported_layers, find, []( auto&& layer ) {
@@ -119,7 +119,9 @@ struct InstanceImpl : protected vk::UniqueInstance
     } // validateExtensionsLayers
 
   public:
-    template <typename Ext = ranges::empty_view<const char*>, typename Layer = ranges::empty_view<const char*>>
+    template <
+        ranges::range Ext = ranges::empty_view<const char*>,
+        ranges::range Layer = ranges::empty_view<const char*>>
     InstanceImpl( VulkanVersion version, Ext&& ext = {}, Layer&& layers = {}, OptionalDebugCreateInfo p_debug = {} )
         : BaseType{ createHandle( version, std::forward<Ext>( ext ), std::forward<Layer>( layers ), p_debug ) }
     {
@@ -137,7 +139,9 @@ struct InstanceImpl : protected vk::UniqueInstance
 class Instance : public IInstance, private detail::InstanceImpl
 {
   public:
-    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
+    template <
+        ranges::range ExtType = ranges::empty_view<const char*>,
+        ranges::range LayerType = ranges::empty_view<const char*>>
     Instance( VulkanVersion version, ExtType&& extensions = {}, LayerType&& layers = {} )
         : InstanceImpl{ version, std::forward<ExtType>( extensions ), std::forward<LayerType>( layers ) }
     {
@@ -176,7 +180,9 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
     } // makeDebugCreateInfo
 
   public:
-    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
+    template <
+        ranges::range ExtType = ranges::empty_view<const char*>,
+        ranges::range LayerType = ranges::empty_view<const char*>>
     DebuggedInstance(
         VulkanVersion version,
         DebugMessengerConfig debug_config = {},
@@ -286,13 +292,13 @@ class InstanceBuilder
         return *this;
     } // withCallback
 
-    InstanceBuilder& withExtensions( auto&& extensions ) &
+    template <ranges::range Range> InstanceBuilder& withExtensions( Range&& extensions ) &
     {
         ranges::copy( extensions, ranges::back_inserter( m_extensions ) );
         return *this;
     } // withExtensions
 
-    InstanceBuilder& withLayers( auto&& layers ) &
+    template <ranges::range Range> InstanceBuilder& withLayers( Range&& layers ) &
     {
         ranges::copy( layers, ranges::back_inserter( m_layers ) );
         return *this;

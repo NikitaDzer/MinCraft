@@ -25,7 +25,7 @@ class PhysicalDevice : private vk::PhysicalDevice
     {
     }
 
-    [[nodiscard]] SupportsResult supportsExtensions( auto&& extensions )
+    template <ranges::range Range> [[nodiscard]] SupportsResult supportsExtensions( Range&& extensions )
     {
         const auto supported_extensions = vk::PhysicalDevice::enumerateDeviceExtensionProperties();
         auto missing = utils::findAllMissing<std::string>( supported_extensions, extensions, []( auto&& a ) {
@@ -52,7 +52,7 @@ class PhysicalDevice : private vk::PhysicalDevice
     using vk::PhysicalDevice::operator bool;
 };
 
-template <typename ExtType = ranges::empty_view<const char*>>
+template <ranges::range ExtType = ranges::empty_view<const char*>>
 std::vector<PhysicalDevice>
 enumerateSuitablePhysicalDevices( const vk::Instance& instance, VulkanVersion version, ExtType&& extensions )
 {
