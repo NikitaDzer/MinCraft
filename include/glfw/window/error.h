@@ -2,23 +2,24 @@
 
 #include <stdexcept>
 
-namespace wnd 
+namespace wnd
 {
 
 class Error : public std::runtime_error
 {
 
-private:
+  private:
     int m_error_code;
 
-public:
-    // We can use is for our purposes because glfw don't throw 0 error code.
+  public:
+    // We can use is it for our purposes because glfw doesn't throw 0 error code.
     static constexpr int k_user_error = 0;
 
-    Error( int error_code, std::string description ):
-        std::runtime_error( description ),
-        m_error_code( error_code )
-    {}
+    Error( int error_code, std::string description )
+        : std::runtime_error( description ),
+          m_error_code( error_code )
+    {
+    }
 
     int getErrorCode() const { return m_error_code; }
 }; // class Error

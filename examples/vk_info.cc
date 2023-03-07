@@ -131,16 +131,6 @@ try
     }
 
     fmt::print( "Number of callbacks = {}\n", counting_functor->m_call_count );
-
-    wnd::WindowManager::initialize();
-    wnd::Window window1{};
-
-    while ( window1.running() )
-    {
-        glfwPollEvents();
-    }
-
-
 } catch ( vkwrap::UnsupportedError& e )
 {
     fmt::print( "Unsupported error: {}\n", e.what() );
