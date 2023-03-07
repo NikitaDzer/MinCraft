@@ -12,6 +12,7 @@ private:
     int m_error_code;
 
 public:
+    // We can use is for our purposes because glfw don't throw 0 error code.
     static constexpr int k_user_error = 0;
 
     Error( int error_code, std::string description ):
