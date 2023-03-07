@@ -40,9 +40,9 @@ getHandleAddressString( const Window* window )
 
 void
 logGLFWaction(
-    std::string&& action,
-    std::string&& handleAddressString = {},
-    std::string&& additional = {} //
+    const std::string& action,
+    const std::string& handleAddressString = {},
+    const std::string& additional = {} //
 )
 {
     std::string output = "GLFW " + action + ".";
