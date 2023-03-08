@@ -13,8 +13,6 @@
 
 #pragma once
 
-#include <GLFW/glfw3.h>
-
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -22,6 +20,7 @@
 #include <spdlog/spdlog.h>
 #include <string>
 
+#include "common/glfw_include.h"
 #include "error.h"
 
 namespace wnd
@@ -41,10 +40,13 @@ using WindowResizeCallbackSignature = void(
     int height //
 );
 
-using ErrorCallbackSignature = void(
-    int error_code,
-    const char* description //
-);
+struct WindowAPIversion
+{
+    int major;
+    int minor;
+
+    auto operator<=>( const WindowAPIversion& ) const = default;
+}; // WindowAPIversion
 
 struct WindowConfig
 {
@@ -53,18 +55,22 @@ struct WindowConfig
     const char* title = k_default_title;
     const bool fullscreen = k_default_fullscreen;
 
-    std::function<WindowResizeCallbackSignature> resize_callback = k_default_resize_callback;
+    std::function<WindowResizeCallbackSignature> resize_callback = defaultResizeCallback;
 
     static constexpr int k_default_width = 640;
     static constexpr int k_default_height = 480;
     static constexpr char k_default_title[] = "MinCraft";
     static constexpr bool k_default_fullscreen = false;
 
-    static inline const std::function<WindowResizeCallbackSignature> k_default_resize_callback =
-        []( Window* window, int width, int height ) {
-            spdlog::warn( "No resize callback is set." );
-        };
-}; // struct WindowConfig
+    static void defaultResizeCallback(
+        Window* window,
+        int width,
+        int height //
+    )
+    {
+        spdlog::warn( "No resize callback is set." );
+    } // defaultResizeCallback
+};    // struct WindowConfig
 
 class Window
 {
@@ -100,30 +106,30 @@ class Window
 
   public:
     Window( const WindowConfig& config = {} )
-        : m_handle( createWindow( config, this ), destroyWindow ),
-          m_resize_callback( config.resize_callback )
+        : m_handle{ createWindow( config, this ), destroyWindow },
+          m_resize_callback{ config.resize_callback }
     {
     }
 
-    WindowType* get() const& noexcept { return m_handle.get(); }
+    WindowType* get() const noexcept { return m_handle.get(); }
 
     // Call permissions: any thread.
-    bool running() const& { return !glfwWindowShouldClose( m_handle.get() ); }
+    bool running() const { return !glfwWindowShouldClose( m_handle.get() ); }
 
     // Call permissions: main thread.
-    FramebufferSizeType getFramebufferSize() const&;
+    FramebufferSizeType getFramebufferSize() const;
 
     // Call permissions: main thread.
-    int getFramebufferWidth() const& { return getFramebufferSize().first; }
+    int getFramebufferWidth() const { return getFramebufferSize().first; }
 
     // Call permissions: main thread.
-    int getFramebufferHeight() const& { return getFramebufferSize().second; }
+    int getFramebufferHeight() const { return getFramebufferSize().second; }
 
     // Call permissions: main thread.
-    void setWindowed() const&;
+    void setWindowed() const;
 
     // Call permissions: main thread.
-    void setFullscreen() const&;
+    void setFullscreen() const;
 
 }; // class Window
 
@@ -131,31 +137,26 @@ class WindowManager
 {
 
   private:
-    static constexpr int k_min_major = 3;
-    static constexpr int k_min_minor = 3;
+    using ErrorCallbackSignature = void(
+        int error_code,
+        const char* description //
+    );
 
     WindowManager( ErrorCallbackSignature* error_callback );
-
     ~WindowManager();
-
-    static void defaultErrorCallback( int error_code, const char* description )
-    {
-        throw Error( error_code, description );
-    } // defaultErrorCallback
 
     static bool isSuitableVersion();
 
   public:
-    static const std::string getMinVersionString()
-    {
-        return std::to_string( k_min_major ) + "." + std::to_string( k_min_minor );
-    } // getMinVersionString
+    static constexpr WindowAPIversion k_api_min_version{ .major = 3, .minor = 3 };
 
     // Call permissions: main thread.
-    static void initialize( ErrorCallbackSignature* error_callback = defaultErrorCallback );
+    static void initialize();
 
     // Call permission: any thread, after WindowManager::initialize.
-    static std::span<std::string_view> getRequiredExtensions();
+    static std::span<const char*> getRequiredExtensions();
+
+    static const std::string getMinVersionString();
 
 }; // class WindowManager
 

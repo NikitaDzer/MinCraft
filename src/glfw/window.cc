@@ -1,5 +1,6 @@
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <string>
 
@@ -35,7 +36,7 @@ setWindowHints()
 std::string
 getHandleAddressString( const Window* window )
 {
-    return std::to_string( reinterpret_cast<uint64_t>( window ) );
+    return std::to_string( std::bit_cast<uintptr_t>( window ) );
 } // getHandleAddressString
 
 void
@@ -45,23 +46,32 @@ logGLFWaction(
     const std::string& additional = {} //
 )
 {
-    std::string output = "GLFW " + action + ".";
+    std::string output = fmt::format( "GLFW {}.", action );
+    auto oit = std::back_inserter( output );
 
     if ( !handleAddressString.empty() )
     {
-        // clang-format off
-        output += "\n"
-                  "Handle = " + handleAddressString;
-        // clang-format on
+        fmt::format_to( oit, "\nHandle = {}", handleAddressString );
 
         if ( !additional.empty() )
         {
-            output += ", " + additional + ".";
+            fmt::format_to( oit, ", {}", additional );
         }
     }
 
+    fmt::format_to( oit, "." );
+
     spdlog::info( output );
 } // logGLFWaction
+
+void
+errorCallback(
+    int error_code,
+    const char* description //
+)
+{
+    throw Error{ error_code, description };
+} // errorCallback
 
 } // namespace
 
@@ -123,18 +133,18 @@ Window::framebufferSizeCallback(
 } // framebufferSizeCallback
 
 FramebufferSizeType
-Window::getFramebufferSize() const&
+Window::getFramebufferSize() const
 {
     int width = 0;
     int height = 0;
 
     glfwGetFramebufferSize( m_handle.get(), &width, &height );
 
-    return std::make_pair( width, height );
+    return { width, height };
 } // getFramebufferSize
 
 void
-Window::setWindowed() const&
+Window::setWindowed() const
 {
     constexpr int xpos = 0;
     constexpr int ypos = 0;
@@ -155,15 +165,15 @@ Window::setWindowed() const&
 } // setWindowed
 
 void
-Window::setFullscreen() const&
+Window::setFullscreen() const
 {
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
 
     glfwSetWindowMonitor(
         m_handle.get(),
         monitor,
-        0,
-        0,
+        GLFW_DONT_CARE,
+        GLFW_DONT_CARE,
         getFramebufferWidth(),
         getFramebufferHeight(),
         GLFW_DONT_CARE );
@@ -189,45 +199,41 @@ WindowManager::~WindowManager()
 bool
 WindowManager::isSuitableVersion()
 {
-    int major = 0;
-    int minor = 0;
+    WindowAPIversion version{};
 
-    glfwGetVersion( &major, &minor, nullptr );
+    glfwGetVersion( &version.major, &version.minor, nullptr );
 
-    if ( major > k_min_major )
-    {
-        return true;
-    }
-
-    if ( major == k_min_major && minor >= k_min_minor )
-    {
-        return true;
-    }
-
-    return false;
+    return version >= WindowManager::k_api_min_version;
 } // isSuitableVersion
 
 void
-WindowManager::initialize( ErrorCallbackSignature* error_callback )
+WindowManager::initialize()
 {
-    static WindowManager instance( error_callback );
+    static WindowManager instance{ errorCallback };
 
     if ( !isSuitableVersion() )
     {
-        throw Error(
+        throw Error{
             Error::k_user_error,
             "GLFW minimal version: " + getMinVersionString() + "." //
-        );
+        };
     }
 } // initialize
 
-std::span<std::string_view>
+std::span<const char*>
 WindowManager::getRequiredExtensions()
 {
     uint32_t size = 0;
     const char** extensions = glfwGetRequiredInstanceExtensions( &size );
 
-    static std::vector<std::string_view> vectorized{ extensions, extensions + size };
-
-    return vectorized;
+    return std::span<const char*>{ extensions, extensions + size };
 } // getRequiredExtensions
+
+const std::string
+WindowManager::getMinVersionString()
+{
+    constexpr int major = WindowManager::k_api_min_version.major;
+    constexpr int minor = WindowManager::k_api_min_version.minor;
+
+    return std::to_string( major ) + "." + std::to_string( minor );
+} // getMinVersionString

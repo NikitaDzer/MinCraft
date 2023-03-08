@@ -1,6 +1,6 @@
-#include <GLFW/glfw3.h>
 #include <spdlog/cfg/env.h>
 
+#include "common/glfw_include.h"
 #include "window/window.h"
 
 int
@@ -20,7 +20,7 @@ try
     }
     // clang-format on
 
-    wnd::Window window( { .title = "Mincraft V2" } );
+    wnd::Window window{ { .title = "Mincraft V2" } };
 
     while ( window.running() )
     {
