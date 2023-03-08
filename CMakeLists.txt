@@ -77,6 +77,7 @@ target_compile_features ( window PUBLIC cxx_std_20 )
 
 set ( CHUNK_SOURCES
     src/chunk/region.cc
+    src/chunk/chunk_gen.cc
 )
 
 add_library( chunk ${CHUNK_SOURCES} )

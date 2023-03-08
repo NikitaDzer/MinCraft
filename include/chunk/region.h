@@ -9,6 +9,9 @@ namespace chunk
 /**
  * Class containing hash function for std::unordered_map
  */
+
+namespace detail
+{
 struct ChunkHasher
 {
     std::size_t operator()( const pos::ChunkPos& chunk_pos ) const
@@ -17,6 +20,7 @@ struct ChunkHasher
         return hasher( int64_t( chunk_pos ) );
     }
 };
+} // namespace detail
 
 /**
  * Class that contains all block ides and manage the chunks
@@ -25,7 +29,7 @@ struct ChunkHasher
 class Region
 {
   public:
-    using ChunkMap = std::unordered_map<pos::ChunkPos, Chunk, ChunkHasher>;
+    using ChunkMap = std::unordered_map<pos::ChunkPos, Chunk, detail::ChunkHasher>;
     using BlockIDPtr = std::unique_ptr<BlockID[]>;
 
   public:
@@ -43,11 +47,11 @@ class Region
     }
 
     Chunk& getChunk( const pos::ChunkPos& pos );
-    pos::ChunkPos& getBeginPos() { return m_begin_pos; }
-    pos::ChunkPos getBeginPos() const { return m_begin_pos; }
+    pos::ChunkPos& getOriginPos() { return m_origin_pos; }
+    const pos::ChunkPos& getOriginPos() const { return m_origin_pos; }
 
-    // Change the region begin position ( the new_begin is the chunk, where the player is )
-    void changeBeginPos( const pos::ChunkPos& new_begin );
+    // Change the region origin position ( the new_origin is the chunk, where the player is )
+    void changeOriginPos( const pos::ChunkPos& new_origin );
 
   public:
     // Max chunks that can be viewed by the player
@@ -59,13 +63,12 @@ class Region
   private:
     /// [krisszzz] This constructor should be changed in the future
     /// because of chunk serialization ( working with file, etc.. )
-    Region( const pos::ChunkPos& begin_pos );
+    Region( const pos::ChunkPos& origin_pos );
 
   private:
-    pos::ChunkPos m_begin_pos;
+    pos::ChunkPos m_origin_pos;
     ChunkMap m_chunks;
-    // std::unordered_map<pos::ChunkPos, BlockID*> m_chunks;
     BlockIDPtr m_block_ides;
-};
+}; // class Region
 
 }; // namespace chunk

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/pos.h"
+#include "position/position.h"
 #include <cassert>
 #include <cstdint>
 #include <unordered_map>
@@ -10,12 +10,12 @@ namespace chunk
 
 enum class BlockID : uint16_t
 {
-#define REGISTER_BLOCK( block_name, value ) k_##block_name = value,
+#define REGISTER_BLOCK( block_name, ... ) k_##block_name,
 
-#include "common/block_id.macro.h"
+#include "chunk/block_id.inc"
 
 #undef REGISTER_BLOCK
-};
+}; // enum class BlockID
 
 class Chunk
 {
@@ -23,22 +23,22 @@ class Chunk
     Chunk( BlockID* chunk_begin )
         : m_chunk_begin( chunk_begin ){};
 
-    BlockID operator[]( int indx ) const
+    const BlockID& operator[]( int index ) const
     {
         assert( indx < k_block_count );
-        return m_chunk_begin[ indx ];
+        return m_chunk_begin[ index ];
     }
 
-    BlockID operator[]( const pos::LocalBlockPos& pos ) const
+    const BlockID& operator[]( const pos::LocalBlockPos& pos ) const
     {
         assert( pos.getX() < k_max_width_length && pos.getY() < k_max_width_length );
         return m_chunk_begin[ k_max_width_length * k_max_height * pos.getX() + k_max_height * pos.getY() + pos.getZ() ];
     }
 
-    BlockID& operator[]( int indx )
+    BlockID& operator[]( int index )
     {
         assert( indx < k_block_count );
-        return m_chunk_begin[ indx ];
+        return m_chunk_begin[ index ];
     }
 
     BlockID& operator[]( const pos::LocalBlockPos& pos )
@@ -57,6 +57,5 @@ class Chunk
   private:
     // Pointer to the raw block ides in the array
     BlockID* m_chunk_begin;
-};
-
+}; // class Chunk
 }; // namespace chunk

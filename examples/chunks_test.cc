@@ -16,9 +16,11 @@ main()
     // Move "forward" ( along the Y axis )
     for ( int i = 0; i <= 100; i++ )
     {
-        region.changeBeginPos( { 0, i } );
+        region.changeOriginPos( { 0, i } );
     }
 
     auto get_chunk = region.getChunk( { -12, 100 } );
     auto block_id = get_chunk[ { 5, 5, 3 } ];
+
+    return 0;
 }
