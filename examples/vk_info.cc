@@ -5,6 +5,7 @@
 #include "common/utils.h"
 #include "common/vulkan_include.h"
 #include "vkwrap/instance.h"
+#include "window/window.h"
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
