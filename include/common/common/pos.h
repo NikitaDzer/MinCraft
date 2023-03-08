@@ -27,7 +27,7 @@ class ChunkPos
 
     explicit operator int64_t() const
     {
-        return ( ( static_cast<int64_t>( m_y ) << 32 ) | static_cast<int64_t>( m_x ) );
+        return ( ( reinterpret_cast<const int64_t&>( m_y ) << 32 ) | reinterpret_cast<const int64_t&>( m_x ) );
     }
 
   private:
