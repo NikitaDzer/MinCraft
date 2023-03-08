@@ -1,9 +1,9 @@
+#include <bit>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <string>
-#include <bit>
 
 #include <spdlog/spdlog.h>
 
