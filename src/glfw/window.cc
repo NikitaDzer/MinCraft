@@ -3,10 +3,11 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <bit>
 
-#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
+#include "common/glfw_include.h"
 #include "window/error.h"
 #include "window/window.h"
 
