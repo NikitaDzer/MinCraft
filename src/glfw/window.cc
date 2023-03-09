@@ -182,6 +182,25 @@ Window::setFullscreen() const
     logGLFWaction( "choose fullscreen mode", getHandleAddressString( this ) );
 } // setFullscreen
 
+vk::SurfaceKHR
+Window::createWindowSurface(
+    vk::Instance instance,
+    Window& window //
+)
+{
+    assert( instance != nullptr );
+
+    vk::SurfaceKHR surface{};
+    glfwCreateWindowSurface(
+        static_cast<VkInstance>( instance ),
+        window.get(),
+        nullptr,
+        reinterpret_cast<VkSurfaceKHR*>( &surface ) //
+    );
+
+    return surface;
+} // createWindowSurface
+
 WindowManager::WindowManager( ErrorCallbackSignature* error_callback )
 {
     glfwSetErrorCallback( error_callback );

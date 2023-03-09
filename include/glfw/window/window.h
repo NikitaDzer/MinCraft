@@ -21,6 +21,7 @@
 #include <string>
 
 #include "common/glfw_include.h"
+#include "common/vulkan_include.h"
 #include "error.h"
 
 namespace wnd
@@ -130,6 +131,12 @@ class Window
 
     // Call permissions: main thread.
     void setFullscreen() const;
+
+    // Call permissions: any thread.
+    static vk::SurfaceKHR createWindowSurface(
+        vk::Instance instance,
+        Window& window //
+    );
 
 }; // class Window
 

@@ -7,23 +7,6 @@
 
 using namespace vkwrap;
 
-vk::SurfaceKHR
-Surface::createSurface( vk::Instance instance, GLFWwindow* window )
-{
-    assert( instance != nullptr );
-    assert( window != nullptr );
-
-    vk::SurfaceKHR surface{};
-    glfwCreateWindowSurface(
-        static_cast<VkInstance>( instance ),
-        window,
-        nullptr,
-        reinterpret_cast<VkSurfaceKHR*>( &surface ) //
-    );
-
-    return surface;
-} // createSurface
-
 bool
 Surface::isSupportedBy( vk::PhysicalDevice physical_device )
 {
