@@ -3,8 +3,6 @@
 #include "common/glfw_include.h"
 #include "common/vulkan_include.h"
 
-#include "window/window.h"
-
 namespace vkwrap
 {
 
@@ -15,9 +13,8 @@ class Surface : private vk::UniqueSurfaceKHR
     using BaseType = vk::UniqueSurfaceKHR;
 
   public:
-    // Call permissions: any thread.
-    Surface( vk::Instance instance, wnd::Window& window )
-        : BaseType{ wnd::Window::createWindowSurface( instance, window ) }
+    Surface( vk::SurfaceKHR surface )
+        : BaseType{ surface }
     {
     }
 
