@@ -22,5 +22,11 @@ main()
     auto get_chunk = region.getChunk( { -12, 100 } );
     auto block_id = get_chunk[ { 5, 5, 3 } ];
 
+    auto test_cvt = int64_t( pos::ChunkPos{ -1, 100 } );
+
+    printf( "%b\n", -1 );
+    printf( "%b\n", 100 );
+    printf( "%lb\n", test_cvt );
+
     return 0;
 }

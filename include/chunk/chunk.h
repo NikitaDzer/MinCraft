@@ -23,31 +23,31 @@ class Chunk
     Chunk( BlockID* chunk_begin )
         : m_chunk_begin( chunk_begin ){};
 
-    const BlockID& operator[]( int index ) const
+    const BlockID& operator[]( int index ) const&
     {
-        assert( indx < k_block_count );
+        assert( index < k_block_count );
         return m_chunk_begin[ index ];
-    }
+    } // Chunk::operator[] const
 
-    const BlockID& operator[]( const pos::LocalBlockPos& pos ) const
+    const BlockID& operator[]( const pos::LocalBlockPos& pos ) const&
     {
-        assert( pos.getX() < k_max_width_length && pos.getY() < k_max_width_length );
-        return m_chunk_begin[ k_max_width_length * k_max_height * pos.getX() + k_max_height * pos.getY() + pos.getZ() ];
-    }
+        assert( pos.x < k_max_width_length && pos.y < k_max_width_length );
+        return m_chunk_begin[ k_max_width_length * k_max_height * pos.x + k_max_height * pos.y + pos.z ];
+    } // Chunk::operator[] const
 
-    BlockID& operator[]( int index )
+    BlockID& operator[]( int index ) &
     {
-        assert( indx < k_block_count );
+        assert( index < k_block_count );
         return m_chunk_begin[ index ];
-    }
+    } // Chunk::operator[]
 
-    BlockID& operator[]( const pos::LocalBlockPos& pos )
+    BlockID& operator[]( const pos::LocalBlockPos& pos ) &
     {
-        assert( pos.getX() < k_max_width_length && pos.getY() < k_max_width_length );
-        return m_chunk_begin[ k_max_width_length * k_max_height * pos.getX() + k_max_height * pos.getY() + pos.getZ() ];
-    }
+        assert( pos.x < k_max_width_length && pos.y < k_max_width_length );
+        return m_chunk_begin[ k_max_width_length * k_max_height * pos.x + k_max_height * pos.y + pos.z ];
+    } // Chunk::operator[]
 
-    BlockID* getRawBlockIDPtr() { return m_chunk_begin; }
+    BlockID& getChunkBegin() & { return m_chunk_begin[ 0 ]; }
 
   public:
     static constexpr auto k_max_height = 256;
@@ -58,4 +58,5 @@ class Chunk
     // Pointer to the raw block ides in the array
     BlockID* m_chunk_begin;
 }; // class Chunk
+
 }; // namespace chunk
