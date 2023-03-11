@@ -19,7 +19,7 @@ struct ChunkHasher
         std::hash<int64_t> hasher{};
         return hasher( int64_t( chunk_pos ) );
     }
-};
+}; // struct ChunkHasher
 } // namespace detail
 
 /**
@@ -44,7 +44,7 @@ class Region
     {
         static Region singleton_region{ { 0, 0 } };
         return singleton_region;
-    }
+    } // Region::getRef
 
     Chunk& getChunk( const pos::ChunkPos& pos );
     pos::ChunkPos& getOriginPos() { return m_origin_pos; }

@@ -29,5 +29,6 @@ simpleChunkGen( Chunk& chunk_to_gen )
             }
         }
     }
-}
+} // simpleChunkGen
+
 }; // namespace chunk
