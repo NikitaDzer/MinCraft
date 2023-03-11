@@ -13,27 +13,32 @@ namespace pos
 class ChunkPos
 {
   public:
-    ChunkPos( int x = 0, int y = 0 )
-        : m_x( x ),
-          m_y( y ){};
-
-    int& getX() { return m_x; }
-    int& getY() { return m_y; }
-
-    int getX() const { return m_x; }
-    int getY() const { return m_y; }
-
-    auto operator<=>( const ChunkPos& ) const = default;
+    ChunkPos( int x_par = 0, int y_par = 0 )
+        : x( x_par ),
+          y( y_par ){};
 
     explicit operator int64_t() const
     {
-        return ( ( reinterpret_cast<const int64_t&>( m_y ) << 32 ) | reinterpret_cast<const int64_t&>( m_x ) );
+        int xy[ 2 ]{};
+        xy[ 0 ] = x;
+        xy[ 1 ] = y;
+
+        return reinterpret_cast<int64_t&>( xy );
     }
 
-  private:
-    int m_x;
-    int m_y;
-};
+  public:
+    int x;
+    int y;
+}; // class ChunkPos
+
+// [krisszzz]: Inline here is meanigful, otherwise you will get multiple definition
+// To be honest the function definition should be in position.cc, but creating source
+// file only for this purpose is not necessary yet
+inline bool
+operator==( const ChunkPos& lhs, const ChunkPos& rhs )
+{
+    return ( lhs.x == rhs.x && lhs.y == rhs.y );
+}
 
 /**
  * Class that used to find block ides in Region
@@ -44,24 +49,17 @@ class ChunkPos
 class BlockPos
 {
   public:
-    BlockPos( int x = 0, int y = 0, uint8_t z = 0 )
-        : m_x( x ),
-          m_y( y ),
-          m_z( z ){};
+    BlockPos( int x_par = 0, int y_par = 0, uint8_t z_par = 0 )
+        : x( x_par ),
+          y( x_par ),
+          z( z_par ){};
 
-    int& getX() { return m_x; }
-    int& getY() { return m_y; }
-    uint8_t& getZ() { return m_z; }
+  public:
+    int x;
+    int y;
+    uint8_t z; /// The vertical coordinate Z start from 0 until 255
 
-    int getX() const { return m_x; }
-    int getY() const { return m_y; }
-    uint8_t getZ() const { return m_z; }
-
-  private:
-    int m_x;
-    int m_y;
-    uint8_t m_z; /// The vertical coordinate Z start from 0 until 255
-};
+}; // class BlockPos
 
 /**
  * Class describing position of block in the Chunk
@@ -70,27 +68,20 @@ class BlockPos
 class LocalBlockPos
 {
   public:
-    LocalBlockPos( uint8_t x = 0, uint8_t y = 0, uint8_t z = 0 )
-        : m_x( x ),
-          m_y( y ),
-          m_z( z ){};
-
-    uint8_t& getX() { return m_x; }
-    uint8_t& getY() { return m_y; }
-    uint8_t& getZ() { return m_z; }
-
-    uint8_t getX() const { return m_x; }
-    uint8_t getY() const { return m_y; }
-    uint8_t getZ() const { return m_z; }
+    LocalBlockPos( uint8_t x_par = 0, uint8_t y_par = 0, uint8_t z_par = 0 )
+        : x( x_par ),
+          y( y_par ),
+          z( z_par ){};
 
     // Convert LocalBlockPos to BlockPos
     // The position on the chunk where the block is saved required
+    // Not implemented
     BlockPos toBlockPos( const ChunkPos& pos );
 
-  private:
-    uint8_t m_x;
-    uint8_t m_y;
-    uint8_t m_z;
-};
+  public:
+    uint8_t x;
+    uint8_t y;
+    uint8_t z;
+}; // class LocalBlockPos
 
 }; // namespace pos
