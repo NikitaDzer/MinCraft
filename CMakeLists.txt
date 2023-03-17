@@ -75,6 +75,17 @@ target_link_libraries ( window glfw spdlog )
 target_enable_linter ( window )
 target_compile_features ( window PUBLIC cxx_std_20 )
 
+set ( CHUNK_SOURCES
+    src/chunk/region.cc
+    src/chunk/chunk_gen.cc
+)
+
+add_library( chunk ${CHUNK_SOURCES} )
+target_include_directories( chunk PUBLIC include include/common )
+target_link_libraries( chunk )
+target_enable_linter( chunk )
+target_compile_features( chunk PUBLIC cxx_std_20 )
+
 
 option ( VK_INFO OFF )
 if ( ${VK_INFO} )
@@ -92,4 +103,13 @@ if ( ${GLFW_INFO} )
     target_link_libraries ( glfw_info PRIVATE glfw window )
     target_enable_linter ( glfw_info )
     target_compile_features ( glfw_info PUBLIC cxx_std_20 )
+endif()
+
+option ( CHUNKS_TEST OFF )
+if ( ${CHUNKS_TEST} )
+    add_executable ( chunks_test examples/chunks_test.cc )
+    target_include_directories ( chunks_test PRIVATE include/common )
+    target_link_libraries ( chunks_test PRIVATE  chunk)
+    target_enable_linter ( chunks_test )
+    target_compile_features ( chunks_test PUBLIC cxx_std_20 )
 endif ()
