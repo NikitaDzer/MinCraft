@@ -11,7 +11,7 @@ namespace vkwrap
 bool
 physicalDeviceSupportsPresent( vk::PhysicalDevice physical_device, vk::SurfaceKHR surface )
 {
-    assert( physical_device != nullptr );
+    assert( physical_device );
 
     uint32_t queue_family_count = 0;
     physical_device.getQueueFamilyProperties(
@@ -24,7 +24,7 @@ physicalDeviceSupportsPresent( vk::PhysicalDevice physical_device, vk::SurfaceKH
           queue_family_index < queue_family_count; 
           queue_family_index++ )
     {
-        if ( physical_device.getSurfaceSupportKHR( queue_family_index, get() ) )
+        if ( physical_device.getSurfaceSupportKHR( queue_family_index, surface ) )
         {
             return true;
         }
