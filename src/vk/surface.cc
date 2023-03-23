@@ -5,6 +5,9 @@
 
 #include "vkwrap/surface.h"
 
+#include <range/v3/algorithm/any_of.hpp>
+#include <range/v3/view/iota.hpp>
+#include <range/v3/view/take.hpp>
 namespace vkwrap
 {
 
@@ -19,19 +22,10 @@ physicalDeviceSupportsPresent( vk::PhysicalDevice physical_device, vk::SurfaceKH
         nullptr //
     );
 
-    // clang-format off
-    for ( uint32_t queue_family_index = 0; 
-          queue_family_index < queue_family_count; 
-          queue_family_index++ )
-    {
-        if ( physical_device.getSurfaceSupportKHR( queue_family_index, surface ) )
-        {
-            return true;
-        }
-    }
-    // clang-format on
-
-    return false;
+    auto indices = ranges::views::iota( 0 ) | ranges::views::take( queue_family_count );
+    return ranges::any_of( indices, [ physical_device, surface ]( auto&& index ) {
+        return physical_device.getSurfaceSupportKHR( index, surface );
+    } );
 }
 
 bool
