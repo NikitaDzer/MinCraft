@@ -11,7 +11,8 @@
 #include "window/error.h"
 #include "window/window.h"
 
-using namespace wnd;
+namespace wnd::glfw
+{
 
 namespace
 {
@@ -47,7 +48,7 @@ logGLFWaction(
     const std::string& additional = {} //
 )
 {
-    std::string output = fmt::format( "GLFW {}.", action );
+    std::string output = fmt::format( "GLFW {}", action );
     auto oit = std::back_inserter( output );
 
     if ( !handleAddressString.empty() )
@@ -182,23 +183,20 @@ Window::setFullscreen() const
     logGLFWaction( "choose fullscreen mode", getHandleAddressString( this ) );
 } // setFullscreen
 
-vk::SurfaceKHR
-Window::createWindowSurface(
-    vk::Instance instance,
-    Window& window //
-)
+vk::UniqueSurfaceKHR
+Window::createSurface( vk::Instance instance ) const
 {
-    assert( instance != nullptr );
+    assert( instance );
 
-    vk::SurfaceKHR surface{};
+    vk::SurfaceKHR surface;
     glfwCreateWindowSurface(
         static_cast<VkInstance>( instance ),
-        window.get(),
+        m_handle.get(),
         nullptr,
         reinterpret_cast<VkSurfaceKHR*>( &surface ) //
     );
 
-    return surface;
+    return vk::UniqueSurfaceKHR{ surface };
 } // createWindowSurface
 
 WindowManager::WindowManager( ErrorCallbackSignature* error_callback )
@@ -257,3 +255,5 @@ WindowManager::getMinVersionString()
 
     return std::to_string( major ) + "." + std::to_string( minor );
 } // getMinVersionString
+
+} // namespace wnd::glfw

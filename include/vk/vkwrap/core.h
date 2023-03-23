@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "common/vulkan_include.h"
+
 #include <cstdint>
 
 namespace vkwrap

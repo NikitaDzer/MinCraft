@@ -5,10 +5,11 @@
 
 #include "vkwrap/surface.h"
 
-using namespace vkwrap;
+namespace vkwrap
+{
 
 bool
-Surface::isSupportedBy( vk::PhysicalDevice physical_device )
+physicalDeviceSupportsPresent( vk::PhysicalDevice physical_device, vk::SurfaceKHR surface )
 {
     assert( physical_device != nullptr );
 
@@ -31,4 +32,12 @@ Surface::isSupportedBy( vk::PhysicalDevice physical_device )
     // clang-format on
 
     return false;
+}
+
+bool
+Surface::isSupportedBy( vk::PhysicalDevice physical_device ) const
+{
+    return physicalDeviceSupportsPresent( physical_device, get() );
 } // isSupportedBy
+
+} // namespace vkwrap

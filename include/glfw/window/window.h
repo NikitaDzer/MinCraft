@@ -13,18 +13,20 @@
 
 #pragma once
 
+#include "common/glfw_include.h"
+#include "common/vulkan_include.h"
+#include "common/window_base.h"
+#include "error.h"
+
+#include <spdlog/spdlog.h>
+
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <span>
-#include <spdlog/spdlog.h>
 #include <string>
 
-#include "common/glfw_include.h"
-#include "common/vulkan_include.h"
-#include "error.h"
-
-namespace wnd
+namespace wnd::glfw
 {
 
 class Window;
@@ -73,12 +75,18 @@ struct WindowConfig
     } // defaultResizeCallback
 };    // struct WindowConfig
 
-class Window
+class Window : public WindowBase<Window>
 {
+  private:
+    // Call permissions: main thread.
+    static void destroyWindow( WindowType* glfwWindow );
+
+    static constexpr auto k_custom_deleter = []( WindowType* ptr ) -> void {
+        destroyWindow( ptr );
+    };
 
   private:
-    using DeleteFunctionSignature = void( WindowType* );
-    using HandleType = std::unique_ptr<WindowType, DeleteFunctionSignature*>;
+    using HandleType = std::unique_ptr<WindowType, decltype( k_custom_deleter )>;
 
   private:
     HandleType m_handle;
@@ -89,9 +97,6 @@ class Window
         const WindowConfig& config,
         Window* bound_handle //
     );
-
-    // Call permissions: main thread.
-    static void destroyWindow( WindowType* glfwWindow );
 
     // Call permissions: any thread.
     static Window* getHandle( WindowType* glfwWindow )
@@ -107,7 +112,7 @@ class Window
 
   public:
     Window( const WindowConfig& config = {} )
-        : m_handle{ createWindow( config, this ), destroyWindow },
+        : m_handle{ createWindow( config, this ), k_custom_deleter },
           m_resize_callback{ config.resize_callback }
     {
     }
@@ -133,10 +138,7 @@ class Window
     void setFullscreen() const;
 
     // Call permissions: any thread.
-    static vk::SurfaceKHR createWindowSurface(
-        vk::Instance instance,
-        Window& window //
-    );
+    vk::UniqueSurfaceKHR createSurface( vk::Instance instance ) const;
 
 }; // class Window
 
@@ -167,4 +169,10 @@ class WindowManager
 
 }; // class WindowManager
 
-} // namespace wnd
+} // namespace wnd::glfw
+
+namespace wnd
+{
+template class WindowBase<glfw::Window>;
+static_assert( WindowWrapper<glfw::Window>, "GLFW window wrapper does not satisfy constaints" );
+}; // namespace wnd
