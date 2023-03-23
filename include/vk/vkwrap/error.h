@@ -37,6 +37,7 @@ unsupportedTagToStr( UnsupportedTag tag )
         return "Layer";
     default:
         assert( 0 && "[Debug]: Broken UnsupportedTag enum" );
+        std::terminate();
     }
 } // unsupportedTagToStr
 

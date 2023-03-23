@@ -4,9 +4,9 @@
 
 #include "range/v3/view/transform.hpp"
 #include <range/v3/algorithm/contains.hpp>
-#include <range/v3/algorithm/copy.hpp>
-#include <range/v3/algorithm/for_each.hpp>
-#include <range/v3/range.hpp>
+#include <range/v3/range/concepts.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/filter.hpp>
 
 #include <utility>
 
@@ -19,19 +19,18 @@ template <typename AllRange, typename FindRange, typename Proj>
 auto
 findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
 {
-    std::vector<typename ranges::range_value_t<std::remove_reference_t<FindRange>>> missing;
-    ranges::for_each( find, [ &all, &proj, &missing ]( auto&& elem ) {
-        if ( !ranges::contains( all, elem, proj ) )
-            missing.push_back( elem );
-    } );
-    return missing;
+    return ranges::views::all( find ) |
+        ranges::views::filter( [ &all, &proj ]( auto&& elem ) { return !ranges::contains( all, elem, proj ); } ) |
+        ranges::to_vector;
 }
 
 // Replacement for yet unimplemented C++23 to_underlying
+template <typename T>
 constexpr auto
-toUnderlying( auto val ) -> std::underlying_type_t<decltype( val )>
+toUnderlying( T val )
+    requires ( std::is_enum_v<T> )
 {
-    return static_cast<std::underlying_type_t<decltype( val )>>( val );
+    return static_cast<std::underlying_type_t<T>>( val );
 }
 
 // clang-format off
@@ -45,10 +44,10 @@ concept convertibleToCStrRange = requires ()
 
 // Overload set with concepts. If the range elements can be coerced into const char *, then we assume they are c-style
 // null-terminated strings and project those into a vector
-template <typename T>
+template <ranges::range T>
 constexpr auto
 convertToCStrVector( T&& range )
-    requires ranges::contiguous_range<T> && std::convertible_to<ranges::range_value_t<T>, const char*>
+    requires std::convertible_to<ranges::range_value_t<T>, const char*>
 {
     return range | ranges::views::transform( []( auto&& a ) { return static_cast<const char*>( a ); } ) |
         ranges::to_vector; // Eager conversion to std::vector<const char *>
@@ -57,18 +56,10 @@ convertToCStrVector( T&& range )
 // Convert a range of std::string-like objects into a vector of const char * to null-terminated strings.
 // Range member type should have a .c_str member function. Note that std::string_view can't be used because it does not
 // guarantee that the underlying buffer is null-terminated.
-template <typename T>
+template <convertibleToCStrRange T>
 constexpr auto
 convertToCStrVector( T&& range )
-    requires convertibleToCStrRange<T>
 {
-    std::vector<const char*> raw_strings;
-    if constexpr ( ranges::random_access_range<T> ) // If a range is random access then it's possible to prereserve the
-                                                    // space.
-    {
-        raw_strings.reserve( range.size() );
-    }
-
     return range | ranges::views::transform( []( auto&& a ) { return a.c_str(); } ) | ranges::to_vector;
 }
 

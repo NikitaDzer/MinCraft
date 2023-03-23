@@ -4,9 +4,11 @@
 #include <spdlog/fmt/bundled/core.h>
 #include <spdlog/spdlog.h>
 
+#include <exception>
 #include <functional>
 #include <iterator>
 #include <span>
+#include <stdexcept>
 #include <string>
 
 namespace vkwrap
@@ -64,7 +66,7 @@ assembleDebugMessage(
         fmt::format_to( oit, " -- Associated Vulkan Objects: --\n" );
     for ( uint32_t i = 0; const auto& v : objects )
     {
-        fmt::format_to( oit, "[{}]. type = <{}>, handle = {}", i++, vk::to_string( v.objectType ), v.objectHandle );
+        fmt::format_to( oit, "[{}]. type = <{}>, handle = {:#x}", i++, vk::to_string( v.objectType ), v.objectHandle );
         if ( v.pObjectName )
             fmt::format_to( oit, ", name = <{}>", v.pObjectName );
         fmt::format_to( oit, "\n" );
@@ -97,6 +99,7 @@ defaultDebugCallback(
         break;
     default:
         assert( 0 && "[Debug]: Broken message severity enum" );
+        std::terminate();
         break;
     }
 

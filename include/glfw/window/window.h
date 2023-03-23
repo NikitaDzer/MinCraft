@@ -25,6 +25,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace wnd::glfw
 {
@@ -45,24 +46,29 @@ using WindowResizeCallbackSignature = void(
 
 struct WindowAPIversion
 {
-    int major;
-    int minor;
+    int major = 0;
+    int minor = 0;
 
     auto operator<=>( const WindowAPIversion& ) const = default;
+
+    std::string to_string() const { return std::to_string( major ) + "." + std::to_string( minor ); }
 }; // WindowAPIversion
 
 struct WindowConfig
 {
-    const int width = k_default_width;
-    const int height = k_default_height;
-    const char* title = k_default_title;
-    const bool fullscreen = k_default_fullscreen;
+  public:
+    int width = k_default_width;
+    int height = k_default_height;
+    std::string title = std::string{ k_default_title };
+    bool fullscreen = k_default_fullscreen;
 
-    std::function<WindowResizeCallbackSignature> resize_callback = defaultResizeCallback;
+    using ResizeCallbackFunction = std::function<WindowResizeCallbackSignature>;
+    ResizeCallbackFunction resize_callback = defaultResizeCallback;
 
+  private:
     static constexpr int k_default_width = 640;
     static constexpr int k_default_height = 480;
-    static constexpr char k_default_title[] = "MinCraft";
+    static constexpr std::string_view k_default_title = "MinCraft";
     static constexpr bool k_default_fullscreen = false;
 
     static void defaultResizeCallback(
@@ -81,12 +87,13 @@ class Window : public WindowBase<Window>
     // Call permissions: main thread.
     static void destroyWindow( WindowType* glfwWindow );
 
-    static constexpr auto k_custom_deleter = []( WindowType* ptr ) -> void {
-        destroyWindow( ptr );
+    struct CustomDeleter
+    {
+        void operator()( WindowType* ptr ) { destroyWindow( ptr ); }
     };
 
   private:
-    using HandleType = std::unique_ptr<WindowType, decltype( k_custom_deleter )>;
+    using HandleType = std::unique_ptr<WindowType, CustomDeleter>;
 
   private:
     HandleType m_handle;
@@ -112,7 +119,7 @@ class Window : public WindowBase<Window>
 
   public:
     Window( const WindowConfig& config = {} )
-        : m_handle{ createWindow( config, this ), k_custom_deleter },
+        : m_handle{ createWindow( config, this ), CustomDeleter{} },
           m_resize_callback{ config.resize_callback }
     {
     }
@@ -138,7 +145,7 @@ class Window : public WindowBase<Window>
     void setFullscreen() const;
 
     // Call permissions: any thread.
-    vk::UniqueSurfaceKHR createSurface( vk::Instance instance ) const;
+    UniqueSurface createSurface( vk::Instance instance ) const;
 
 }; // class Window
 

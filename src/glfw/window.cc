@@ -1,15 +1,18 @@
+#include <spdlog/spdlog.h>
+
+#include "common/glfw_include.h"
+#include "window/error.h"
+#include "window/window.h"
+
+#include <range/v3/view/iota.hpp>
+#include <range/v3/view/take.hpp>
+
 #include <bit>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <string>
-
-#include <spdlog/spdlog.h>
-
-#include "common/glfw_include.h"
-#include "window/error.h"
-#include "window/window.h"
 
 namespace wnd::glfw
 {
@@ -44,25 +47,31 @@ getHandleAddressString( const Window* window )
 void
 logGLFWaction(
     const std::string& action,
-    const std::string& handleAddressString = {},
-    const std::string& additional = {} //
+    const void* handle = nullptr,
+    const std::vector<std::string>& additional = {} //
 )
 {
-    std::string output = fmt::format( "GLFW {}", action );
+    std::string output;
     auto oit = std::back_inserter( output );
 
-    if ( !handleAddressString.empty() )
+    if ( handle )
     {
-        fmt::format_to( oit, "\nHandle = {}", handleAddressString );
+        fmt::format_to( oit, "Message (GLFW) [handle = {:#x}]: {}", std::bit_cast<uintptr_t>( handle ), action );
+    } else
+    {
+        fmt::format_to( oit, "Message (GLFW): {}", action );
+    }
 
-        if ( !additional.empty() )
+    if ( additional.size() )
+    {
+        fmt::format_to( oit, "\n -- Additional info --" );
+        for ( auto i : ranges::views::iota( 0 ) | ranges::views::take( additional.size() ) )
         {
-            fmt::format_to( oit, ", {}", additional );
+            fmt::format_to( oit, "\n[{}]. {}", i, additional[ i ] );
         }
     }
 
-    fmt::format_to( oit, "." );
-
+    fmt::format_to( oit, "\n" );
     spdlog::info( output );
 } // logGLFWaction
 
@@ -88,7 +97,7 @@ Window::createWindow(
     WindowType* glfwWindow = glfwCreateWindow(
         config.width,
         config.height,
-        config.title,
+        config.title.c_str(),
         config.fullscreen ? glfwGetPrimaryMonitor() : nullptr,
         nullptr );
 
@@ -96,8 +105,8 @@ Window::createWindow(
     glfwSetFramebufferSizeCallback( glfwWindow, framebufferSizeCallback );
 
     logGLFWaction(
-        "create window",
-        getHandleAddressString( bound_handle ) //
+        "Create Window",
+        bound_handle //
     );
 
     return glfwWindow;
@@ -111,8 +120,8 @@ Window::destroyWindow( WindowType* glfwWindow )
     glfwDestroyWindow( glfwWindow );
 
     logGLFWaction(
-        "destroy window",
-        getHandleAddressString( window ) //
+        "Destroy Window",
+        window //
     );
 } // destroyWindow
 
@@ -126,9 +135,9 @@ Window::framebufferSizeCallback(
     Window* window = getHandle( glfwWindow );
 
     logGLFWaction(
-        "framebuffer resize",
-        getHandleAddressString( window ),
-        "width = " + std::to_string( width ) + ", height = " + std::to_string( height ) //
+        "Framebuffer resize",
+        window,
+        { fmt::format( "Width = {}", width ), fmt::format( "Height = ", height ) } //
     );
 
     window->m_resize_callback( window, width, height );
@@ -148,21 +157,18 @@ Window::getFramebufferSize() const
 void
 Window::setWindowed() const
 {
-    constexpr int xpos = 0;
-    constexpr int ypos = 0;
-
     glfwSetWindowMonitor(
         m_handle.get(),
         nullptr,
-        xpos,
-        ypos,
+        0,
+        0,
         getFramebufferWidth(),
         getFramebufferHeight(),
         GLFW_DONT_CARE );
 
     logGLFWaction(
-        "choose windowed mode",
-        getHandleAddressString( this ) //
+        "Set windowed mode",
+        this //
     );
 } // setWindowed
 
@@ -180,47 +186,46 @@ Window::setFullscreen() const
         getFramebufferHeight(),
         GLFW_DONT_CARE );
 
-    logGLFWaction( "choose fullscreen mode", getHandleAddressString( this ) );
+    logGLFWaction( "Set fullscreen mode", this );
 } // setFullscreen
 
-vk::UniqueSurfaceKHR
+UniqueSurface
 Window::createSurface( vk::Instance instance ) const
 {
     assert( instance );
 
-    vk::SurfaceKHR surface;
+    VkSurfaceKHR surface;
     glfwCreateWindowSurface(
         static_cast<VkInstance>( instance ),
         m_handle.get(),
         nullptr,
-        reinterpret_cast<VkSurfaceKHR*>( &surface ) //
+        &surface //
     );
 
-    return vk::UniqueSurfaceKHR{ surface };
+    return vk::UniqueSurfaceKHR{
+        surface,
+        instance }; // Very crucial to pass instance for the correct deleter with dynamic dispatch to work. This is the
+                    // same reason why all files need to be compiled together.
 } // createWindowSurface
 
 WindowManager::WindowManager( ErrorCallbackSignature* error_callback )
 {
     glfwSetErrorCallback( error_callback );
     glfwInit();
-
-    logGLFWaction( "initialize library" );
+    logGLFWaction( "Initialize library" );
 } // WindowManager
 
 WindowManager::~WindowManager()
 {
     glfwTerminate();
-
-    logGLFWaction( "terminate library" );
+    logGLFWaction( "Terminate library" );
 } // ~WindowManager
 
 bool
 WindowManager::isSuitableVersion()
 {
-    WindowAPIversion version{};
-
+    WindowAPIversion version;
     glfwGetVersion( &version.major, &version.minor, nullptr );
-
     return version >= WindowManager::k_api_min_version;
 } // isSuitableVersion
 
@@ -228,14 +233,13 @@ void
 WindowManager::initialize()
 {
     static WindowManager instance{ errorCallback };
+    if ( isSuitableVersion() )
+        return;
 
-    if ( !isSuitableVersion() )
-    {
-        throw Error{
-            Error::k_user_error,
-            "GLFW minimal version: " + getMinVersionString() + "." //
-        };
-    }
+    throw Error{
+        Error::k_user_error,
+        "GLFW minimal version: " + getMinVersionString() //
+    };
 } // initialize
 
 std::span<const char*>
@@ -250,10 +254,7 @@ WindowManager::getRequiredExtensions()
 const std::string
 WindowManager::getMinVersionString()
 {
-    constexpr int major = WindowManager::k_api_min_version.major;
-    constexpr int minor = WindowManager::k_api_min_version.minor;
-
-    return std::to_string( major ) + "." + std::to_string( minor );
+    return WindowManager::k_api_min_version.to_string();
 } // getMinVersionString
 
 } // namespace wnd::glfw

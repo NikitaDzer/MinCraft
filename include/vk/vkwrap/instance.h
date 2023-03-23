@@ -4,7 +4,7 @@
 #include "common/vulkan_include.h"
 
 #include <range/v3/iterator.hpp>
-#include <range/v3/range.hpp>
+#include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view.hpp>
 #include <range/v3/view/concat.hpp>
@@ -55,7 +55,7 @@ struct InstanceImpl : protected vk::UniqueInstance
     using SupportsResult = std::pair<bool, std::vector<std::string>>;
     using OptionalDebugCreateInfo = std::optional<vk::DebugUtilsMessengerCreateInfoEXT>;
 
-    [[nodiscard]] static SupportsResult supportsExtensions( auto&& find )
+    [[nodiscard]] static SupportsResult supportsExtensions( ranges::range auto&& find )
     {
         const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
         using ElemType = typename decltype( supported_extensions )::value_type;
@@ -65,7 +65,7 @@ struct InstanceImpl : protected vk::UniqueInstance
         return std::make_pair( missing_extensions.empty(), missing_extensions | ranges::to<std::vector<std::string>> );
     } // supportsExtensions
 
-    [[nodiscard]] static SupportsResult supportsLayers( auto&& find )
+    [[nodiscard]] static SupportsResult supportsLayers( ranges::range auto&& find )
     {
         const auto supported_layers = vk::enumerateInstanceLayerProperties();
         using ElemType = typename decltype( supported_layers )::value_type;
@@ -76,7 +76,11 @@ struct InstanceImpl : protected vk::UniqueInstance
     } // supportsLayers
 
   private:
-    BaseType createHandle( VulkanVersion version, auto&& extensions, auto&& layers, OptionalDebugCreateInfo debug_info )
+    BaseType createHandle(
+        VulkanVersion version,
+        ranges::range auto&& extensions,
+        ranges::range auto&& layers,
+        OptionalDebugCreateInfo debug_info )
     {
         validateExtensionsLayers( extensions, layers );
         const auto app_info = vk::ApplicationInfo{ .apiVersion = utils::toUnderlying( version ) };
@@ -100,7 +104,7 @@ struct InstanceImpl : protected vk::UniqueInstance
 
     // Check that the instance actually supports requested extensions/layers and throw an informative error when it
     // doesn't.
-    void validateExtensionsLayers( auto&& extensions, auto&& layers )
+    void validateExtensionsLayers( ranges::range auto&& extensions, ranges::range auto&& layers )
     {
         auto [ ext_ok, missing_ext ] = supportsExtensions( extensions );
         auto [ layers_ok, missing_layers ] = supportsLayers( layers );
@@ -121,7 +125,9 @@ struct InstanceImpl : protected vk::UniqueInstance
     } // validateExtensionsLayers
 
   public:
-    template <typename Ext = ranges::empty_view<const char*>, typename Layer = ranges::empty_view<const char*>>
+    template <
+        ranges::range Ext = ranges::empty_view<const char*>,
+        ranges::range Layer = ranges::empty_view<const char*>>
     InstanceImpl( VulkanVersion version, Ext&& ext = {}, Layer&& layers = {}, OptionalDebugCreateInfo p_debug = {} )
         : BaseType{ createHandle( version, std::forward<Ext>( ext ), std::forward<Layer>( layers ), p_debug ) }
     {
@@ -139,7 +145,9 @@ struct InstanceImpl : protected vk::UniqueInstance
 class Instance : public IInstance, private detail::InstanceImpl
 {
   public:
-    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
+    template <
+        ranges::range ExtType = ranges::empty_view<const char*>,
+        ranges::range LayerType = ranges::empty_view<const char*>>
     Instance( VulkanVersion version, ExtType&& extensions = {}, LayerType&& layers = {} )
         : InstanceImpl{ version, std::forward<ExtType>( extensions ), std::forward<LayerType>( layers ) }
     {
@@ -165,10 +173,10 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
     static constexpr auto k_debug_utils_ext_name =
         std::to_array<std::string_view>( { VK_EXT_DEBUG_UTILS_EXTENSION_NAME } );
 
-    static auto addDebugUtilsExtension( auto&& extensions )
+    static auto addDebugUtilsExtension( ranges::range auto&& extensions )
     {
         return ranges::views::concat( // Overkill
-                   ranges::views::transform( extensions, []( auto a ) { return std::string_view{ a }; } ),
+                   ranges::views::transform( extensions, []( auto&& a ) { return std::string_view{ a }; } ),
                    k_debug_utils_ext_name ) |
             ranges::views::unique | ranges::to<std::vector<std::string>>;
     } // addDebugUtilsExtension
@@ -179,13 +187,15 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
     } // makeDebugCreateInfo
 
   public:
-    template <typename ExtType = ranges::empty_view<const char*>, typename LayerType = ranges::empty_view<const char*>>
+    template <
+        ranges::range ExtType = ranges::empty_view<const char*>,
+        ranges::range LayerType = ranges::empty_view<const char*>>
     DebuggedInstance(
         VulkanVersion version,
         DebugMessengerConfig debug_config = {},
         ExtType&& extensions = {},
         LayerType&& layers = {} )
-        : InstanceImpl{ version, addDebugUtilsExtension( extensions ), std::forward<LayerType>( layers ), makeDebugCreateInfo( debug_config ) },
+        : InstanceImpl{ version, addDebugUtilsExtension( std::forward<ExtType>( extensions ) ), std::forward<LayerType>( layers ), makeDebugCreateInfo( debug_config ) },
           DebugMessenger{ InstanceImpl::get(), debug_config }
     {
     }
@@ -290,15 +300,15 @@ class InstanceBuilder
         return *this;
     } // withCallback
 
-    InstanceBuilder& withExtensions( auto&& extensions ) &
+    template <ranges::range Range> InstanceBuilder& withExtensions( Range&& extensions ) &
     {
-        ranges::copy( extensions, ranges::back_inserter( m_extensions ) );
+        ranges::copy( std::forward<Range>( extensions ), ranges::back_inserter( m_extensions ) );
         return *this;
     } // withExtensions
 
-    InstanceBuilder& withLayers( auto&& layers ) &
+    template <ranges::range Range> InstanceBuilder& withLayers( Range&& layers ) &
     {
-        ranges::copy( layers, ranges::back_inserter( m_layers ) );
+        ranges::copy( std::forward<Range>( layers ), ranges::back_inserter( m_layers ) );
         return *this;
     } // withLayers
 

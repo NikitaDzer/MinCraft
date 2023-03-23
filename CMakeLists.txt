@@ -31,15 +31,14 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
+# Quality of life external libs
+add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
-
-# Quality of life external libs
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
@@ -57,24 +56,14 @@ set ( VKWRAP_SOURCES
     src/vk/debug.cc
     src/vk/loader.cc
     src/vk/surface.cc
-)
-
-add_library ( vkwrap ${VKWRAP_SOURCES} )
-target_include_directories ( vkwrap PUBLIC include/vk include/common )
-target_link_libraries ( vkwrap range-v3 spdlog )
-target_enable_linter ( vkwrap )
-target_compile_features ( vkwrap PUBLIC cxx_std_20 )
-
-
-set ( GLFW_WINDOW_SOURCES
     src/glfw/window.cc 
 )
 
-add_library ( window ${GLFW_WINDOW_SOURCES} )
-target_include_directories ( window PUBLIC include/glfw include/common )
-target_link_libraries ( window glfw spdlog )
-target_enable_linter ( window )
-target_compile_features ( window PUBLIC cxx_std_20 )
+add_library ( vkwrap ${VKWRAP_SOURCES} )
+target_include_directories ( vkwrap PUBLIC include/vk include/common include/glfw )
+target_link_libraries ( vkwrap range-v3 spdlog )
+target_enable_linter ( vkwrap )
+target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
 set ( CHUNK_SOURCES
     src/chunk/region.cc
@@ -92,7 +81,7 @@ option ( VK_INFO OFF )
 if ( ${VK_INFO} )
     add_executable ( vk_info examples/vk_info.cc )
     target_include_directories ( vk_info PRIVATE include/common )
-    target_link_libraries ( vk_info PRIVATE glfw Vulkan::Vulkan vkwrap window )
+    target_link_libraries ( vk_info PRIVATE glfw Vulkan::Vulkan vkwrap )
     target_enable_linter ( vk_info )
     target_compile_features ( vk_info PUBLIC cxx_std_20 )
 endif ()
@@ -101,7 +90,7 @@ option ( GLFW_INFO OFF )
 if ( ${GLFW_INFO} )
     add_executable ( glfw_info examples/glfw_info.cc )
     target_include_directories ( glfw_info PRIVATE include/common )
-    target_link_libraries ( glfw_info PRIVATE glfw window )
+    target_link_libraries ( glfw_info PRIVATE glfw vkwrap )
     target_enable_linter ( glfw_info )
     target_compile_features ( glfw_info PUBLIC cxx_std_20 )
 endif()
