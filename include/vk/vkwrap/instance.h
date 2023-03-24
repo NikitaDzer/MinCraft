@@ -242,7 +242,7 @@ class GenericInstance final
     const vk::Instance* operator->() const { return std::addressof( get() ); }
 
     operator bool() { return static_cast<bool>( get() ); } // Type coercion to check whether handle is not empty.
-
+    operator vk::Instance() { return get(); }
 }; // GenericInstance
 
 class InstanceBuilder

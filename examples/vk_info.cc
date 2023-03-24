@@ -112,7 +112,8 @@ try
     WindowManager::initialize();
 
     auto counting_functor = std::make_shared<CountingCallback>();
-    auto callback = [ counting_functor ]( auto sev, auto type, auto data ) -> bool // Capture by shared ptr by value
+    auto callback =
+        [ counting_functor ]( auto&& sev, auto&& type, auto&& data ) -> bool // Capture by shared ptr by value
     {
         return counting_functor->operator()( sev, type, data );
     };
@@ -125,7 +126,7 @@ try
         .withCallback( callback );
 
     // This assert is for testing purposes.
-    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
+    const auto layers = std::array{ "VK_LAYER_KHRONOS_validation" }; // Initializer list
     assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
     auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
@@ -136,17 +137,29 @@ try
         printPhysicalDeviceProperties( device );
     }
 
+    fmt::print( "\n" );
+
     auto window = Window{ { .title = "Test window" } };
     auto surface = window.createSurface( instance.get() );
 
     vkwrap::PhysicalDeviceSelector physical_selector;
     physical_selector.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
         .withTypes( { vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
-        .withPresent( surface.get() );
+        .withPresent( surface.get() )
+        .withVersion( vkwrap::VulkanVersion::e_version_1_3 );
 
-    auto physical_device = physical_selector.make( instance.get() ).at( 0 );
+    // Sorted vector of
+    auto suitable_devices = physical_selector.make( instance );
+    auto physical_device = suitable_devices.at( 0 ).first;
 
-    fmt::print( "Number of callbacks = {}\n", counting_functor->m_call_count );
+    fmt::print( "Found physical devices:\n" );
+    for ( unsigned i = 0; auto&& pair : suitable_devices )
+    {
+        auto [ device, info ] = pair;
+        fmt::print( "[{}]. name = {}, type = {}\n", i++, info.deviceName, vk::to_string( info.deviceType ) );
+    }
+
+    fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
 
 } catch ( vkwrap::UnsupportedError& e )
 {

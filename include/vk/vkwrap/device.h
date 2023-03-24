@@ -3,6 +3,7 @@
 #include "common/utils.h"
 #include "common/vulkan_include.h"
 
+#include "vkwrap/core.h"
 #include "vkwrap/surface.h"
 
 #include "range/v3/range/conversion.hpp"
@@ -41,6 +42,7 @@ class PhysicalDeviceSelector
     std::vector<std::string> m_extensions;                   // Extensions that the device needs to support
     std::unordered_map<vk::PhysicalDeviceType, int> m_types; // A range of device types to prefer
     vk::SurfaceKHR m_surface;                                // Surface to present to
+    VulkanVersion m_version = VulkanVersion::e_version_1_0;  // Version the physical device has to support
 
   public:
     template <ranges::range Range> PhysicalDeviceSelector& withExtensions( Range&& extensions ) &
@@ -55,6 +57,12 @@ class PhysicalDeviceSelector
         m_surface = surface;
         return *this;
     }
+
+    PhysicalDeviceSelector& withVersion( VulkanVersion version ) &
+    {
+        m_version = version;
+        return *this;
+    } // withVersion
 
     static constexpr auto k_default_types =
         std::array{ vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu };
@@ -73,7 +81,7 @@ class PhysicalDeviceSelector
         return *this;
     }
 
-    std::vector<vk::PhysicalDevice> make( vk::Instance instance ) const
+    auto make( vk::Instance instance ) const
     {
         auto predicate = [ & ]( auto&& elem ) -> bool {
             auto [ device, properties ] = elem;
@@ -100,7 +108,7 @@ class PhysicalDeviceSelector
             return types.at( pair.second.deviceType );
         } );
 
-        return suitable | ranges::views::transform( []( auto&& elem ) { return elem.first; } ) | ranges::to_vector;
+        return suitable;
     }
 };
 
