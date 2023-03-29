@@ -18,6 +18,7 @@
 #include "common/window_base.h"
 #include "error.h"
 
+#include <spdlog/fmt/bundled/format.h>
 #include <spdlog/spdlog.h>
 
 #include <functional>
@@ -50,8 +51,7 @@ struct WindowAPIversion
     int minor = 0;
 
     auto operator<=>( const WindowAPIversion& ) const = default;
-
-    std::string to_string() const { return std::to_string( major ) + "." + std::to_string( minor ); }
+    std::string to_string() const { return fmt::format( "{}.{}", major, minor ); }
 }; // WindowAPIversion
 
 struct WindowConfig
@@ -172,7 +172,7 @@ class WindowManager
     // Call permission: any thread, after WindowManager::initialize.
     static std::span<const char*> getRequiredExtensions();
 
-    static const std::string getMinVersionString();
+    static std::string getMinVersionString();
 
 }; // class WindowManager
 

@@ -15,7 +15,7 @@ namespace vkwrap
 {
 
 static std::string
-trimLeadingTrailingSpaces( std::string input )
+trimLeadingTrailingSpaces( const std::string& input )
 {
     if ( input.empty() )
     {

@@ -251,7 +251,7 @@ WindowManager::getRequiredExtensions()
     return std::span<const char*>{ extensions, extensions + size };
 } // getRequiredExtensions
 
-const std::string
+std::string
 WindowManager::getMinVersionString()
 {
     return WindowManager::k_api_min_version.to_string();

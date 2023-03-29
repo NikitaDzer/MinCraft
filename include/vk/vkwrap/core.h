@@ -25,6 +25,9 @@ enum class VulkanVersion : uint32_t
 void
 initializeLoader();
 
+using QueueIndex = uint32_t;
+using QueueFamilyIndex = uint32_t;
+
 } // namespace vkwrap
 
 #include "vkwrap/error.h"
