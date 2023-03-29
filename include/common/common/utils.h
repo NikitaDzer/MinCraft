@@ -63,4 +63,17 @@ convertToCStrVector( T&& range )
     return range | ranges::views::transform( []( auto&& a ) { return a.c_str(); } ) | ranges::to_vector;
 }
 
+// clang-format off
+template <typename T> concept Hashable = requires (T v) {
+  { std::hash<T>{}(v) } -> std::integral;
+}; // clang-format on
+
+template <Hashable T>
+void
+hashCombine( std::size_t& seed, const T& v )
+{
+    std::hash<T> hasher;
+    seed ^= hasher( v ) + 0x9e3779b9 + ( seed << 6 ) + ( seed >> 2 );
+}
+
 }; // namespace utils

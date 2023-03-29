@@ -145,7 +145,7 @@ class Window : public WindowBase<Window>
     void setFullscreen() const;
 
     // Call permissions: any thread.
-    UniqueSurface createSurface( vk::Instance instance ) const;
+    UniqueSurface createSurface( const vk::Instance& instance ) const;
 
 }; // class Window
 

@@ -190,7 +190,7 @@ Window::setFullscreen() const
 } // setFullscreen
 
 UniqueSurface
-Window::createSurface( vk::Instance instance ) const
+Window::createSurface( const vk::Instance& instance ) const
 {
     assert( instance );
 

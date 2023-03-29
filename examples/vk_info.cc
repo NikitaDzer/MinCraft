@@ -150,12 +150,12 @@ try
 
     // Sorted vector of
     auto suitable_devices = physical_selector.make( instance );
-    auto physical_device = suitable_devices.at( 0 ).first;
+    auto physical_device = suitable_devices.at( 0 ).device;
 
     fmt::print( "Found physical devices:\n" );
     for ( unsigned i = 0; auto&& pair : suitable_devices )
     {
-        auto [ device, info ] = pair;
+        auto&& [ device, info ] = pair;
         fmt::print( "[{}]. name = {}, type = {}\n", i++, info.deviceName, vk::to_string( info.deviceType ) );
     }
 
