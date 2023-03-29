@@ -314,6 +314,6 @@ class InstanceBuilder
         m_version = version;
         return *this;
     } // withVersion
-};
+};    // InstanceBuilder
 
 } // namespace vkwrap

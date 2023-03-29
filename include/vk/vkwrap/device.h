@@ -40,7 +40,7 @@ physicalDeviceSupportsExtensions( const vk::PhysicalDevice& physical_device, Ran
     auto missing =
         utils::findAllMissing( supports, std::forward<Range>( extensions ), &vk::ExtensionProperties::extensionName );
     return SupportsResult{ missing.empty(), missing };
-}
+} // physicalDeviceSupportsExtensions
 
 inline uint32_t
 physicalDeviceQueueFamilyCount( const vk::PhysicalDevice& physical_device )
@@ -54,7 +54,7 @@ physicalDeviceQueueFamilyCount( const vk::PhysicalDevice& physical_device )
     );
 
     return queue_family_count;
-}
+} // physicalDeviceQueueFamilyCount
 
 class PhysicalDevice : private vk::PhysicalDevice
 {
@@ -69,13 +69,13 @@ class PhysicalDevice : private vk::PhysicalDevice
     template <ranges::range Range> SupportsResult supportsExtensions( Range&& extensions ) const
     {
         return physicalDeviceSupportsExtensions( *this, std::forward<Range>( extensions ) );
-    }
+    } // supportsExtensions
 
     uint32_t queueFamilyCount() const { return physicalDeviceQueueFamilyCount( *this ); }
 
     using vk::PhysicalDevice::getFeatures;
     using vk::PhysicalDevice::operator bool;
-};
+}; // PhysicalDevice
 
 struct PhysicalDevicePropertiesPair
 {
@@ -87,13 +87,13 @@ inline bool
 operator==( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
 {
     return lhs.device.get() == rhs.device.get();
-}
+} // operator==
 
 inline bool
 operator!=( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
 {
     return lhs.device.get() != rhs.device.get();
-}
+} // operator!=
 
 } // namespace vkwrap
 
@@ -110,7 +110,7 @@ template <> struct hash<vkwrap::PhysicalDevicePropertiesPair>
         utils::hashCombine( seed, prop.vendorID );
         return seed;
     }
-};
+}; // hash
 
 } // namespace std
 
@@ -144,7 +144,7 @@ class PhysicalDeviceSelector
         assert( surface && "Empty surface handle" );
         m_surface = surface;
         return *this;
-    }
+    } // withPresent
 
     PhysicalDeviceSelector& withVersion( VulkanVersion version ) &
     {
@@ -174,7 +174,7 @@ class PhysicalDeviceSelector
         m_types.clear();
         ranges::copy( zipped_view, ranges::inserter( m_types, m_types.end() ) );
         return *this;
-    }
+    } // withTypes
 
   private:
     auto calculateWeight( const PhysicalDevicePropertiesPair& elem ) const
@@ -197,7 +197,7 @@ class PhysicalDeviceSelector
 
         int cost = valid ? weight + m_types.at( properties.deviceType ) : invalid;
         return std::pair{ elem, cost };
-    }
+    } // calculateWeight
 
     using WeightMap = std::unordered_map<PhysicalDevicePropertiesPair, int>;
 
@@ -221,7 +221,7 @@ class PhysicalDeviceSelector
         ranges::copy( views, ranges::inserter( weight_map, weight_map.end() ) );
 
         return weight_map;
-    }
+    } // makeWeighted
 
   public:
     auto make( const vk::Instance& instance ) const
@@ -236,8 +236,8 @@ class PhysicalDeviceSelector
         } );
 
         return suitable;
-    }
-};
+    } // make
+};    // PhysicalDeviceSelector
 
 class LogicalDevice : private vk::UniqueDevice
 {
@@ -252,7 +252,7 @@ class LogicalDevice : private vk::UniqueDevice
 
   public:
     const vk::Device& get() const& { return get(); }
-};
+}; // LogicalDevice
 
 class LogicalDeviceBuilder
 {
@@ -260,13 +260,13 @@ class LogicalDeviceBuilder
     struct GraphicsQueueCreateData
     {
         Queue* queue = nullptr;
-    };
+    }; // GraphicsQueueCreateData
 
     struct PresentQueueCreateData
     {
         Queue* queue = nullptr;
         vk::SurfaceKHR surface = nullptr; // Surface to present to.
-    };
+    };                                    // PresentQueueCreateData
 
   private:
     PresentQueueCreateData m_present_queue_data;
@@ -280,25 +280,25 @@ class LogicalDeviceBuilder
     {
         m_features = features;
         return *this;
-    }
+    } // withFeatures
 
     LogicalDeviceBuilder& withGraphicsQueue( Queue& queue ) &
     {
         m_graphics_queue_data = GraphicsQueueCreateData{ &queue };
         return *this;
-    }
+    } // withGraphicsQueue
 
     LogicalDeviceBuilder& withPresentQueue( const vk::SurfaceKHR& surface, Queue& queue ) &
     {
         m_present_queue_data = PresentQueueCreateData{ &queue, surface };
         return *this;
-    }
+    } // withPresentQueue
 
     template <ranges::range Range> LogicalDeviceBuilder& withExtensions( Range&& extensions ) &
     {
         ranges::copy( std::forward<Range>( extensions ), ranges::back_inserter( m_extensions ) );
         return *this;
-    }
+    } // withExtensions
 
   private:
     auto getPresentFamilies( const vk::PhysicalDevice& physical_device ) const
@@ -311,7 +311,7 @@ class LogicalDeviceBuilder
         };
 
         return queue_indices | ranges::views::filter( predicate ) | ranges::to_vector;
-    }
+    } // getPresentFamilies
 
     auto getGraphicsFamilies( const vk::PhysicalDevice& physical_device ) const
     {
@@ -327,7 +327,7 @@ class LogicalDeviceBuilder
 
         return ranges::views::zip( queue_indices, queue_family_properties ) | ranges::views::filter( predicate ) |
             ranges::views::transform( []( auto&& pair ) { return pair.first; } ) | ranges::to_vector;
-    }
+    } // getGraphicsFamilies
 
   public:
     LogicalDevice make( const vk::PhysicalDevice& physical_device ) const
@@ -383,7 +383,7 @@ class LogicalDeviceBuilder
         }
 
         return device;
-    }
-};
+    } // make
+};    // LogicalDeviceBuilder
 
 } // namespace vkwrap

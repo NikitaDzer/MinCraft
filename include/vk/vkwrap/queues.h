@@ -15,7 +15,7 @@ queueFamilySupportsPresent(
     QueueFamilyIndex qfi )
 {
     return physical_device.getSurfaceSupportKHR( qfi, surface );
-}
+} // queueFamilySupportsPresent
 
 class Queue : private vk::Queue
 {
@@ -49,6 +49,6 @@ class Queue : private vk::Queue
     }
 
     friend bool operator!=( const Queue& lhs, const Queue& rhs ) { return !( lhs == rhs ); }
-};
+}; // Queue
 
 } // namespace vkwrap

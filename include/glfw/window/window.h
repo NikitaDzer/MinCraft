@@ -90,7 +90,7 @@ class Window : public WindowBase<Window>
     struct CustomDeleter
     {
         void operator()( WindowType* ptr ) { destroyWindow( ptr ); }
-    };
+    }; // CustomDeleter
 
   private:
     using HandleType = std::unique_ptr<WindowType, CustomDeleter>;
@@ -109,7 +109,7 @@ class Window : public WindowBase<Window>
     static Window* getHandle( WindowType* glfwWindow )
     {
         return reinterpret_cast<Window*>( glfwGetWindowUserPointer( glfwWindow ) );
-    }
+    } // getHandle
 
     static void framebufferSizeCallback(
         WindowType* glfwWindow,
@@ -180,6 +180,8 @@ class WindowManager
 
 namespace wnd
 {
+
 template class WindowBase<glfw::Window>;
 static_assert( WindowWrapper<glfw::Window>, "GLFW window wrapper does not satisfy constaints" );
+
 }; // namespace wnd
