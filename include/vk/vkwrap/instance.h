@@ -52,7 +52,6 @@ struct InstanceImpl : protected vk::UniqueInstance
     using BaseType = vk::UniqueInstance;
 
   public:
-    using SupportsResult = std::pair<bool, std::vector<std::string>>;
     using OptionalDebugCreateInfo = std::optional<vk::DebugUtilsMessengerCreateInfoEXT>;
 
     [[nodiscard]] static SupportsResult supportsExtensions( ranges::range auto&& find )
@@ -62,7 +61,7 @@ struct InstanceImpl : protected vk::UniqueInstance
         const auto missing_extensions = utils::findAllMissing( supported_extensions, find, []( auto&& ext ) {
             return std::string_view{ ext.extensionName };
         } );
-        return std::make_pair( missing_extensions.empty(), missing_extensions | ranges::to<std::vector<std::string>> );
+        return SupportsResult{ missing_extensions.empty(), missing_extensions | ranges::to<StringVector> };
     } // supportsExtensions
 
     [[nodiscard]] static SupportsResult supportsLayers( ranges::range auto&& find )
@@ -72,7 +71,7 @@ struct InstanceImpl : protected vk::UniqueInstance
         const auto missing_layers = utils::findAllMissing( supported_layers, find, []( auto&& layer ) {
             return std::string_view{ layer.layerName };
         } );
-        return std::make_pair( missing_layers.empty(), missing_layers | ranges::to<std::vector<std::string>> );
+        return SupportsResult{ missing_layers.empty(), missing_layers | ranges::to<StringVector> };
     } // supportsLayers
 
   private:
@@ -163,7 +162,6 @@ class Instance : public IInstance, private detail::InstanceImpl
 
     using InstanceImpl::supportsExtensions;
     using InstanceImpl::supportsLayers;
-    using InstanceImpl::SupportsResult;
 }; // Instance
 
 // Instance wrapper that provides a VkDebugUtilsExt debug messenger with configurable callback.
@@ -178,7 +176,7 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
         return ranges::views::concat( // Overkill
                    ranges::views::transform( extensions, []( auto&& a ) { return std::string_view{ a }; } ),
                    k_debug_utils_ext_name ) |
-            ranges::views::unique | ranges::to<std::vector<std::string>>;
+            ranges::views::unique | ranges::to<StringVector>;
     } // addDebugUtilsExtension
 
     static vk::DebugUtilsMessengerCreateInfoEXT makeDebugCreateInfo( DebugMessengerConfig debug_config )
@@ -209,7 +207,6 @@ class DebuggedInstance : public IInstance, private detail::InstanceImpl, private
 
     using InstanceImpl::supportsExtensions;
     using InstanceImpl::supportsLayers;
-    using InstanceImpl::SupportsResult;
     using InstanceImpl::operator bool;
 }; // DebuggedInstance
 
@@ -251,8 +248,8 @@ class InstanceBuilder
     VulkanVersion m_version = VulkanVersion::e_version_1_0;
     bool m_with_debug = false;
 
-    std::vector<std::string> m_extensions;
-    std::vector<std::string> m_layers;
+    StringVector m_extensions;
+    StringVector m_layers;
 
     DebugMessengerConfig m_debug_config;
 

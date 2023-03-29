@@ -4,10 +4,14 @@
 #include "common/vulkan_include.h"
 
 #include "vkwrap/core.h"
+#include "vkwrap/queues.h"
 #include "vkwrap/surface.h"
 
 #include "range/v3/range/conversion.hpp"
+#include "range/v3/view/set_algorithm.hpp"
+#include "range/v3/view/take.hpp"
 #include <range/v3/algorithm/copy.hpp>
+#include <range/v3/algorithm/set_algorithm.hpp>
 #include <range/v3/algorithm/sort.hpp>
 #include <range/v3/iterator/insert_iterators.hpp>
 #include <range/v3/range/concepts.hpp>
@@ -29,31 +33,66 @@ namespace vkwrap
 {
 
 template <ranges::range Range>
-std::pair<bool, std::vector<std::string>>
-physicalDeviceSupportsExtensions( vk::PhysicalDevice physical_device, Range&& extensions )
+SupportsResult
+physicalDeviceSupportsExtensions( const vk::PhysicalDevice& physical_device, Range&& extensions )
 {
     auto supports = physical_device.enumerateDeviceExtensionProperties();
     auto missing =
         utils::findAllMissing( supports, std::forward<Range>( extensions ), &vk::ExtensionProperties::extensionName );
-    return std::pair{ missing.empty(), missing };
+    return SupportsResult{ missing.empty(), missing };
 }
+
+inline uint32_t
+physicalDeviceQueueFamilyCount( const vk::PhysicalDevice& physical_device )
+{
+    assert( physical_device );
+
+    QueueFamilyIndex queue_family_count = 0;
+    physical_device.getQueueFamilyProperties(
+        &queue_family_count,
+        nullptr //
+    );
+
+    return queue_family_count;
+}
+
+class PhysicalDevice : private vk::PhysicalDevice
+{
+  public:
+    PhysicalDevice( const vk::PhysicalDevice& physical_device )
+        : vk::PhysicalDevice{ physical_device }
+    {
+    }
+
+    const vk::PhysicalDevice& get() const& { return *this; }
+
+    template <ranges::range Range> SupportsResult supportsExtensions( Range&& extensions ) const
+    {
+        return physicalDeviceSupportsExtensions( *this, std::forward<Range>( extensions ) );
+    }
+
+    uint32_t queueFamilyCount() const { return physicalDeviceQueueFamilyCount( *this ); }
+
+    using vk::PhysicalDevice::getFeatures;
+    using vk::PhysicalDevice::operator bool;
+};
 
 struct PhysicalDevicePropertiesPair
 {
-    vk::PhysicalDevice device;
+    PhysicalDevice device;
     vk::PhysicalDeviceProperties properties;
 };
 
 inline bool
 operator==( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
 {
-    return lhs.device == rhs.device;
+    return lhs.device.get() == rhs.device.get();
 }
 
 inline bool
 operator!=( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
 {
-    return lhs.device != rhs.device;
+    return lhs.device.get() != rhs.device.get();
 }
 
 } // namespace vkwrap
@@ -84,7 +123,7 @@ class PhysicalDeviceSelector
     using WeightFunction = std::function<int( PhysicalDevicePropertiesPair )>;
 
   private:
-    std::vector<std::string> m_extensions;                   // Extensions that the device needs to support
+    StringVector m_extensions;                               // Extensions that the device needs to support
     std::unordered_map<vk::PhysicalDeviceType, int> m_types; // A range of device types to prefer
     vk::SurfaceKHR m_surface;                                // Surface to present to
 
@@ -148,12 +187,12 @@ class PhysicalDeviceSelector
         auto weight = m_weight_function( elem );
 
         // Check basic requirements.
-        bool valid = ( weight >= 0 ) && physicalDeviceSupportsExtensions( device, m_extensions ).first &&
+        bool valid = ( weight >= 0 ) && device.supportsExtensions( m_extensions ).supports &&
             m_types.contains( properties.deviceType );
 
         if ( m_surface )
         {
-            valid = valid && physicalDeviceSupportsPresent( device, m_surface );
+            valid = valid && physicalDeviceSupportsPresent( device.get(), m_surface );
         }
 
         int cost = valid ? weight + m_types.at( properties.deviceType ) : invalid;
@@ -197,6 +236,153 @@ class PhysicalDeviceSelector
         } );
 
         return suitable;
+    }
+};
+
+class LogicalDevice : private vk::UniqueDevice
+{
+  public:
+    using vk::UniqueDevice::operator bool;
+    using vk::UniqueDevice::operator->;
+
+    LogicalDevice( vk::UniqueDevice logical_device )
+        : vk::UniqueDevice{ std::move( logical_device ) }
+    {
+    }
+
+  public:
+    const vk::Device& get() const& { return get(); }
+};
+
+class LogicalDeviceBuilder
+{
+  private:
+    struct GraphicsQueueCreateData
+    {
+        Queue* queue = nullptr;
+    };
+
+    struct PresentQueueCreateData
+    {
+        Queue* queue = nullptr;
+        vk::SurfaceKHR surface = nullptr; // Surface to present to.
+    };
+
+  private:
+    PresentQueueCreateData m_present_queue_data;
+    GraphicsQueueCreateData m_graphics_queue_data;
+
+    StringVector m_extensions;
+    vk::PhysicalDeviceFeatures m_features;
+
+  public:
+    LogicalDeviceBuilder& withFeatures( const vk::PhysicalDeviceFeatures& features ) &
+    {
+        m_features = features;
+        return *this;
+    }
+
+    LogicalDeviceBuilder& withGraphicsQueue( Queue& queue ) &
+    {
+        m_graphics_queue_data = GraphicsQueueCreateData{ &queue };
+        return *this;
+    }
+
+    LogicalDeviceBuilder& withPresentQueue( const vk::SurfaceKHR& surface, Queue& queue ) &
+    {
+        m_present_queue_data = PresentQueueCreateData{ &queue, surface };
+        return *this;
+    }
+
+    template <ranges::range Range> LogicalDeviceBuilder& withExtensions( Range&& extensions ) &
+    {
+        ranges::copy( std::forward<Range>( extensions ), ranges::back_inserter( m_extensions ) );
+        return *this;
+    }
+
+  private:
+    auto getPresentFamilies( const vk::PhysicalDevice& physical_device ) const
+    {
+        auto queue_indices =
+            ranges::views::iota( 0 ) | ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
+
+        auto predicate = [ &physical_device, &surface = m_present_queue_data.surface ]( uint32_t index ) -> bool {
+            return physicalDeviceSupportsPresent( physical_device, surface );
+        };
+
+        return queue_indices | ranges::views::filter( predicate ) | ranges::to_vector;
+    }
+
+    auto getGraphicsFamilies( const vk::PhysicalDevice& physical_device ) const
+    {
+        auto queue_indices =
+            ranges::views::iota( 0 ) | ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
+
+        auto predicate = []( auto&& pair ) -> bool {
+            vk::QueueFamilyProperties properties = pair.second;
+            return utils::toBool( properties.queueFlags & vk::QueueFlagBits::eGraphics );
+        };
+
+        auto queue_family_properties = physical_device.getQueueFamilyProperties();
+
+        return ranges::views::zip( queue_indices, queue_family_properties ) | ranges::views::filter( predicate ) |
+            ranges::views::transform( []( auto&& pair ) { return pair.first; } ) | ranges::to_vector;
+    }
+
+  public:
+    LogicalDevice make( const vk::PhysicalDevice& physical_device ) const
+    {
+        auto present_families = getPresentFamilies( physical_device );
+        auto graphics_families = getGraphicsFamilies( physical_device );
+
+        auto cstr_extensions = utils::convertToCStrVector( m_extensions );
+
+        std::vector<vk::DeviceQueueCreateInfo> requested_queues;
+        uint32_t g_qfi = 0, p_qfi = 0;
+        auto both_families = ranges::views::set_intersection( present_families, graphics_families ) | ranges::to_vector;
+
+        auto queue_priorities = std::array{ 1.0f };
+        auto basic_queue_create_info =
+            vk::DeviceQueueCreateInfo{ .queueCount = 1, .pQueuePriorities = queue_priorities.data() };
+
+        if ( both_families.size() ) // Graphics family supports present.
+        {
+            // Don't care which exact family. For now. Maybe should choose a family with the
+            // most queues, e.t.c. But it's unlikely that we will need to do that.
+            g_qfi = p_qfi = both_families.front();
+            basic_queue_create_info.setQueueFamilyIndex( g_qfi );
+            requested_queues.push_back( basic_queue_create_info );
+        } else
+        {
+            g_qfi = graphics_families.front();
+            p_qfi = present_families.front();
+
+            basic_queue_create_info.setQueueFamilyIndex( g_qfi );
+            requested_queues.push_back( basic_queue_create_info );
+            basic_queue_create_info.setQueueFamilyIndex( p_qfi );
+            requested_queues.push_back( basic_queue_create_info );
+        }
+
+        auto device_create_info = vk::DeviceCreateInfo{
+            .queueCreateInfoCount = static_cast<uint32_t>( requested_queues.size() ),
+            .pQueueCreateInfos = requested_queues.data(),
+            .enabledExtensionCount = static_cast<uint32_t>( cstr_extensions.size() ),
+            .ppEnabledExtensionNames = cstr_extensions.data(),
+            .pEnabledFeatures = &m_features };
+
+        LogicalDevice device = physical_device.createDeviceUnique( device_create_info );
+
+        if ( auto* g_ptr = m_graphics_queue_data.queue; g_ptr )
+        {
+            *g_ptr = Queue{ device->getQueue( g_qfi, 0 ), g_qfi, 0 };
+        }
+
+        if ( auto* p_ptr = m_present_queue_data.queue; p_ptr )
+        {
+            *p_ptr = Queue{ device->getQueue( p_qfi, 0 ), p_qfi, 0 };
+        }
+
+        return device;
     }
 };
 

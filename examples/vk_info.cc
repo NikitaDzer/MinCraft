@@ -130,7 +130,7 @@ try
 
     // This assert is for testing purposes.
     const auto layers = std::array{ "VK_LAYER_KHRONOS_validation" }; // Initializer list
-    assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
+    assert( DebuggedInstance::supportsLayers( layers ).supports && "Instance does not support validation layers" );
     auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
 
@@ -155,7 +155,16 @@ try
     auto suitable_devices = physical_selector.make( instance );
     auto physical_device = suitable_devices.at( 0 ).device;
 
+    vkwrap::Queue graphics, present;
+    vkwrap::LogicalDeviceBuilder device_builder;
+
+    auto logical_device = device_builder.withGraphicsQueue( graphics )
+                              .withPresentQueue( surface.get(), present )
+                              .make( physical_device.get() );
+
+    fmt::print( "Graphics == Present: {}\n", graphics == present );
     fmt::print( "Found physical devices:\n" );
+
     for ( unsigned i = 0; auto&& pair : suitable_devices )
     {
         auto&& [ device, info ] = pair;
