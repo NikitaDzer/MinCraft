@@ -4,8 +4,11 @@
 
 #include "common/utils.h"
 #include "common/vulkan_include.h"
+
 #include "vkwrap/device.h"
 #include "vkwrap/instance.h"
+#include "vkwrap/queues.h"
+
 #include "window/window.h"
 
 #include <spdlog/cfg/env.h>

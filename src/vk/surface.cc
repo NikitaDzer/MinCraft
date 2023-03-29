@@ -3,6 +3,7 @@
 #include "common/glfw_include.h"
 #include "common/vulkan_include.h"
 
+#include "vkwrap/core.h"
 #include "vkwrap/surface.h"
 
 #include <range/v3/algorithm/any_of.hpp>
@@ -16,7 +17,7 @@ physicalDeviceSupportsPresent( vk::PhysicalDevice physical_device, vk::SurfaceKH
 {
     assert( physical_device );
 
-    uint32_t queue_family_count = 0;
+    QueueFamilyIndex queue_family_count = 0;
     physical_device.getQueueFamilyProperties(
         &queue_family_count,
         nullptr //
