@@ -33,13 +33,13 @@ std::pair<bool, std::vector<std::string>>
 physicalDeviceSupportsExtensions( vk::PhysicalDevice physical_device, Range&& extensions )
 {
     auto supports = physical_device.enumerateDeviceExtensionProperties();
-    auto missing = utils::findAllMissing( supports, extensions, &vk::ExtensionProperties::extensionName );
+    auto missing =
+        utils::findAllMissing( supports, std::forward<Range>( extensions ), &vk::ExtensionProperties::extensionName );
     return std::pair{ missing.empty(), missing };
 }
 
 struct PhysicalDevicePropertiesPair
 {
-  public:
     vk::PhysicalDevice device;
     vk::PhysicalDeviceProperties properties;
 };
