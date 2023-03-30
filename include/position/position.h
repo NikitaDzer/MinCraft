@@ -17,15 +17,6 @@ class ChunkPos
         : x( x_par ),
           y( y_par ){};
 
-    explicit operator int64_t() const
-    {
-        int xy[ 2 ]{};
-        xy[ 0 ] = x;
-        xy[ 1 ] = y;
-
-        return reinterpret_cast<int64_t&>( xy );
-    }
-
   public:
     int x;
     int y;
@@ -38,6 +29,12 @@ inline bool
 operator==( const ChunkPos& lhs, const ChunkPos& rhs )
 {
     return ( lhs.x == rhs.x && lhs.y == rhs.y );
+}
+
+inline bool
+operator!=( const ChunkPos& lhs, const ChunkPos& rhs )
+{
+    return !( lhs == rhs );
 }
 
 /**
