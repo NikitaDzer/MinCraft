@@ -11,7 +11,7 @@ void
 initializeLoader()
 {
     static vk::DynamicLoader s_dl;
-    PFN_vkGetInstanceProcAddr p_vkGetInstanceProcAddr = // Do not confuse with the C-API function vkGetInstanceProcAddr
+    auto p_vkGetInstanceProcAddr = // Do not confuse with the C-API function vkGetInstanceProcAddr
         s_dl.getProcAddress<PFN_vkGetInstanceProcAddr>( "vkGetInstanceProcAddr" );
     VULKAN_HPP_DEFAULT_DISPATCHER.init( p_vkGetInstanceProcAddr );
 } // initializeLoader

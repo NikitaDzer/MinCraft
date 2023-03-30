@@ -177,7 +177,7 @@ try
     fmt::print( "Unsupported error: {}\n", e.what() );
     for ( unsigned i = 0; auto&& entry : e )
     {
-        fmt::print( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.m_tag ), entry.m_name );
+        fmt::print( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.tag ), entry.name );
     }
 } catch ( vk::Error& e )
 {

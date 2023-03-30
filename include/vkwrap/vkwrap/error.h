@@ -43,8 +43,8 @@ unsupportedTagToStr( UnsupportedTag tag )
 
 struct UnsupportedEntry
 {
-    UnsupportedTag m_tag;
-    std::string m_name;
+    UnsupportedTag tag;
+    std::string name;
 }; // UnsupportedEntry
 
 class UnsupportedError : public Error, private std::vector<UnsupportedEntry>
@@ -53,7 +53,7 @@ class UnsupportedError : public Error, private std::vector<UnsupportedEntry>
     using VectorBase = std::vector<UnsupportedEntry>;
 
   public:
-    UnsupportedError( std::string msg, VectorBase missing )
+    UnsupportedError( std::string msg, VectorBase missing = {} )
         : Error{ std::move( msg ) },
           VectorBase{ std::move( missing ) }
     {

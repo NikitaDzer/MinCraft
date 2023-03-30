@@ -60,7 +60,6 @@ struct InstanceImpl : protected vk::UniqueInstance
     [[nodiscard]] static SupportsResult supportsExtensions( ranges::range auto&& find )
     {
         const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
-        using ElemType = typename decltype( supported_extensions )::value_type;
         const auto missing_extensions = utils::findAllMissing( supported_extensions, find, []( auto&& ext ) {
             return std::string_view{ ext.extensionName };
         } );
@@ -70,7 +69,6 @@ struct InstanceImpl : protected vk::UniqueInstance
     [[nodiscard]] static SupportsResult supportsLayers( ranges::range auto&& find )
     {
         const auto supported_layers = vk::enumerateInstanceLayerProperties();
-        using ElemType = typename decltype( supported_layers )::value_type;
         const auto missing_layers = utils::findAllMissing( supported_layers, find, []( auto&& layer ) {
             return std::string_view{ layer.layerName };
         } );

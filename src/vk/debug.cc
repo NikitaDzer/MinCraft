@@ -49,26 +49,37 @@ assembleDebugMessage(
     );
 
     if ( !queues.empty() )
+    {
         fmt::format_to( oit, " -- Associated Queues: --\n" );
+    }
+
     for ( uint32_t i = 0; const auto& v : queues )
     {
         fmt::format_to( oit, "[{}]. name = <{}>\n", i++, v.pLabelName );
     }
 
     if ( !cmdbufs.empty() )
+    {
         fmt::format_to( oit, " -- Associated Command Buffers: --\n" );
+    }
+
     for ( uint32_t i = 0; const auto& v : cmdbufs )
     {
         fmt::format_to( oit, "[{}]. name = <{}>\n", i++, v.pLabelName );
     }
 
     if ( !objects.empty() )
+    {
         fmt::format_to( oit, " -- Associated Vulkan Objects: --\n" );
+    }
+
     for ( uint32_t i = 0; const auto& v : objects )
     {
         fmt::format_to( oit, "[{}]. type = <{}>, handle = {:#x}", i++, vk::to_string( v.objectType ), v.objectHandle );
         if ( v.pObjectName )
+        {
             fmt::format_to( oit, ", name = <{}>", v.pObjectName );
+        }
         fmt::format_to( oit, "\n" );
     }
 

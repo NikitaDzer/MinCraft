@@ -48,7 +48,7 @@ class BlockPos
   public:
     BlockPos( int x_par = 0, int y_par = 0, uint8_t z_par = 0 )
         : x( x_par ),
-          y( x_par ),
+          y( y_par ),
           z( z_par ){};
 
   public:

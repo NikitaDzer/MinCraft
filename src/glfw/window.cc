@@ -40,12 +40,6 @@ setWindowHints()
     // clang-format on
 } // setWindowHints
 
-std::string
-getHandleAddressString( const Window* window )
-{
-    return std::to_string( utils::pointerToInt( window ) );
-} // getHandleAddressString
-
 void
 logGLFWaction(
     const std::string& action,
@@ -64,7 +58,7 @@ logGLFWaction(
         fmt::format_to( oit, "Message (GLFW): {}", action );
     }
 
-    if ( additional.size() )
+    if ( !additional.empty() )
     {
         fmt::format_to( oit, "\n -- Additional info --" );
         for ( auto i : ranges::views::iota( 0 ) | ranges::views::take( additional.size() ) )
@@ -217,7 +211,7 @@ WindowManager::WindowManager( ErrorCallbackSignature* error_callback )
     logGLFWaction( "Initialize library" );
 } // WindowManager
 
-WindowManager::~WindowManager()
+WindowManager::~WindowManager() noexcept( false )
 {
     glfwTerminate();
     logGLFWaction( "Terminate library" );
@@ -236,7 +230,9 @@ WindowManager::initialize()
 {
     static WindowManager instance{ errorCallback };
     if ( isSuitableVersion() )
+    {
         return;
+    }
 
     throw Error{
         Error::k_user_error,

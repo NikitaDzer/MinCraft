@@ -6,6 +6,12 @@ if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBU
     message ( FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it." )
 endif ()
 
+if ( MSVC )
+  add_compile_options( /W4 )
+else()
+  add_compile_options( -Wall -Wextra -Wpedantic )
+endif()
+
 option ( LINT OFF )
 
 if ( ${LINT} )
@@ -13,7 +19,8 @@ if ( ${LINT} )
     
     set(
         CLANG_TIDY_COMMAND "${CLANG_TIDY_EXECUTABLE}"
-        "-checks=-*,modernize-*,-modernize-use-trailing-return-type*,readability-*,portability-*,bugprone-*" 
+        "-checks=-*,modernize-*,-modernize-use-trailing-return-type*,readability-*,-readability-implicit-bool-conversion*,\
+        -readability-identifier-length*,portability-*,bugprone-*" 
     )
 
     function ( target_enable_linter TARGET_NAME )

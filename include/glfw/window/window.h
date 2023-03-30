@@ -71,11 +71,7 @@ struct WindowConfig
     static constexpr std::string_view k_default_title = "MinCraft";
     static constexpr bool k_default_fullscreen = false;
 
-    static void defaultResizeCallback(
-        Window* window,
-        int width,
-        int height //
-    )
+    static void defaultResizeCallback( Window*, int, int )
     {
         spdlog::warn( "No resize callback is set." );
     } // defaultResizeCallback
@@ -159,7 +155,7 @@ class WindowManager
     );
 
     WindowManager( ErrorCallbackSignature* error_callback );
-    ~WindowManager();
+    ~WindowManager() noexcept( false );
 
     static bool isSuitableVersion();
 

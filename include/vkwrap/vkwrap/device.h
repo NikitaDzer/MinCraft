@@ -312,7 +312,7 @@ class LogicalDeviceBuilder
             ranges::views::iota( 0 ) | ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
 
         auto predicate = [ &physical_device, &surface = m_present_queue_data.surface ]( uint32_t index ) -> bool {
-            return physicalDeviceSupportsPresent( physical_device, surface );
+            return physical_device.getSurfaceSupportKHR( index, surface );
         };
 
         return queue_indices | ranges::views::filter( predicate ) | ranges::to_vector;
@@ -349,6 +349,12 @@ class LogicalDeviceBuilder
         auto queue_priorities = std::array{ 1.0f };
         auto basic_queue_create_info =
             vk::DeviceQueueCreateInfo{ .queueCount = 1, .pQueuePriorities = queue_priorities.data() };
+
+        if ( ( present_families.empty() && !m_present_queue_data.queue ) ||
+             ( graphics_families.empty() && !m_graphics_queue_data.queue ) )
+        {
+            throw Error{ "Not all required queues are supported" };
+        }
 
         if ( both_families.size() ) // Graphics family supports present.
         {
