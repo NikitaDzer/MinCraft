@@ -2,7 +2,6 @@
  *
  */
 
-#include "common/utils.h"
 #include "common/vulkan_include.h"
 
 #include "vkwrap/device.h"

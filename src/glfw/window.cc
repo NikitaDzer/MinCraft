@@ -238,7 +238,7 @@ WindowManager::initialize()
 
     throw Error{
         Error::k_user_error,
-        "GLFW minimal version: " + getMinVersionString() //
+        fmt::format( "GLFW minimal version: {}", getMinVersionString() ) //
     };
 } // initialize
 

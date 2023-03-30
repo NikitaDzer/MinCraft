@@ -1,7 +1,10 @@
 #pragma once
 
-#include "common/utils.h"
 #include "common/vulkan_include.h"
+
+#include "utils/algorithm.h"
+#include "utils/misc.h"
+#include "utils/range.h"
 
 #include <range/v3/iterator.hpp>
 #include <range/v3/range/concepts.hpp>

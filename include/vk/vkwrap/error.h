@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common/utils.h"
-
+#include <cassert>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace vkwrap

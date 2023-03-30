@@ -1,20 +1,27 @@
 #pragma once
 
-#include "common/utils.h"
 #include "common/vulkan_include.h"
+
+#include "utils/algorithm.h"
+#include "utils/misc.h"
+#include "utils/range.h"
 
 #include "vkwrap/core.h"
 #include "vkwrap/queues.h"
 #include "vkwrap/surface.h"
 
-#include "range/v3/range/conversion.hpp"
-#include "range/v3/view/set_algorithm.hpp"
-#include "range/v3/view/take.hpp"
+#include <range/v3/view/set_algorithm.hpp>
+#include <range/v3/view/take.hpp>
+#include <range/v3/view/transform.hpp>
+
 #include <range/v3/algorithm/copy.hpp>
 #include <range/v3/algorithm/set_algorithm.hpp>
 #include <range/v3/algorithm/sort.hpp>
+
+#include "range/v3/range/conversion.hpp"
 #include <range/v3/iterator/insert_iterators.hpp>
 #include <range/v3/range/concepts.hpp>
+
 #include <range/v3/view/all.hpp>
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/iota.hpp>

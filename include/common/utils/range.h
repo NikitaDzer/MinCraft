@@ -11,28 +11,6 @@
 namespace utils
 {
 
-// Algorithm to find all elements from `find` range of type FindRange that are not contained in `all`. Return a vector
-// of type range_value_t<FindRange>;
-template <typename AllRange, typename FindRange, typename Proj>
-auto
-findAllMissing( AllRange&& all, FindRange&& find, Proj proj )
-{
-    return ranges::views::all( find ) |
-        ranges::views::filter( [ &all, &proj ]( auto&& elem ) { return !ranges::contains( all, elem, proj ); } ) |
-        ranges::to_vector;
-}
-
-template <typename T>
-concept Enumeration = std::is_enum_v<T>;
-
-// Replacement for yet unimplemented C++23 to_underlying
-template <Enumeration T>
-constexpr auto
-toUnderlying( const T& val )
-{
-    return static_cast<std::underlying_type_t<T>>( val );
-}
-
 // clang-format off
 template <typename T>
 concept convertibleToCStrRange = requires ()
@@ -66,30 +44,5 @@ convertToCStrVector( T&& range )
 }
 
 // clang-format off
-template <typename T> concept Hashable = requires (T v) {
-  { std::hash<T>{}(v) } -> std::integral;
-}; // clang-format on
-
-template <Hashable T>
-void
-hashCombine( std::size_t& seed, const T& v )
-{
-    std::hash<T> hasher;
-    seed ^= hasher( v ) + 0x9e3779b9 + ( seed << 6 ) + ( seed >> 2 );
-}
-
-// clang-format off
-template <typename T, typename D>
-concept CoercibleTo = requires ( T source ) {
-    { static_cast<D>( source ) };
-};
-// clang-format on
-
-template <CoercibleTo<bool> T>
-bool
-toBool( T&& arg )
-{
-    return static_cast<bool>( std::forward<T>( arg ) );
-}
 
 }; // namespace utils

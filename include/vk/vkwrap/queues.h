@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/utils.h"
 #include "common/vulkan_include.h"
 
 #include "vkwrap/core.h"
