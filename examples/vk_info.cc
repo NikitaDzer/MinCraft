@@ -154,7 +154,8 @@ try
     auto suitable_devices = physical_selector.make( instance );
     auto physical_device = suitable_devices.at( 0 ).device;
 
-    vkwrap::Queue graphics, present;
+    vkwrap::Queue graphics;
+    vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
     auto logical_device = device_builder.withGraphicsQueue( graphics )

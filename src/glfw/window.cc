@@ -142,12 +142,9 @@ Window::framebufferSizeCallback(
 FramebufferSizeType
 Window::getFramebufferSize() const
 {
-    int width = 0;
-    int height = 0;
-
-    glfwGetFramebufferSize( m_handle.get(), &width, &height );
-
-    return { width, height };
+    FramebufferSizeType size;
+    glfwGetFramebufferSize( m_handle.get(), &size.width, &size.height );
+    return size;
 } // getFramebufferSize
 
 void

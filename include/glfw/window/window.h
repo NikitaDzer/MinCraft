@@ -15,7 +15,8 @@
 
 #include "common/glfw_include.h"
 #include "common/vulkan_include.h"
-#include "common/window_base.h"
+#include "window/window_base.h"
+
 #include "error.h"
 
 #include <spdlog/fmt/bundled/format.h>
@@ -37,7 +38,12 @@ class WindowManager;
 struct WindowConfig;
 
 using WindowType = GLFWwindow;
-using FramebufferSizeType = std::pair<int, int>;
+
+struct FramebufferSizeType
+{
+    int width = 0;
+    int height = 0;
+};
 
 using WindowResizeCallbackSignature = void(
     Window* window,
@@ -129,10 +135,10 @@ class Window : public WindowBase<Window>
     FramebufferSizeType getFramebufferSize() const;
 
     // Call permissions: main thread.
-    int getFramebufferWidth() const { return getFramebufferSize().first; }
+    int getFramebufferWidth() const { return getFramebufferSize().width; }
 
     // Call permissions: main thread.
-    int getFramebufferHeight() const { return getFramebufferSize().second; }
+    int getFramebufferHeight() const { return getFramebufferSize().height; }
 
     // Call permissions: main thread.
     void setWindowed() const;
