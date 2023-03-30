@@ -1,6 +1,7 @@
 #pragma once
 
-#include "position/position.h"
+#include "chunk/position.h"
+
 #include <cassert>
 #include <cstdint>
 #include <unordered_map>
@@ -12,7 +13,7 @@ enum class BlockID : uint16_t
 {
 #define REGISTER_BLOCK( block_name, ... ) k_##block_name,
 
-#include "chunk/block_id.inc"
+#include "detail/block_id.inc"
 
 #undef REGISTER_BLOCK
 }; // enum class BlockID
