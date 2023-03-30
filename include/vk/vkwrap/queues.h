@@ -33,6 +33,11 @@ class Queue : private vk::Queue
     {
     }
 
+    Queue( const vk::Device& logical_device, QueueFamilyIndex family_index, QueueIndex queue_index )
+        : Queue{ logical_device.getQueue( family_index, queue_index ), family_index, queue_index }
+    {
+    }
+
     const vk::Queue& get() const& { return *this; }
     QueueFamilyIndex familyIndex() const { return m_family_index; }
     QueueIndex queueIndex() const { return m_queue_index; }

@@ -244,14 +244,12 @@ class LogicalDevice : private vk::UniqueDevice
   public:
     using vk::UniqueDevice::operator bool;
     using vk::UniqueDevice::operator->;
+    using vk::UniqueDevice::get;
 
     LogicalDevice( vk::UniqueDevice logical_device )
         : vk::UniqueDevice{ std::move( logical_device ) }
     {
     }
-
-  public:
-    const vk::Device& get() const& { return get(); }
 }; // LogicalDevice
 
 class LogicalDeviceBuilder
@@ -374,12 +372,12 @@ class LogicalDeviceBuilder
 
         if ( auto* g_ptr = m_graphics_queue_data.queue; g_ptr )
         {
-            *g_ptr = Queue{ device->getQueue( g_qfi, 0 ), g_qfi, 0 };
+            *g_ptr = Queue{ device.get(), g_qfi, 0 };
         }
 
         if ( auto* p_ptr = m_present_queue_data.queue; p_ptr )
         {
-            *p_ptr = Queue{ device->getQueue( p_qfi, 0 ), p_qfi, 0 };
+            *p_ptr = Queue{ device.get(), p_qfi, 0 };
         }
 
         return device;
