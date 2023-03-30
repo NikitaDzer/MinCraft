@@ -1,5 +1,7 @@
 #include <spdlog/spdlog.h>
 
+#include "utils/misc.h"
+
 #include "common/glfw_include.h"
 #include "window/error.h"
 #include "window/window.h"
@@ -41,7 +43,7 @@ setWindowHints()
 std::string
 getHandleAddressString( const Window* window )
 {
-    return std::to_string( std::bit_cast<uintptr_t>( window ) );
+    return std::to_string( utils::pointerToInt( window ) );
 } // getHandleAddressString
 
 void
@@ -56,7 +58,7 @@ logGLFWaction(
 
     if ( handle )
     {
-        fmt::format_to( oit, "Message (GLFW) [handle = {:#x}]: {}", std::bit_cast<uintptr_t>( handle ), action );
+        fmt::format_to( oit, "Message (GLFW) [handle = {:#x}]: {}", utils::pointerToInt( handle ), action );
     } else
     {
         fmt::format_to( oit, "Message (GLFW): {}", action );

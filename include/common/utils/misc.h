@@ -2,6 +2,8 @@
 
 #include "utils/concepts.h"
 
+#include <bit>
+#include <cstdint>
 #include <functional>
 
 namespace utils
@@ -29,6 +31,12 @@ constexpr auto
 toUnderlying( const T& val )
 {
     return static_cast<std::underlying_type_t<T>>( val );
+}
+
+constexpr auto
+pointerToInt( const auto* pointer )
+{
+    return std::bit_cast<uintptr_t>( pointer );
 }
 
 } // namespace utils
