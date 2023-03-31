@@ -87,20 +87,22 @@ class PhysicalDevice : private vk::PhysicalDevice
     using vk::PhysicalDevice::operator bool;
 }; // PhysicalDevice
 
-struct PhysicalDevicePropertiesPair
+struct PhysicalDeviceInfo
 {
     PhysicalDevice device;
     vk::PhysicalDeviceProperties properties;
+    vk::PhysicalDeviceIDProperties identifier;
 };
 
 inline bool
-operator==( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
+operator==( const PhysicalDeviceInfo& lhs, const PhysicalDeviceInfo& rhs )
 {
-    return lhs.device.get() == rhs.device.get() && lhs.properties == rhs.properties;
+    return ( lhs.device.get() == rhs.device.get() ) && ( lhs.properties == rhs.properties ) &&
+        ( lhs.identifier == rhs.identifier );
 } // operator==
 
 inline bool
-operator!=( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
+operator!=( const PhysicalDeviceInfo& lhs, const PhysicalDeviceInfo& rhs )
 {
     return !( lhs == rhs );
 } // operator!=
@@ -110,14 +112,17 @@ operator!=( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropert
 namespace std
 {
 
-template <> struct hash<vkwrap::PhysicalDevicePropertiesPair>
+template <> struct hash<vkwrap::PhysicalDeviceInfo>
 {
-    size_t operator()( const vkwrap::PhysicalDevicePropertiesPair& pair ) const
+    size_t operator()( const vkwrap::PhysicalDeviceInfo& info ) const
     {
-        auto&& [ _, prop ] = pair;
         size_t seed = 0;
-        utils::hashCombine( seed, prop.deviceID );
-        utils::hashCombine( seed, prop.vendorID );
+
+        for ( auto&& uid : info.identifier.deviceUUID )
+        {
+            utils::hashCombine( seed, uid );
+        }
+
         return seed;
     }
 }; // hash
@@ -130,7 +135,7 @@ namespace vkwrap
 class PhysicalDeviceSelector
 {
   public:
-    using WeightFunction = std::function<int( PhysicalDevicePropertiesPair )>;
+    using WeightFunction = std::function<int( PhysicalDeviceInfo )>;
 
   private:
     StringVector m_extensions;                               // Extensions that the device needs to support
@@ -187,10 +192,9 @@ class PhysicalDeviceSelector
     } // withTypes
 
   private:
-    auto calculateWeight( const PhysicalDevicePropertiesPair& elem ) const
-        -> std::pair<PhysicalDevicePropertiesPair, int>
+    auto calculateWeight( const PhysicalDeviceInfo& elem ) const -> std::pair<PhysicalDeviceInfo, int>
     {
-        auto [ device, properties ] = elem;
+        auto [ device, properties, id ] = elem;
         constexpr int invalid = -1;
 
         // Call custom function to skip doing unnecessary work if possible.
@@ -209,7 +213,7 @@ class PhysicalDeviceSelector
         return std::pair{ elem, cost };
     } // calculateWeight
 
-    using WeightMap = std::unordered_map<PhysicalDevicePropertiesPair, int>;
+    using WeightMap = std::unordered_map<PhysicalDeviceInfo, int>;
 
     WeightMap makeWeighted( const vk::Instance& instance ) const
     {
@@ -221,7 +225,13 @@ class PhysicalDeviceSelector
         WeightMap weight_map;
 
         const auto get_properites = []( auto&& device ) {
-            return PhysicalDevicePropertiesPair{ device, device.getProperties() };
+            auto chain =
+                device.template getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceIDProperties>();
+
+            auto properties = chain.template get<vk::PhysicalDeviceProperties2>().properties;
+            auto id = chain.template get<vk::PhysicalDeviceIDProperties>();
+
+            return PhysicalDeviceInfo{ device, properties, id };
         };
 
         auto views = ranges::views::all( all_devices ) | ranges::views::transform( get_properites ) |

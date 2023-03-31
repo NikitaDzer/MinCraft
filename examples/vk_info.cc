@@ -129,7 +129,7 @@ try
         .withCallback( callback );
 
     // This assert is for testing purposes.
-    const auto layers = std::array{ "VK_LAYER_KHRONOS_validation" }; // Initializer list
+    [[maybe_unused]] const auto layers = std::array{ "VK_LAYER_KHRONOS_validation" };
     assert( DebuggedInstance::supportsLayers( layers ).supports && "Instance does not support validation layers" );
     auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
@@ -168,12 +168,18 @@ try
 
     for ( unsigned i = 0; auto&& pair : suitable_devices )
     {
-        auto&& [ device, info ] = pair;
-        fmt::print( "[{}]. name = {}, type = {}\n", i++, info.deviceName, vk::to_string( info.deviceType ) );
+        auto&& [ device, info, id ] = pair;
+
+        fmt::print(
+            "[{}]. name = {}, type = {}, id = {}, uuid = {}\n",
+            i++,
+            info.deviceName.data(),
+            vk::to_string( info.deviceType ),
+            info.deviceID,
+            fmt::join( id.driverUUID, "" ) );
     }
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
-
 } catch ( vkwrap::UnsupportedError& e )
 {
     fmt::print( "Unsupported error: {}\n", e.what() );
