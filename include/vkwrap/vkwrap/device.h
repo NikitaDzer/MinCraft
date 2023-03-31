@@ -96,13 +96,13 @@ struct PhysicalDevicePropertiesPair
 inline bool
 operator==( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
 {
-    return lhs.device.get() == rhs.device.get();
+    return lhs.device.get() == rhs.device.get() && lhs.properties == rhs.properties;
 } // operator==
 
 inline bool
 operator!=( const PhysicalDevicePropertiesPair& lhs, const PhysicalDevicePropertiesPair& rhs )
 {
-    return lhs.device.get() != rhs.device.get();
+    return !( lhs == rhs );
 } // operator!=
 
 } // namespace vkwrap
