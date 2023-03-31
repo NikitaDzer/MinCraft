@@ -12,9 +12,11 @@
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
+#include <spdlog/fmt/bundled/format.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -38,7 +40,7 @@ versionToString( uint32_t version )
 } // versionToString
 
 void
-printPhysicalDeviceProperties( vk::PhysicalDevice device )
+printPhysicalDeviceProperties( const vk::PhysicalDevice& device )
 {
     const auto extensions = device.enumerateDeviceExtensionProperties();
     const auto properties = device.getProperties();
@@ -51,14 +53,13 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
         versionToString( properties.apiVersion ) //
     );
 
-    const auto extensions_string = std::accumulate(
-        extensions.begin(),
-        extensions.end(),
-        std::string{},
-        []( auto str, auto ext ) {
-            return str + " " + ext.extensionName.data();
-        } //
-    );
+    std::stringstream ss;
+    for ( auto&& ext : extensions )
+    {
+        ss << " " << ext.extensionName.data();
+    }
+
+    const auto extensions_string = ss.str();
 
     fmt::print(
         "Physical device [{}] supports following extensions: {}\n",

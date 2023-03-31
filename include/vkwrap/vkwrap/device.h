@@ -43,9 +43,12 @@ template <ranges::range Range>
 SupportsResult
 physicalDeviceSupportsExtensions( const vk::PhysicalDevice& physical_device, Range&& extensions )
 {
+    assert( physical_device );
+
     auto supports = physical_device.enumerateDeviceExtensionProperties();
     auto missing =
         utils::findAllMissing( supports, std::forward<Range>( extensions ), &vk::ExtensionProperties::extensionName );
+
     return SupportsResult{ missing.empty(), missing };
 } // physicalDeviceSupportsExtensions
 
@@ -346,12 +349,15 @@ class LogicalDeviceBuilder
         uint32_t g_qfi = 0, p_qfi = 0;
         auto both_families = ranges::views::set_intersection( present_families, graphics_families ) | ranges::to_vector;
 
-        auto queue_priorities = std::array{ 1.0f };
+        auto queue_priorities = std::array{ 1.0f }; // Default priority. 1.0f indicates maximum priority.
         auto basic_queue_create_info =
             vk::DeviceQueueCreateInfo{ .queueCount = 1, .pQueuePriorities = queue_priorities.data() };
 
-        if ( ( present_families.empty() && !m_present_queue_data.queue ) ||
-             ( graphics_families.empty() && !m_graphics_queue_data.queue ) )
+        bool should_make_present = m_present_queue_data.queue != nullptr;
+        bool should_make_graphics = m_graphics_queue_data.queue != nullptr;
+
+        if ( ( present_families.empty() && should_make_present ) ||
+             ( graphics_families.empty() && should_make_graphics ) )
         {
             throw Error{ "Not all required queues are supported" };
         }
