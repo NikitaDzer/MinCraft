@@ -46,13 +46,7 @@ class Queue : private vk::Queue
     using vk::Queue::presentKHR;
     using vk::Queue::waitIdle;
 
-    friend bool operator==( const Queue& lhs, const Queue& rhs )
-    {
-        return ( lhs.m_family_index == rhs.m_family_index ) && ( lhs.m_queue_index == rhs.m_queue_index ) &&
-            ( lhs.get() == rhs.get() );
-    }
-
-    friend bool operator!=( const Queue& lhs, const Queue& rhs ) { return !( lhs == rhs ); }
+    bool operator==( const Queue& rhs ) const = default;
 }; // Queue
 
 } // namespace vkwrap

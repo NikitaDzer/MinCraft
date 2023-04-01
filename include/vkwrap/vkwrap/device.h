@@ -85,6 +85,8 @@ class PhysicalDevice : private vk::PhysicalDevice
 
     using vk::PhysicalDevice::getFeatures;
     using vk::PhysicalDevice::operator bool;
+
+    bool operator==( const PhysicalDevice& other ) const = default;
 }; // PhysicalDevice
 
 struct PhysicalDeviceInfo
@@ -92,20 +94,9 @@ struct PhysicalDeviceInfo
     PhysicalDevice device;
     vk::PhysicalDeviceProperties properties;
     vk::PhysicalDeviceIDProperties identifier;
+
+    bool operator==( const PhysicalDeviceInfo& rhs ) const = default;
 };
-
-inline bool
-operator==( const PhysicalDeviceInfo& lhs, const PhysicalDeviceInfo& rhs )
-{
-    return ( lhs.device.get() == rhs.device.get() ) && ( lhs.properties == rhs.properties ) &&
-        ( lhs.identifier == rhs.identifier );
-} // operator==
-
-inline bool
-operator!=( const PhysicalDeviceInfo& lhs, const PhysicalDeviceInfo& rhs )
-{
-    return !( lhs == rhs );
-} // operator!=
 
 } // namespace vkwrap
 
