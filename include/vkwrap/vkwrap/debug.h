@@ -18,8 +18,8 @@ namespace vkwrap
 using MsgSev = vk::DebugUtilsMessageSeverityFlagBitsEXT;
 using MsgType = vk::DebugUtilsMessageTypeFlagBitsEXT;
 
-static constexpr auto k_default_severity_flags = MsgSev::eVerbose | MsgSev::eWarning | MsgSev::eError | MsgSev::eInfo;
-static constexpr auto k_default_type_flags = MsgType::eGeneral | MsgType::eValidation | MsgType::ePerformance;
+constexpr auto k_default_severity_flags = MsgSev::eVerbose | MsgSev::eWarning | MsgSev::eError | MsgSev::eInfo;
+constexpr auto k_default_type_flags = MsgType::eGeneral | MsgType::eValidation | MsgType::ePerformance;
 
 using DebugUtilsCallbackSignature = bool(
     vk::DebugUtilsMessageSeverityFlagBitsEXT,
