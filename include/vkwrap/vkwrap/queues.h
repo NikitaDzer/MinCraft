@@ -22,15 +22,15 @@ class Queue : private vk::Queue
     QueueFamilyIndex m_family_index = 0;
     QueueIndex m_queue_index = 0;
 
-  public:
-    Queue() = default;
-
     Queue( const vk::Queue& queue, QueueFamilyIndex family_index, QueueIndex queue_index )
         : vk::Queue{ queue },
           m_family_index{ family_index },
           m_queue_index{ queue_index }
     {
     }
+
+  public:
+    Queue() = default;
 
     Queue( const vk::Device& logical_device, QueueFamilyIndex family_index, QueueIndex queue_index )
         : Queue{ logical_device.getQueue( family_index, queue_index ), family_index, queue_index }
