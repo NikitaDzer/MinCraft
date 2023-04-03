@@ -226,15 +226,13 @@ void
 WindowManager::initialize()
 {
     static WindowManager instance{ errorCallback };
-    if ( isSuitableVersion() )
+    if ( !isSuitableVersion() )
     {
-        return;
+        throw Error{
+            Error::k_user_error,
+            fmt::format( "GLFW minimal version: {}", getMinVersionString() ) //
+        };
     }
-
-    throw Error{
-        Error::k_user_error,
-        fmt::format( "GLFW minimal version: {}", getMinVersionString() ) //
-    };
 } // initialize
 
 std::span<const char*>
