@@ -183,7 +183,7 @@ class PhysicalDeviceSelector
     } // withTypes
 
   private:
-    auto calculateWeight( const PhysicalDeviceInfo& elem ) const -> std::pair<PhysicalDeviceInfo, int>
+    std::pair<PhysicalDeviceInfo, int> calculateWeight( const PhysicalDeviceInfo& elem ) const
     {
         auto [ device, properties, id ] = elem;
         constexpr int invalid = -1;
@@ -310,10 +310,10 @@ class LogicalDeviceBuilder
     } // withExtensions
 
   private:
-    auto getPresentFamilies( const vk::PhysicalDevice& physical_device ) const
+    std::vector<QueueFamilyIndex> getPresentFamilies( const vk::PhysicalDevice& physical_device ) const
     {
-        auto queue_indices =
-            ranges::views::iota( 0 ) | ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
+        auto queue_indices = ranges::views::iota( QueueFamilyIndex{ 0 } ) |
+            ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
 
         auto predicate = [ &physical_device, &surface = m_present_queue_data.surface ]( uint32_t index ) -> bool {
             return physical_device.getSurfaceSupportKHR( index, surface );
@@ -322,10 +322,10 @@ class LogicalDeviceBuilder
         return queue_indices | ranges::views::filter( predicate ) | ranges::to_vector;
     } // getPresentFamilies
 
-    auto getGraphicsFamilies( const vk::PhysicalDevice& physical_device ) const
+    std::vector<QueueFamilyIndex> getGraphicsFamilies( const vk::PhysicalDevice& physical_device ) const
     {
-        auto queue_indices =
-            ranges::views::iota( 0 ) | ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
+        auto queue_indices = ranges::views::iota( QueueFamilyIndex{ 0 } ) |
+            ranges::views::take( physicalDeviceQueueFamilyCount( physical_device ) );
 
         auto predicate = []( auto&& pair ) -> bool {
             vk::QueueFamilyProperties properties = pair.second;
