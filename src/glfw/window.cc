@@ -52,7 +52,7 @@ logGLFWaction(
 
     if ( handle )
     {
-        fmt::format_to( oit, "Message (GLFW) [handle = {:#x}]: {}", utils::pointerToInt( handle ), action );
+        fmt::format_to( oit, "Message (GLFW) [handle = {}]: {}", fmt::ptr( handle ), action );
     } else
     {
         fmt::format_to( oit, "Message (GLFW): {}", action );

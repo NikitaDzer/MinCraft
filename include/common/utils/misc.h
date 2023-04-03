@@ -18,11 +18,11 @@ hashCombine( std::size_t& seed, const T& v )
 }
 
 // Convert to bool
-template <CoercibleTo<bool> T>
+template <ExplicitlyConvertibleTo<bool> T>
 bool
-toBool( T&& arg )
+toBool( const T& arg )
 {
-    return static_cast<bool>( std::forward<T>( arg ) );
+    return static_cast<bool>( arg );
 }
 
 // Replacement for yet unimplemented C++23 to_underlying
@@ -31,12 +31,6 @@ constexpr auto
 toUnderlying( const T& val )
 {
     return static_cast<std::underlying_type_t<T>>( val );
-}
-
-constexpr auto
-pointerToInt( const auto* pointer )
-{
-    return std::bit_cast<uintptr_t>( pointer );
 }
 
 } // namespace utils

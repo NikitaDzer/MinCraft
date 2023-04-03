@@ -20,8 +20,9 @@ namespace utils
 struct StringEqual
 {
     using is_transparent = void;
-    bool operator()( const CoercibleTo<std::string_view> auto& lhs, const CoercibleTo<std::string_view> auto& rhs )
-        const
+    bool operator()(
+        const ExplicitlyConvertibleTo<std::string_view> auto& lhs,
+        const ExplicitlyConvertibleTo<std::string_view> auto& rhs ) const
     {
         return static_cast<std::string_view>( lhs ) == static_cast<std::string_view>( rhs );
     }
@@ -30,7 +31,7 @@ struct StringEqual
 struct StringHash
 {
     using is_transparent = StringEqual;
-    bool operator()( const CoercibleTo<std::string_view> auto& val ) const
+    bool operator()( const ExplicitlyConvertibleTo<std::string_view> auto& val ) const
     {
         return std::hash<std::string_view>{}( val );
     }

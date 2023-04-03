@@ -14,7 +14,7 @@ concept Enumeration = std::is_enum_v<T>;
 // clang-format off
 
 template <typename T, typename D>
-concept CoercibleTo = requires ( T source ) {
+concept ExplicitlyConvertibleTo = requires ( T source ) {
     { static_cast<D>( source ) };
 };
 
