@@ -215,12 +215,11 @@ class PhysicalDeviceSelector
         auto all_devices = instance.enumeratePhysicalDevices();
         WeightMap weight_map;
 
-        const auto get_properites = []( auto&& device ) {
-            auto chain =
-                device.template getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceIDProperties>();
+        const auto get_properites = []( const vk::PhysicalDevice& device ) {
+            auto chain = device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceIDProperties>();
 
-            auto properties = chain.template get<vk::PhysicalDeviceProperties2>().properties;
-            auto id = chain.template get<vk::PhysicalDeviceIDProperties>();
+            auto properties = chain.get<vk::PhysicalDeviceProperties2>().properties;
+            auto id = chain.get<vk::PhysicalDeviceIDProperties>();
 
             return PhysicalDeviceInfo{ device, properties, id };
         };
