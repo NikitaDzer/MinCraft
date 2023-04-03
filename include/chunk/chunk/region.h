@@ -1,26 +1,32 @@
 #pragma once
 
 #include "chunk/chunk.h"
-#include <memory>
+#include "utils/misc.h"
 
-namespace chunk
-{
+#include <memory>
 
 /**
  * Class containing hash function for std::unordered_map
  */
+namespace std
+{
 
-namespace detail
+template <> struct hash<pos::ChunkPos>
 {
-struct ChunkHasher
-{
-    std::size_t operator()( const pos::ChunkPos& chunk_pos ) const
+    size_t operator()( const pos::ChunkPos& chunk_pos ) const
     {
-        std::hash<int64_t> hasher{};
-        return hasher( int64_t( chunk_pos ) );
+        std::hash<decltype( chunk_pos.x )> hasher;
+        size_t seed = 0;
+        utils::hashCombine( seed, hasher( chunk_pos.x ) );
+        utils::hashCombine( seed, hasher( chunk_pos.y ) );
+        return seed;
     }
 }; // struct ChunkHasher
-} // namespace detail
+
+} // namespace std
+
+namespace chunk
+{
 
 /**
  * Class that contains all block ides and manage the chunks
@@ -29,7 +35,7 @@ struct ChunkHasher
 class Region
 {
   public:
-    using ChunkMap = std::unordered_map<pos::ChunkPos, Chunk, detail::ChunkHasher>;
+    using ChunkMap = std::unordered_map<pos::ChunkPos, Chunk>;
     using BlockIDPtr = std::unique_ptr<BlockID[]>;
 
   public:

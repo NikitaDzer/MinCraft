@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common/utils.h"
-
+#include <cassert>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace vkwrap
@@ -14,7 +14,7 @@ class Error : public std::runtime_error
 
   public:
     Error( std::string msg )
-        : std::runtime_error{ msg }
+        : std::runtime_error{ std::move( msg ) }
     {
     }
 
@@ -37,13 +37,14 @@ unsupportedTagToStr( UnsupportedTag tag )
         return "Layer";
     default:
         assert( 0 && "[Debug]: Broken UnsupportedTag enum" );
+        std::terminate();
     }
 } // unsupportedTagToStr
 
 struct UnsupportedEntry
 {
-    UnsupportedTag m_tag;
-    std::string m_name;
+    UnsupportedTag tag;
+    std::string name;
 }; // UnsupportedEntry
 
 class UnsupportedError : public Error, private std::vector<UnsupportedEntry>
@@ -52,8 +53,8 @@ class UnsupportedError : public Error, private std::vector<UnsupportedEntry>
     using VectorBase = std::vector<UnsupportedEntry>;
 
   public:
-    UnsupportedError( std::string msg, VectorBase missing )
-        : Error{ msg },
+    UnsupportedError( std::string msg, VectorBase missing = {} )
+        : Error{ std::move( msg ) },
           VectorBase{ std::move( missing ) }
     {
     }
@@ -62,11 +63,10 @@ class UnsupportedError : public Error, private std::vector<UnsupportedEntry>
     using VectorBase::cend;
     using VectorBase::empty;
     using VectorBase::size;
+    using VectorBase::operator[];
 
     auto begin() const { return cbegin(); }
     auto end() const { return cend(); }
-
-    decltype( auto ) operator[]( VectorBase::size_type index ) { return VectorBase::operator[]( index ); };
 }; // UnsupportedError
 
 } // namespace vkwrap

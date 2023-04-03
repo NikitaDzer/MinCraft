@@ -17,28 +17,12 @@ class ChunkPos
         : x( x_par ),
           y( y_par ){};
 
-    explicit operator int64_t() const
-    {
-        int xy[ 2 ]{};
-        xy[ 0 ] = x;
-        xy[ 1 ] = y;
-
-        return reinterpret_cast<int64_t&>( xy );
-    }
+    friend bool operator==( const ChunkPos& lhs, const ChunkPos& rhs ) = default;
 
   public:
     int x;
     int y;
 }; // class ChunkPos
-
-// [krisszzz]: Inline here is meanigful, otherwise you will get multiple definition
-// To be honest the function definition should be in position.cc, but creating source
-// file only for this purpose is not necessary yet
-inline bool
-operator==( const ChunkPos& lhs, const ChunkPos& rhs )
-{
-    return ( lhs.x == rhs.x && lhs.y == rhs.y );
-}
 
 /**
  * Class that used to find block ides in Region
@@ -51,7 +35,7 @@ class BlockPos
   public:
     BlockPos( int x_par = 0, int y_par = 0, uint8_t z_par = 0 )
         : x( x_par ),
-          y( x_par ),
+          y( y_par ),
           z( z_par ){};
 
   public:

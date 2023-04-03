@@ -6,6 +6,12 @@ if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBU
     message ( FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it." )
 endif ()
 
+if ( MSVC )
+  add_compile_options( /W4 )
+else()
+  add_compile_options( -Wall -Wextra -Wpedantic )
+endif()
+
 option ( LINT OFF )
 
 if ( ${LINT} )
@@ -13,7 +19,8 @@ if ( ${LINT} )
     
     set(
         CLANG_TIDY_COMMAND "${CLANG_TIDY_EXECUTABLE}"
-        "-checks=-*,modernize-*,-modernize-use-trailing-return-type*,readability-*,portability-*,bugprone-*" 
+        "-checks=-*,modernize-*,-modernize-use-trailing-return-type*,readability-*,-readability-implicit-bool-conversion*,\
+        -readability-identifier-length*,portability-*,bugprone-*" 
     )
 
     function ( target_enable_linter TARGET_NAME )
@@ -31,15 +38,14 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
+# Quality of life external libs
+add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
-
-# Quality of life external libs
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
@@ -56,24 +62,15 @@ endfunction ()
 set ( VKWRAP_SOURCES
     src/vk/debug.cc
     src/vk/loader.cc
-)
-
-add_library ( vkwrap ${VKWRAP_SOURCES} )
-target_include_directories ( vkwrap PUBLIC include/vk include/common )
-target_link_libraries ( vkwrap range-v3 spdlog )
-target_enable_linter ( vkwrap )
-target_compile_features ( vkwrap PUBLIC cxx_std_20 )
-
-
-set ( GLFW_WINDOW_SOURCES
+    src/vk/surface.cc
     src/glfw/window.cc 
 )
 
-add_library ( window ${GLFW_WINDOW_SOURCES} )
-target_include_directories ( window PUBLIC include/glfw include/common )
-target_link_libraries ( window glfw spdlog )
-target_enable_linter ( window )
-target_compile_features ( window PUBLIC cxx_std_20 )
+add_library ( vkwrap ${VKWRAP_SOURCES} )
+target_include_directories ( vkwrap PUBLIC include/vkwrap include/common include/glfw )
+target_link_libraries ( vkwrap PUBLIC range-v3 spdlog glfw Vulkan::Vulkan )
+target_enable_linter ( vkwrap )
+target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
 set ( CHUNK_SOURCES
     src/chunk/region.cc
@@ -81,35 +78,29 @@ set ( CHUNK_SOURCES
 )
 
 add_library( chunk ${CHUNK_SOURCES} )
-target_include_directories( chunk PUBLIC include include/common )
-target_link_libraries( chunk )
+target_include_directories( chunk PUBLIC include/chunk include/common )
 target_enable_linter( chunk )
 target_compile_features( chunk PUBLIC cxx_std_20 )
 
+function( add_example_executable TARGET_NAME SOURCE )
+    add_executable ( ${TARGET_NAME} ${SOURCE} )
+    target_link_libraries ( ${TARGET_NAME} PRIVATE vkwrap )
+    target_enable_linter ( ${TARGET_NAME} )
+    target_compile_features ( ${TARGET_NAME} PUBLIC cxx_std_20 )
+endfunction()
 
 option ( VK_INFO OFF )
 if ( ${VK_INFO} )
-    add_executable ( vk_info examples/vk_info.cc )
-    target_include_directories ( vk_info PRIVATE include/common )
-    target_link_libraries ( vk_info PRIVATE glfw Vulkan::Vulkan vkwrap window )
-    target_enable_linter ( vk_info )
-    target_compile_features ( vk_info PUBLIC cxx_std_20 )
+    add_example_executable( vk_info examples/vk_info.cc )
 endif ()
 
 option ( GLFW_INFO OFF )
 if ( ${GLFW_INFO} )
-    add_executable ( glfw_info examples/glfw_info.cc )
-    target_include_directories ( glfw_info PRIVATE include/common )
-    target_link_libraries ( glfw_info PRIVATE glfw window )
-    target_enable_linter ( glfw_info )
-    target_compile_features ( glfw_info PUBLIC cxx_std_20 )
+    add_example_executable( glfw_info examples/glfw_info.cc )
 endif()
 
 option ( CHUNKS_TEST OFF )
 if ( ${CHUNKS_TEST} )
-    add_executable ( chunks_test examples/chunks_test.cc )
-    target_include_directories ( chunks_test PRIVATE include/common )
-    target_link_libraries ( chunks_test PRIVATE  chunk)
-    target_enable_linter ( chunks_test )
-    target_compile_features ( chunks_test PUBLIC cxx_std_20 )
+    add_example_executable( chunks_test examples/chunks_test.cc )
+    target_link_libraries( chunks_test PRIVATE chunk )
 endif ()

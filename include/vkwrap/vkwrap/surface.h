@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/glfw_include.h"
 #include "common/vulkan_include.h"
 
 namespace vkwrap
@@ -13,12 +12,12 @@ class Surface : private vk::UniqueSurfaceKHR
     using BaseType = vk::UniqueSurfaceKHR;
 
   public:
-    Surface( vk::SurfaceKHR surface )
-        : BaseType{ surface }
+    Surface( vk::UniqueSurfaceKHR surface )
+        : BaseType{ std::move( surface ) }
     {
     }
 
-    bool isSupportedBy( vk::PhysicalDevice physical_device );
+    bool isSupportedBy( vk::PhysicalDevice physical_device ) const;
 
     using BaseType::get;
     using BaseType::operator*;
@@ -26,5 +25,7 @@ class Surface : private vk::UniqueSurfaceKHR
     using BaseType::operator bool;
 
 }; // class Surface
+
+bool physicalDeviceSupportsPresent( vk::PhysicalDevice, vk::SurfaceKHR );
 
 } // namespace vkwrap

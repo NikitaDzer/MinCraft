@@ -4,16 +4,18 @@
 #include <spdlog/fmt/bundled/core.h>
 #include <spdlog/spdlog.h>
 
+#include <exception>
 #include <functional>
 #include <iterator>
 #include <span>
+#include <stdexcept>
 #include <string>
 
 namespace vkwrap
 {
 
 static std::string
-trimLeadingTrailingSpaces( std::string input )
+trimLeadingTrailingSpaces( const std::string& input )
 {
     if ( input.empty() )
     {
@@ -47,26 +49,37 @@ assembleDebugMessage(
     );
 
     if ( !queues.empty() )
+    {
         fmt::format_to( oit, " -- Associated Queues: --\n" );
+    }
+
     for ( uint32_t i = 0; const auto& v : queues )
     {
         fmt::format_to( oit, "[{}]. name = <{}>\n", i++, v.pLabelName );
     }
 
     if ( !cmdbufs.empty() )
+    {
         fmt::format_to( oit, " -- Associated Command Buffers: --\n" );
+    }
+
     for ( uint32_t i = 0; const auto& v : cmdbufs )
     {
         fmt::format_to( oit, "[{}]. name = <{}>\n", i++, v.pLabelName );
     }
 
     if ( !objects.empty() )
+    {
         fmt::format_to( oit, " -- Associated Vulkan Objects: --\n" );
+    }
+
     for ( uint32_t i = 0; const auto& v : objects )
     {
-        fmt::format_to( oit, "[{}]. type = <{}>, handle = {}", i++, vk::to_string( v.objectType ), v.objectHandle );
+        fmt::format_to( oit, "[{}]. type = <{}>, handle = {:#x}", i++, vk::to_string( v.objectType ), v.objectHandle );
         if ( v.pObjectName )
+        {
             fmt::format_to( oit, ", name = <{}>", v.pObjectName );
+        }
         fmt::format_to( oit, "\n" );
     }
 
@@ -97,6 +110,7 @@ defaultDebugCallback(
         break;
     default:
         assert( 0 && "[Debug]: Broken message severity enum" );
+        std::terminate();
         break;
     }
 

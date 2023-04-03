@@ -13,18 +13,23 @@
 
 #pragma once
 
+#include "common/glfw_include.h"
+#include "common/vulkan_include.h"
+#include "window/window_base.h"
+
+#include "error.h"
+
+#include <spdlog/fmt/bundled/format.h>
+#include <spdlog/spdlog.h>
+
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <span>
-#include <spdlog/spdlog.h>
 #include <string>
+#include <string_view>
 
-#include "common/glfw_include.h"
-#include "common/vulkan_include.h"
-#include "error.h"
-
-namespace wnd
+namespace wnd::glfw
 {
 
 class Window;
@@ -33,7 +38,12 @@ class WindowManager;
 struct WindowConfig;
 
 using WindowType = GLFWwindow;
-using FramebufferSizeType = std::pair<int, int>;
+
+struct FramebufferSizeType
+{
+    int width = 0;
+    int height = 0;
+};
 
 using WindowResizeCallbackSignature = void(
     Window* window,
@@ -43,42 +53,49 @@ using WindowResizeCallbackSignature = void(
 
 struct WindowAPIversion
 {
-    int major;
-    int minor;
+    int major = 0;
+    int minor = 0;
 
     auto operator<=>( const WindowAPIversion& ) const = default;
+    std::string to_string() const { return fmt::format( "{}.{}", major, minor ); }
 }; // WindowAPIversion
 
 struct WindowConfig
 {
-    const int width = k_default_width;
-    const int height = k_default_height;
-    const char* title = k_default_title;
-    const bool fullscreen = k_default_fullscreen;
+  public:
+    int width = k_default_width;
+    int height = k_default_height;
+    std::string title = std::string{ k_default_title };
+    bool fullscreen = k_default_fullscreen;
 
-    std::function<WindowResizeCallbackSignature> resize_callback = defaultResizeCallback;
+    using ResizeCallbackFunction = std::function<WindowResizeCallbackSignature>;
+    ResizeCallbackFunction resize_callback = defaultResizeCallback;
 
+  private:
     static constexpr int k_default_width = 640;
     static constexpr int k_default_height = 480;
-    static constexpr char k_default_title[] = "MinCraft";
+    static constexpr std::string_view k_default_title = "MinCraft";
     static constexpr bool k_default_fullscreen = false;
 
-    static void defaultResizeCallback(
-        Window* window,
-        int width,
-        int height //
-    )
+    static void defaultResizeCallback( Window*, int, int )
     {
         spdlog::warn( "No resize callback is set." );
     } // defaultResizeCallback
 };    // struct WindowConfig
 
-class Window
+class Window : public WindowBase<Window>
 {
+  private:
+    // Call permissions: main thread.
+    static void destroyWindow( WindowType* glfwWindow );
+
+    struct CustomDeleter
+    {
+        void operator()( WindowType* ptr ) { destroyWindow( ptr ); }
+    }; // CustomDeleter
 
   private:
-    using DeleteFunctionSignature = void( WindowType* );
-    using HandleType = std::unique_ptr<WindowType, DeleteFunctionSignature*>;
+    using HandleType = std::unique_ptr<WindowType, CustomDeleter>;
 
   private:
     HandleType m_handle;
@@ -90,14 +107,11 @@ class Window
         Window* bound_handle //
     );
 
-    // Call permissions: main thread.
-    static void destroyWindow( WindowType* glfwWindow );
-
     // Call permissions: any thread.
     static Window* getHandle( WindowType* glfwWindow )
     {
         return reinterpret_cast<Window*>( glfwGetWindowUserPointer( glfwWindow ) );
-    }
+    } // getHandle
 
     static void framebufferSizeCallback(
         WindowType* glfwWindow,
@@ -107,7 +121,7 @@ class Window
 
   public:
     Window( const WindowConfig& config = {} )
-        : m_handle{ createWindow( config, this ), destroyWindow },
+        : m_handle{ createWindow( config, this ), CustomDeleter{} },
           m_resize_callback{ config.resize_callback }
     {
     }
@@ -121,10 +135,10 @@ class Window
     FramebufferSizeType getFramebufferSize() const;
 
     // Call permissions: main thread.
-    int getFramebufferWidth() const { return getFramebufferSize().first; }
+    int getFramebufferWidth() const { return getFramebufferSize().width; }
 
     // Call permissions: main thread.
-    int getFramebufferHeight() const { return getFramebufferSize().second; }
+    int getFramebufferHeight() const { return getFramebufferSize().height; }
 
     // Call permissions: main thread.
     void setWindowed() const;
@@ -133,10 +147,7 @@ class Window
     void setFullscreen() const;
 
     // Call permissions: any thread.
-    static vk::SurfaceKHR createWindowSurface(
-        vk::Instance instance,
-        Window& window //
-    );
+    UniqueSurface createSurface( const vk::Instance& instance ) const;
 
 }; // class Window
 
@@ -150,7 +161,7 @@ class WindowManager
     );
 
     WindowManager( ErrorCallbackSignature* error_callback );
-    ~WindowManager();
+    ~WindowManager() noexcept( false );
 
     static bool isSuitableVersion();
 
@@ -163,8 +174,16 @@ class WindowManager
     // Call permission: any thread, after WindowManager::initialize.
     static std::span<const char*> getRequiredExtensions();
 
-    static const std::string getMinVersionString();
+    static std::string getMinVersionString();
 
 }; // class WindowManager
 
-} // namespace wnd
+} // namespace wnd::glfw
+
+namespace wnd
+{
+
+template class WindowBase<glfw::Window>;
+static_assert( WindowWrapper<glfw::Window>, "GLFW window wrapper does not satisfy constaints" );
+
+}; // namespace wnd

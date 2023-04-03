@@ -2,16 +2,21 @@
  *
  */
 
-#include "common/utils.h"
 #include "common/vulkan_include.h"
+
+#include "vkwrap/device.h"
 #include "vkwrap/instance.h"
+#include "vkwrap/queues.h"
+
 #include "window/window.h"
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
+#include <spdlog/fmt/bundled/format.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -35,7 +40,7 @@ versionToString( uint32_t version )
 } // versionToString
 
 void
-printPhysicalDeviceProperties( vk::PhysicalDevice device )
+printPhysicalDeviceProperties( const vk::PhysicalDevice& device )
 {
     const auto extensions = device.enumerateDeviceExtensionProperties();
     const auto properties = device.getProperties();
@@ -48,14 +53,13 @@ printPhysicalDeviceProperties( vk::PhysicalDevice device )
         versionToString( properties.apiVersion ) //
     );
 
-    const auto extensions_string = std::accumulate(
-        extensions.begin(),
-        extensions.end(),
-        std::string{},
-        []( auto str, auto ext ) {
-            return str + " " + ext.extensionName.data();
-        } //
-    );
+    std::stringstream ss;
+    for ( auto&& ext : extensions )
+    {
+        ss << " " << ext.extensionName.data();
+    }
+
+    const auto extensions_string = ss.str();
 
     fmt::print(
         "Physical device [{}] supports following extensions: {}\n",
@@ -105,9 +109,14 @@ try
     // Or `export SPDLOG_LEVEL=warn` to print only warnings and errors
 
     vkwrap::initializeLoader(); // Load basic functions that are instance independent
+    using wnd::glfw::Window;
+    using wnd::glfw::WindowManager;
+
+    WindowManager::initialize();
 
     auto counting_functor = std::make_shared<CountingCallback>();
-    auto callback = [ counting_functor ]( auto sev, auto type, auto data ) -> bool // Capture by shared ptr by value
+    auto callback =
+        [ counting_functor ]( auto&& sev, auto&& type, auto&& data ) -> bool // Capture by shared ptr by value
     {
         return counting_functor->operator()( sev, type, data );
     };
@@ -116,11 +125,12 @@ try
     instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withDebugMessenger()
         .withValidationLayers()
+        .withExtensions( WindowManager::getRequiredExtensions() )
         .withCallback( callback );
 
     // This assert is for testing purposes.
-    const auto layers = { std::string{ "VK_LAYER_KHRONOS_validation" } }; // Initializer list
-    assert( DebuggedInstance::supportsLayers( layers ).first && "Instance does not support validation layers" );
+    [[maybe_unused]] const auto layers = std::array{ "VK_LAYER_KHRONOS_validation" };
+    assert( DebuggedInstance::supportsLayers( layers ).supports && "Instance does not support validation layers" );
     auto instance = instance_builder.make();
     assert( instance && "Checking that instance was actually created" );
 
@@ -130,13 +140,52 @@ try
         printPhysicalDeviceProperties( device );
     }
 
-    fmt::print( "Number of callbacks = {}\n", counting_functor->m_call_count );
+    fmt::print( "\n" );
+
+    auto window = Window{ { .title = "Test window" } };
+    auto surface = window.createSurface( instance.get() );
+
+    vkwrap::PhysicalDeviceSelector physical_selector;
+    physical_selector.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+        .withTypes( { vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
+        .withPresent( surface.get() )
+        .withVersion( vkwrap::VulkanVersion::e_version_1_3 );
+
+    // Sorted vector of
+    auto suitable_devices = physical_selector.make( instance );
+    auto physical_device = suitable_devices.at( 0 ).device;
+
+    vkwrap::Queue graphics;
+    vkwrap::Queue present;
+    vkwrap::LogicalDeviceBuilder device_builder;
+
+    auto logical_device = device_builder.withGraphicsQueue( graphics )
+                              .withPresentQueue( surface.get(), present )
+                              .make( physical_device.get() );
+
+    fmt::print( "Graphics == Present: {}\n", graphics == present );
+    fmt::print( "Found physical devices:\n" );
+
+    for ( unsigned i = 0; auto&& pair : suitable_devices )
+    {
+        auto&& [ device, info, id ] = pair;
+
+        fmt::print(
+            "[{}]. name = {}, type = {}, id = {}, uuid = {}\n",
+            i++,
+            info.deviceName.data(),
+            vk::to_string( info.deviceType ),
+            info.deviceID,
+            fmt::join( id.driverUUID, "" ) );
+    }
+
+    fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
 } catch ( vkwrap::UnsupportedError& e )
 {
     fmt::print( "Unsupported error: {}\n", e.what() );
     for ( unsigned i = 0; auto&& entry : e )
     {
-        fmt::print( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.m_tag ), entry.m_name );
+        fmt::print( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.tag ), entry.name );
     }
 } catch ( vk::Error& e )
 {
