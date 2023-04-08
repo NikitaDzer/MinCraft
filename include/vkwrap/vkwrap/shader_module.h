@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/vulkan_include.h"
 #include "vkwrap/core.h"
 #include <fstream>
 
@@ -30,13 +31,9 @@ class ShaderModule : private vk::UniqueShaderModule
         file.read( code_buffer.data(), file_size );
         file.close();
 
-        vk::ShaderModuleCreateInfo create_info{};
-        create_info.setCodeSize( code_buffer.size() );
-        create_info.setPCode( reinterpret_cast<const uint32_t*>( code_buffer.data() ) );
-
-        // vk::ShaderModuleCreateInfo create_info{
-        //     .codeSize = code_buffer.size(),
-        //     .pCode = reinterpret_cast<const uint32_t*>( code_buffer.data() ) };
+        vk::ShaderModuleCreateInfo create_info{
+            .codeSize = code_buffer.size(),
+            .pCode = reinterpret_cast<const uint32_t*>( code_buffer.data() ) };
 
         *static_cast<BaseType*>( this ) = device.createShaderModuleUnique( create_info );
     }
