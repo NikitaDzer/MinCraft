@@ -13,23 +13,28 @@
 namespace input::glfw
 {
 
+enum class KeyState
+{
+    e_idle,
+    e_held_down,
+    e_clicked
+};
+
+using KeyIndex = int;
+
+struct KeyMonitorInfo
+{
+    KeyIndex key;
+    KeyState lookfor;
+};
+
 class KeyboardHandler
 {
-  public:
-    enum class KeyState
-    {
-        e_idle,
-        e_held_down,
-        e_clicked
-    };
-
-    using KeyIndex = int;
-
   private:
     struct TrackedKeyInfo
     {
         KeyState current;
-        const KeyState lookfor;
+        KeyState lookfor;
 
       public:
         TrackedKeyInfo( KeyState current_param, KeyState lookfor_param )
@@ -67,7 +72,7 @@ class KeyboardHandler
             TrackedKeyInfo& key_info = found->second;
             if ( action == GLFW_PRESS )
             {
-                key_info.current = KeyState::e_clicked;
+                key_info.current = KeyState::e_held_down;
             } else if ( action == GLFW_RELEASE )
             {
                 key_info.current = KeyState::e_clicked;
