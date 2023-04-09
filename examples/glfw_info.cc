@@ -2,9 +2,8 @@
 #include <spdlog/fmt/bundled/format.h>
 
 #include "common/glfw_include.h"
-#include "glfw/input/keyboard.h"
-#include "glfw/input/mouse.h"
-#include "glfw/window.h"
+#include "input/keyboard.h"
+#include "window/window.h"
 
 #include <array>
 #include <atomic>
@@ -14,68 +13,6 @@
 #include <thread>
 
 using namespace std::literals::chrono_literals;
-
-namespace
-{
-
-std::jthread
-launch_thread( glfw::wnd::Window& window )
-{
-    auto loop_work = [ &window ]( std::stop_token token ) {
-        auto& keyboard = glfw::input::KeyboardHandler::instance( window );
-        keyboard.monitor( std::array{ GLFW_KEY_A, GLFW_KEY_D } );
-        auto& mouse = glfw::input::MouseHandler::instance( window );
-        mouse.setNormal();
-
-        while ( !token.stop_requested() )
-        {
-            auto mouse_poll = mouse.poll();
-
-            auto print = []( std::string key, auto info ) {
-                if ( info.hasBeenPressed() )
-                {
-                    std::cout
-                        << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
-                    for ( auto i = 0; auto&& press : info.presses() )
-                    {
-                        auto action_string = glfw::input::buttonActionToString( press.action );
-                        std::cout << fmt::format( "Event [{}], State: {}\n", i++, action_string );
-                    }
-                }
-            };
-
-            for ( auto&& [ key, info ] : keyboard.poll() )
-            {
-                std::string_view key_name = glfwGetKeyName( key, 0 );
-                print( std::string{ key_name }, info );
-            }
-
-            for ( auto&& [ key, info ] : mouse_poll.buttons )
-            {
-                print( fmt::format( "Mouse button [{}]", key ), info );
-            }
-
-            auto [ x, y ] = mouse_poll.position;
-            auto [ dx, dy ] = mouse_poll.movement;
-
-            if ( dx != 0.0 || dy != 0.0 )
-            {
-                std::cout << fmt::format(
-                    "Mouse: position = [x = {}, y = {}]; movement = [dx = {}, dy = {}]\n",
-                    x,
-                    y,
-                    dx,
-                    dy );
-            }
-
-            std::this_thread::sleep_for( 25ms );
-        }
-    };
-
-    return std::jthread{ loop_work };
-}
-
-} // namespace
 
 int
 main()
@@ -97,6 +34,39 @@ try
     auto window = glfw::wnd::Window{ { .title = "Mincraft V2" } };
     auto printer = launch_thread( window );
 
+    std::jthread printer{ [ & ]( std::stop_token token ) {
+        using input::glfw::KeyState;
+
+        auto& keyboard = input::glfw::KeyboardHandler::instance();
+        keyboard.monitor( std::to_array<input::glfw::KeyMonitorInfo>(
+            { { GLFW_KEY_A, KeyState::e_clicked }, { GLFW_KEY_D, KeyState::e_held_down } } ) );
+        keyboard.bind( window.get() );
+
+        auto state_to_string = []( KeyState st ) {
+            using input::glfw::KeyState;
+            switch ( st )
+            {
+            case KeyState::e_clicked:
+                return "Clicked";
+            case KeyState::e_held_down:
+                return "Held Down";
+            case KeyState::e_idle:
+                return "Idle";
+            }
+        };
+
+        while ( !token.stop_requested() )
+        {
+            for ( auto&& [ key, state ] : keyboard.poll() )
+            {
+                std::string_view key_name = glfwGetKeyName( key, 0 );
+                std::cout << fmt::format( "Key: {}, Action: {}\n", key_name, state_to_string( state ) ) << std::flush;
+            }
+
+            std::this_thread::sleep_for( 25ms );
+        }
+    } };
+
     while ( window.running() )
     {
         glfwWaitEvents();
@@ -104,7 +74,7 @@ try
 
     printer.request_stop();
 
-} catch ( glfw::Error& e )
+} catch ( wnd::Error& e )
 {
     fmt::print( "GLFW window system error: {}\n", e.what() );
 } catch ( std::exception& e )
