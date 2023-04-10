@@ -105,25 +105,8 @@ class WindowImpl
     {
     }
 
-    WindowImpl( const WindowImpl& ) = delete;
-    WindowImpl( WindowImpl&& ) = delete;
-
-    WindowImpl& operator=( const WindowImpl& ) = delete;
-    WindowImpl& operator=( WindowImpl&& ) = delete;
-
-  public:
-    ~WindowImpl() = default;
-
-  public:
-    static auto create( const WindowConfig& config )
-    {
-        // Return a dynamically allocated object of self, so that pointer does not dangle
-        return std::unique_ptr<WindowImpl>{ new WindowImpl{ config } };
-    }
-
-  public:
-    WindowHandle* get() const noexcept { return m_handle.get(); }
-    operator WindowHandle*() const noexcept { return get(); }
+    WindowType* get() const noexcept { return m_handle.get(); }
+    operator WindowType*() const noexcept { return get(); }
 
     // Call permissions: any thread.
     bool running() const { return !glfwWindowShouldClose( m_handle.get() ); }

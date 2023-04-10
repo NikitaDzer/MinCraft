@@ -37,10 +37,9 @@ try
     std::jthread printer{ [ & ]( std::stop_token token ) {
         using input::glfw::KeyState;
 
-        auto& keyboard = input::glfw::KeyboardHandler::instance();
+        auto& keyboard = input::glfw::KeyboardHandler::instance( window );
         keyboard.monitor( std::to_array<input::glfw::KeyMonitorInfo>(
             { { GLFW_KEY_A, KeyState::e_clicked }, { GLFW_KEY_D, KeyState::e_held_down } } ) );
-        keyboard.bind( window.get() );
 
         auto state_to_string = []( KeyState st ) {
             using input::glfw::KeyState;
