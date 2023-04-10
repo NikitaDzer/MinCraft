@@ -38,6 +38,16 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
+option ( THREAD_SANITIZE OFF )
+if ( ${THREAD_SANITIZE} )
+    add_compile_options( -fsanitize=thread -fno-omit-frame-pointer )
+    add_link_options( -fsanitize=thread -fno-omit-frame-pointer )
+endif ()
+
+if ( THREAD_SANITIZE AND SANITIZE )
+    message(FATAL_ERROR "Thread and address sanitizer can't be used together")
+endif ()
+
 # Quality of life external libs
 set(RANGES_CXX_STD 20)
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
