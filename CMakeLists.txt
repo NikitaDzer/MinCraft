@@ -39,6 +39,7 @@ if ( ${SANITIZE} )
 endif ()
 
 # Quality of life external libs
+set(RANGES_CXX_STD 20)
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
