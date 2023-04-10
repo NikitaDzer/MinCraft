@@ -39,6 +39,18 @@ template <LambdaCfg... Lambdas> class LambdasWrapper : public Lambdas...
     }
 };
 
+class Pipeline : private vk::UniquePipeline
+{
+  public:
+    using BaseType = vk::UniquePipeline;
+    using BaseType::get;
+
+    Pipeline( vk::UniquePipeline unique_pipeline )
+        : BaseType( std::move( unique_pipeline ) ){};
+
+    operator vk::Pipeline() { return get(); }
+};
+
 template <template <typename> typename... Cfgs> class PipelineBuilder : public Cfgs<PipelineBuilder<Cfgs...>>...
 {
     // This static assert is used to check the constraints, becase PipelineBuilder can't be named in the
@@ -56,7 +68,7 @@ template <template <typename> typename... Cfgs> class PipelineBuilder : public C
         lambdas_wrapped.make( m_pipeline_create_info );
     }
 
-    [[nodiscard]] vk::UniquePipeline createPipeline( vk::Device device ) &
+    [[nodiscard]] Pipeline createPipeline( vk::Device device ) &
     {
         ( Cfgs<PipelineBuilder<Cfgs...>>::make( m_pipeline_create_info ), ... );
 
