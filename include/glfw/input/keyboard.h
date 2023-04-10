@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/glfw_include.h"
+#include "utils/misc.h"
 
 #include "range/v3/range/concepts.hpp"
 #include "range/v3/view/all.hpp"
@@ -45,41 +46,43 @@ class KeyboardHandler
     };
 
   private:
-    std::unordered_map<KeyIndex, TrackedKeyInfo> m_tracked_keys;
-    std::mutex m_mx;
-
-  private:
-    KeyboardHandler() = default;
-
-  public:
-    static KeyboardHandler& instance()
+    static void keyCallback( GLFWwindow* window, int key, int /* code */, int action, int /* mods */ )
     {
-        static KeyboardHandler handler;
-        return handler;
+        auto& self = instance( window );
+        auto g = std::lock_guard{ self.m_mx };
+        auto found = self.m_tracked_keys.find( key );
+        if ( found == self.m_tracked_keys.end() )
+        {
+            return;
+        }
+
+        TrackedKeyInfo& key_info = found->second;
+        if ( action == GLFW_PRESS )
+        {
+            key_info.current = KeyState::e_held_down;
+        } else if ( action == GLFW_RELEASE )
+        {
+            key_info.current = KeyState::e_clicked;
+        }
     }
 
-    void bind( GLFWwindow* window )
+    static void bind( GLFWwindow* window )
     {
-        auto key_callback = []( auto*, int key, int /* code */, int action, int /* mods */ ) {
-            auto& self = instance();
-            auto g = std::lock_guard{ self.m_mx };
-            auto found = self.m_tracked_keys.find( key );
-            if ( found == self.m_tracked_keys.end() )
-            {
-                return;
-            }
+        // Set up callback
+        glfwSetKeyCallback( window, keyCallback );
+    }
 
-            TrackedKeyInfo& key_info = found->second;
-            if ( action == GLFW_PRESS )
-            {
-                key_info.current = KeyState::e_held_down;
-            } else if ( action == GLFW_RELEASE )
-            {
-                key_info.current = KeyState::e_clicked;
-            }
-        };
+  public:
+    static KeyboardHandler& instance( GLFWwindow* window )
+    {
+        if ( auto handler = s_window_handler_map.lookup( window ); handler )
+        {
+            return *handler;
+        }
 
-        glfwSetKeyCallback( window, key_callback );
+        auto& ref = s_window_handler_map.emplaceOrAssign( window );
+        bind( window );
+        return ref;
     }
 
   public:
@@ -131,6 +134,13 @@ class KeyboardHandler
 
         return result;
     }
+
+  private:
+    std::unordered_map<KeyIndex, TrackedKeyInfo> m_tracked_keys;
+    mutable std::mutex m_mx;
+
+  private:
+    static inline utils::UniquePointerMap<GLFWwindow*, KeyboardHandler> s_window_handler_map;
 };
 
 }; // namespace input::glfw

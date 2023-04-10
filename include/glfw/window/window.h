@@ -127,6 +127,7 @@ class Window : public WindowBase<Window>
     }
 
     WindowType* get() const noexcept { return m_handle.get(); }
+    operator WindowType*() const noexcept { return get(); }
 
     // Call permissions: any thread.
     bool running() const { return !glfwWindowShouldClose( m_handle.get() ); }
