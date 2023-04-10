@@ -78,6 +78,7 @@ template <PipelineCfg... Cfgs> class PipelineBuilder : public Cfgs...
 using DefaultPipelineBuilder = PipelineBuilder< cfgs::ShaderCfg,
                                                 cfgs::ViewportScissorCfg,
                                                 cfgs::RasterizerCfg,
+						cfgs::MultisamplingCfg,
                                                 cfgs::InputAssemblyCfg,
                                                 cfgs::PipelineLayoutCfg,
                                                 cfgs::BlendStateCfg,
