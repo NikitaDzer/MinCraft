@@ -19,7 +19,7 @@ namespace cfgs
 class ShaderCfg
 {
   public:
-    void setVertexShader( vkwrap::ShaderModule& shader_module )
+    void setVertexShader( const vkwrap::ShaderModule& shader_module )
     {
         constexpr auto vertex_shader = 0;
         m_shader_stages[ vertex_shader ].setStage( vk::ShaderStageFlagBits::eVertex );
@@ -39,7 +39,7 @@ class ShaderCfg
         m_vertex_input_info.setPVertexAttributeDescriptions( attribute_descr.data() );
     }
 
-    void setFragmentShader( vkwrap::ShaderModule& shader_module )
+    void setFragmentShader( const vkwrap::ShaderModule& shader_module )
     {
         constexpr auto fragment_shader = 1;
         m_shader_stages[ fragment_shader ].setStage( vk::ShaderStageFlagBits::eFragment );
@@ -317,6 +317,15 @@ class RenderPassCfg
         pipeline_create_info.setRenderPass( getRenderPass() );
         pipeline_create_info.setSubpass( 0 );
     }
+
+  protected:
+    RenderPassCfg() = default;
+    RenderPassCfg( RenderPassCfg&& ) = default;
+    RenderPassCfg& operator=( RenderPassCfg&& ) = default;
+    // deleted because of vk::UniqueRenderPass
+    RenderPassCfg( const RenderPassCfg& ) = delete;
+    RenderPassCfg& operator=( const RenderPassCfg& ) = delete;
+    ~RenderPassCfg() = default;
 
   private:
     std::vector<vk::SubpassDependency> m_subpass_dependecies;

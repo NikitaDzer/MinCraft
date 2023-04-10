@@ -12,7 +12,7 @@ class ShaderModule : private vk::UniqueShaderModule
     using BaseType = vk::UniqueShaderModule;
     using BaseType::get;
 
-    operator vk::ShaderModule() { return get(); }
+    operator vk::ShaderModule() const& { return get(); }
 
     ShaderModule( const std::string& file_path, vk::Device device )
         : BaseType()
