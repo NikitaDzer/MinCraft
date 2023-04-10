@@ -190,13 +190,15 @@ try
     vkwrap::ShaderModule vertex_shader{ "vertex_shader.spv", logical_device.get() };
     vkwrap::ShaderModule fragment_shader{ "fragment_shader.spv", logical_device.get() };
 
-    pipeline.setVertexShader( vertex_shader );
-    pipeline.setFragmentShader( fragment_shader );
-    pipeline.createPipelineLayout( logical_device.get() );
-    pipeline.setColorAttachment( swap_chain_format );
-    pipeline.setSubpassDependencies( ranges::empty_view<vk::SubpassDependency>{} );
-    pipeline.createRenderPass( logical_device.get() );
-    pipeline.createPipeline( logical_device.get() );
+    // [krisszzzz] Note that before render pass creating the color attachment should be set
+    // and optionally the subpass dependecies
+    // the createPipeline() is last function of list
+    pipeline.withVertexShader( vertex_shader )
+        .withFragmentShader( fragment_shader )
+        .withPipelineLayout( logical_device.get() )
+        .withColorAttachment( swap_chain_format )
+        .withRenderPass( logical_device.get() )
+        .createPipeline( logical_device.get() );
 
     fmt::print( "Pipeline creation sucess\n" );
 

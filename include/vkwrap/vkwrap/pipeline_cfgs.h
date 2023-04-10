@@ -16,35 +16,43 @@ namespace cfgs
 // To ensure correct working with this classes the functions of "rules of 5"
 // and the constructor should be written as protected function members
 
-class ShaderCfg
+template <typename Derived> class ShaderCfg
 {
   public:
-    void setVertexShader( const vkwrap::ShaderModule& shader_module )
+    Derived& withVertexShader( const vkwrap::ShaderModule& shader_module ) &
     {
         constexpr auto vertex_shader = 0;
         m_shader_stages[ vertex_shader ].setStage( vk::ShaderStageFlagBits::eVertex );
         m_shader_stages[ vertex_shader ].setModule( shader_module );
         m_shader_stages[ vertex_shader ].setPName( "main" );
+
+        return static_cast<Derived&>( *this );
     }
 
-    void setBindingDescriptions( auto&& binding_descr )
+    Derived& withBindingDescriptions( auto&& binding_descr ) &
     {
         m_vertex_input_info.setVertexBindingDescriptionCount( static_cast<uint32_t>( binding_descr.size() ) );
         m_vertex_input_info.setPVertexBindingDescriptions( binding_descr.data() );
+
+        return static_cast<Derived&>( *this );
     };
 
-    void setAttributeDescriptions( auto&& attribute_descr )
+    Derived& withAttributeDescriptions( auto&& attribute_descr ) &
     {
         m_vertex_input_info.setVertexAttributeDescriptionCount( static_cast<uint32_t>( attribute_descr.size() ) );
         m_vertex_input_info.setPVertexAttributeDescriptions( attribute_descr.data() );
+
+        return static_cast<Derived&>( *this );
     }
 
-    void setFragmentShader( const vkwrap::ShaderModule& shader_module )
+    Derived& withFragmentShader( const vkwrap::ShaderModule& shader_module ) &
     {
         constexpr auto fragment_shader = 1;
         m_shader_stages[ fragment_shader ].setStage( vk::ShaderStageFlagBits::eFragment );
         m_shader_stages[ fragment_shader ].setModule( shader_module );
         m_shader_stages[ fragment_shader ].setPName( "main" );
+
+        return static_cast<Derived&>( *this );
     }
 
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
@@ -70,7 +78,7 @@ class ShaderCfg
     vk::PipelineVertexInputStateCreateInfo m_vertex_input_info;
 };
 
-class MultisamplingCfg
+template <typename Derived> class MultisamplingCfg
 {
   public:
     // clang-format off
@@ -100,7 +108,7 @@ class MultisamplingCfg
     vk::PipelineMultisampleStateCreateInfo m_multisampling;
 };
 
-class ViewportScissorCfg
+template <typename Derived> class ViewportScissorCfg
 {
   public:
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
@@ -137,7 +145,7 @@ class ViewportScissorCfg
     vk::PipelineViewportStateCreateInfo m_viewport_state;
 };
 
-class RasterizerCfg
+template <typename Derived> class RasterizerCfg
 {
   public:
     // clang-format off
@@ -170,7 +178,7 @@ class RasterizerCfg
     vk::PipelineRasterizationStateCreateInfo m_rasterizer;
 };
 
-class InputAssemblyCfg
+template <typename Derived> class InputAssemblyCfg
 {
   public:
     // clang-format off
@@ -196,11 +204,11 @@ class InputAssemblyCfg
     vk::PipelineInputAssemblyStateCreateInfo m_input_assembly;
 };
 
-class PipelineLayoutCfg
+template <typename Derived> class PipelineLayoutCfg
 {
   public:
     template <typename Layout = ranges::empty_view<vk::UniqueDescriptorSetLayout>>
-    void createPipelineLayout( vk::Device device, Layout&& layouts = {} )
+    Derived& withPipelineLayout( vk::Device device, Layout&& layouts = {} ) &
     {
         m_layouts = ranges::views::transform( layouts, []( auto&& elem ) { return elem.get(); } ) | ranges::to_vector;
 
@@ -209,6 +217,8 @@ class PipelineLayoutCfg
             .pSetLayouts = m_layouts.data() };
 
         m_pipeline_layout = device.createPipelineLayoutUnique( layout_create_info );
+
+        return static_cast<Derived&>( *this );
     }
 
     // clang-format off
@@ -234,7 +244,7 @@ class PipelineLayoutCfg
     vk::UniquePipelineLayout m_pipeline_layout;
 };
 
-class BlendStateCfg
+template <typename Derived> class BlendStateCfg
 {
   public:
     // clang-format off
@@ -268,10 +278,10 @@ class BlendStateCfg
     vk::PipelineColorBlendStateCreateInfo m_color_blending;
 };
 
-class RenderPassCfg
+template <typename Derived> class RenderPassCfg
 {
   public:
-    void setColorAttachment( vk::Format swap_chain_format )
+    Derived& withColorAttachment( vk::Format swap_chain_format ) &
     {
         m_color_attachment.setFormat( swap_chain_format );
         m_color_attachment.setSamples( vk::SampleCountFlagBits::e1 );
@@ -281,14 +291,16 @@ class RenderPassCfg
         m_color_attachment.setStencilStoreOp( vk::AttachmentStoreOp::eDontCare );
         m_color_attachment.setInitialLayout( vk::ImageLayout::eUndefined );
         m_color_attachment.setFinalLayout( vk::ImageLayout::ePresentSrcKHR );
+
+        return static_cast<Derived&>( *this );
     };
 
-    template <typename SubpassDep> void setSubpassDependencies( SubpassDep&& dependecies )
+    template <typename SubpassDep> void withSubpassDependencies( SubpassDep&& dependecies )
     {
         m_subpass_dependecies = ranges::views::all( dependecies ) | ranges::to_vector;
     }
 
-    void createRenderPass( vk::Device device )
+    Derived& withRenderPass( vk::Device device ) &
     {
         vk::AttachmentReference color_attachment_ref{
             .attachment = 0,
@@ -308,6 +320,8 @@ class RenderPassCfg
             .pDependencies = m_subpass_dependecies.data() };
 
         m_render_pass = device.createRenderPassUnique( render_pass_create_info );
+
+        return static_cast<Derived&>( *this );
     }
 
     vk::RenderPass getRenderPass() const { return m_render_pass.get(); }

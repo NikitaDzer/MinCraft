@@ -38,12 +38,12 @@ template <LambdaCfg... Lambdas> class LambdasWrapper : public Lambdas...
     }
 };
 
-template <PipelineCfg... Cfgs> class PipelineBuilder : public Cfgs...
+template <template <typename> typename... Cfgs> class PipelineBuilder : public Cfgs<PipelineBuilder<Cfgs...>>...
 {
   public:
     template <LambdaCfg... Lambdas>
     PipelineBuilder( Lambdas&... lambdas )
-        : Cfgs{}...
+        : Cfgs<PipelineBuilder<Cfgs...>>{}...
     {
         auto lambdas_wrapped = LambdasWrapper<Lambdas...>{ lambdas... };
         lambdas_wrapped.make( m_pipeline_create_info );
@@ -52,7 +52,7 @@ template <PipelineCfg... Cfgs> class PipelineBuilder : public Cfgs...
     // clang-format off
     void createPipeline( vk::Device device ) &
     {
-	( Cfgs::make( m_pipeline_create_info ), ... );
+	( Cfgs<PipelineBuilder<Cfgs...>>::make( m_pipeline_create_info ), ... );
 
 	auto create_res = device.createGraphicsPipelineUnique( vk::PipelineCache {}, m_pipeline_create_info );
 
