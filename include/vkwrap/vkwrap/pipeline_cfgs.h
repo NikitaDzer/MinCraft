@@ -81,7 +81,6 @@ template <typename Derived> class ShaderCfg
 template <typename Derived> class MultisamplingCfg
 {
   public:
-    // clang-format off
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
         m_multisampling.setRasterizationSamples( vk::SampleCountFlagBits::e1 );
@@ -91,10 +90,8 @@ template <typename Derived> class MultisamplingCfg
         m_multisampling.setAlphaToCoverageEnable( VK_FALSE );
         m_multisampling.setAlphaToOneEnable( VK_FALSE );
 
-	pipeline_create_info.setPMultisampleState( &m_multisampling );
+        pipeline_create_info.setPMultisampleState( &m_multisampling );
     }
-
-    // clang-format on
 
   protected:
     MultisamplingCfg() = default;
@@ -148,7 +145,6 @@ template <typename Derived> class ViewportScissorCfg
 template <typename Derived> class RasterizerCfg
 {
   public:
-    // clang-format off
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
         m_rasterizer.setDepthClampEnable( VK_FALSE );
@@ -162,9 +158,8 @@ template <typename Derived> class RasterizerCfg
         m_rasterizer.setDepthBiasClamp( 0.0f );
         m_rasterizer.setDepthBiasSlopeFactor( 0.0f );
 
-	pipeline_create_info.setPRasterizationState( &m_rasterizer );
+        pipeline_create_info.setPRasterizationState( &m_rasterizer );
     }
-    // clang-format on
 
   protected:
     RasterizerCfg() = default;
@@ -181,16 +176,13 @@ template <typename Derived> class RasterizerCfg
 template <typename Derived> class InputAssemblyCfg
 {
   public:
-    // clang-format off
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
         m_input_assembly.setTopology( vk::PrimitiveTopology::eTriangleList );
         m_input_assembly.setPrimitiveRestartEnable( VK_FALSE );
 
-	pipeline_create_info.setPInputAssemblyState( &m_input_assembly );
+        pipeline_create_info.setPInputAssemblyState( &m_input_assembly );
     }
-
-    // clang-format on
 
   protected:
     InputAssemblyCfg() = default;
@@ -221,13 +213,10 @@ template <typename Derived> class PipelineLayoutCfg
         return static_cast<Derived&>( *this );
     }
 
-    // clang-format off
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
-	pipeline_create_info.setLayout( m_pipeline_layout.get() );
+        pipeline_create_info.setLayout( m_pipeline_layout.get() ); //
     }
-
-    // clang-format on
 
   protected:
     PipelineLayoutCfg() = default;
@@ -247,14 +236,15 @@ template <typename Derived> class PipelineLayoutCfg
 template <typename Derived> class BlendStateCfg
 {
   public:
-    // clang-format off
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
+        // clang-format off
         m_color_blend_attachment.setColorWriteMask(
-            vk::ColorComponentFlagBits::eA |
+	    vk::ColorComponentFlagBits::eA |
 	    vk::ColorComponentFlagBits::eR |
 	    vk::ColorComponentFlagBits::eG |
-            vk::ColorComponentFlagBits::eB );
+	    vk::ColorComponentFlagBits::eB );
+        // clang-format on
 
         m_color_blend_attachment.setBlendEnable( VK_FALSE );
         m_color_blending.setLogicOpEnable( VK_FALSE );
@@ -263,7 +253,6 @@ template <typename Derived> class BlendStateCfg
 
         pipeline_create_info.setPColorBlendState( &m_color_blending );
     }
-    // clang-format on
 
   protected:
     BlendStateCfg() = default;

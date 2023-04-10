@@ -14,17 +14,21 @@ class ShaderModule : private vk::UniqueShaderModule
 
     operator vk::ShaderModule() const& { return get(); }
 
-    ShaderModule( const std::string& file_path, vk::Device device )
-        : BaseType()
+    ShaderModule( const std::filesystem::path& file_path, vk::Device device )
+        : BaseType( create( file_path, device ) )
     {
+    }
 
+  private:
+    BaseType create( const std::filesystem::path& file_path, vk::Device device )
+    {
         auto code_buffer = utils::readFileRaw( file_path );
 
         vk::ShaderModuleCreateInfo create_info{
             .codeSize = code_buffer.size(),
             .pCode = reinterpret_cast<const uint32_t*>( code_buffer.data() ) };
 
-        *static_cast<BaseType*>( this ) = device.createShaderModuleUnique( create_info );
+        return device.createShaderModuleUnique( create_info );
     }
 };
 } // namespace vkwrap
