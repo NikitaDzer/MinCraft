@@ -40,6 +40,12 @@ template <LambdaCfg... Lambdas> class LambdasWrapper : public Lambdas...
 
 template <template <typename> typename... Cfgs> class PipelineBuilder : public Cfgs<PipelineBuilder<Cfgs...>>...
 {
+    // This static assert is used to check the constraints, becase PipelineBuilder can't be named in the
+    // requires clause
+    static_assert(
+        ( PipelineCfg<Cfgs<PipelineBuilder>> && ... ),
+        "Pipeline builder strategies do not satisfy all the necessary concepts" );
+
   public:
     template <LambdaCfg... Lambdas>
     PipelineBuilder( Lambdas&... lambdas )
