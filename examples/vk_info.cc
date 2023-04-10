@@ -6,6 +6,7 @@
 
 #include "vkwrap/device.h"
 #include "vkwrap/instance.h"
+#include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
 
 #include "window/window.h"
@@ -159,7 +160,8 @@ try
     vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
-    auto logical_device = device_builder.withGraphicsQueue( graphics )
+    auto logical_device = device_builder.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+                              .withGraphicsQueue( graphics )
                               .withPresentQueue( surface.get(), present )
                               .make( physical_device.get() );
 
@@ -180,6 +182,24 @@ try
     }
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
+
+    auto pipeline = vkwrap::DefaultPipelineBuilder{};
+
+    // choose one of format
+    vk::Format swap_chain_format{ vk::Format::eB8G8R8A8Srgb };
+    vkwrap::ShaderModule vertex_shader{ "vertex_shader.spv", logical_device.get() };
+    vkwrap::ShaderModule fragment_shader{ "fragment_shader.spv", logical_device.get() };
+
+    pipeline.setVertexShader( vertex_shader );
+    pipeline.setFragmentShader( fragment_shader );
+    pipeline.createPipelineLayout( logical_device.get() );
+    pipeline.setColorAttachment( swap_chain_format );
+    pipeline.setSubpassDependencies( ranges::empty_view<vk::SubpassDependency>{} );
+    pipeline.createRenderPass( logical_device.get() );
+    pipeline.createPipeline( logical_device.get() );
+
+    fmt::print( "Pipeline creation sucess\n" );
+
 } catch ( vkwrap::UnsupportedError& e )
 {
     fmt::print( "Unsupported error: {}\n", e.what() );

@@ -92,6 +92,8 @@ endfunction()
 option ( VK_INFO OFF )
 if ( ${VK_INFO} )
     add_example_executable( vk_info examples/vk_info.cc )
+    add_spirv_shader( vertex_shader shaders/vertex_shader.vert )
+    add_spirv_shader( fragment_shader shaders/fragment_shader.frag )
 endif ()
 
 option ( GLFW_INFO OFF )
