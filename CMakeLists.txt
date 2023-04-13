@@ -163,6 +163,7 @@ set ( VKWRAP_SOURCES
     src/vk/loader.cc
     src/vk/surface.cc
     src/glfw/window.cc 
+    src/glfw/input.cc
 )
 
 add_library ( vkwrap ${VKWRAP_SOURCES} )
