@@ -35,30 +35,46 @@ try
 
     std::jthread printer{ [ & ]( std::stop_token token ) {
         using input::glfw::KeyState;
+        using input::glfw::KeyAction;
 
         auto& keyboard = input::glfw::KeyboardHandler::instance( window );
-        keyboard.monitor( std::to_array<input::glfw::KeyMonitorInfo>(
-            { { GLFW_KEY_A, KeyState::e_clicked }, { GLFW_KEY_D, KeyState::e_held_down } } ) );
+        keyboard.monitor( std::to_array<input::glfw::KeyIndex>( { GLFW_KEY_A, GLFW_KEY_D } ) );
 
         auto state_to_string = []( KeyState st ) {
-            using input::glfw::KeyState;
             switch ( st )
             {
-            case KeyState::e_clicked:
-                return "Clicked";
-            case KeyState::e_held_down:
-                return "Held Down";
-            case KeyState::e_idle:
-                return "Idle";
+            case KeyState::e_pressed:
+                return "Pressed";
+            case KeyState::e_released:
+                return "Released";
+            }
+        };
+
+        auto action_to_string = []( KeyAction st ) {
+            switch ( st )
+            {
+            case KeyAction::e_press:
+                return "Press";
+            case KeyAction::e_release:
+                return "Release";
+            case KeyAction::e_repeat:
+                return "Repeat";
             }
         };
 
         while ( !token.stop_requested() )
         {
-            for ( auto&& [ key, state ] : keyboard.poll() )
+            for ( auto&& [ key, info ] : keyboard.poll() )
             {
                 std::string_view key_name = glfwGetKeyName( key, 0 );
-                std::cout << fmt::format( "Key: {}, Action: {}\n", key_name, state_to_string( state ) ) << std::flush;
+                if ( info.hasBeenPressed() )
+                {
+                    std::cout << fmt::format( "Key: {}, State: {}\n", key_name, state_to_string( info.current ) );
+                    for ( auto i = 0; auto&& press : info.presses() )
+                    {
+                        std::cout << fmt::format( "Event [{}], State: {}\n", i++, action_to_string( press.action ) );
+                    }
+                }
             }
 
             std::this_thread::sleep_for( 25ms );
@@ -67,7 +83,7 @@ try
 
     while ( window.running() )
     {
-        glfwPollEvents();
+        glfwWaitEvents();
     }
 
     printer.request_stop();
