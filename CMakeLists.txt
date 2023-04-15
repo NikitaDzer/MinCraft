@@ -57,7 +57,16 @@ set( CMAKE_POLICY_DEFAULT_CMP0077 NEW )
 
 add_subdirectory ( 3rd-party/VulkanMemoryAllocator EXCLUDE_FROM_ALL )
 
-target_compile_features( VulkanMemoryAllocator PUBLIC cxx_std_20 )
+target_compile_features( VulkanMemoryAllocator PRIVATE cxx_std_20 )
+
+if ( MSVC )
+    target_compile_options( VulkanMemoryAllocator PRIVATE cxx_std_20 )
+else()
+    get_target_property( target_options VulkanMemoryAllocator COMPILE_OPTIONS )
+    list( REMOVE_ITEM target_options -Wall -Wextra -Wpedantic )
+    set_property( TARGET VulkanMemoryAllocator PROPERTY COMPILE_OPTIONS ${target_options} )
+endif()
+
 # -^- VulkanMemoryAllocator configuration -^-
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )

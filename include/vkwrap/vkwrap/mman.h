@@ -2,10 +2,11 @@
 
 #include "common/vulkan_include.h"
 
+#include <vk_mem_alloc.h>
+
 #include "vkwrap/core.h"
 #include "vkwrap/error.h"
-
-#include "vk_mem_alloc.h"
+#include "utils/misc.h"
 
 #include <memory>
 #include <array>
@@ -234,18 +235,20 @@ private:
 
         vk::UniqueCommandBuffer createCommandBuffer( vk::Device device, vk::CommandPool cmd_pool )
         {
-            vk::CommandBufferAllocateInfo alloc_info{};
-            alloc_info.commandPool = cmd_pool;
-            alloc_info.level = vk::CommandBufferLevel::ePrimary;
-            alloc_info.commandBufferCount = 1;
+            vk::CommandBufferAllocateInfo alloc_info{
+                .commandPool = cmd_pool,
+                .level = vk::CommandBufferLevel::ePrimary,
+                .commandBufferCount = 1
+            };
 
             return std::move( device.allocateCommandBuffersUnique( alloc_info )[ 0 ] );
         }
 
         void begin()
         {
-            vk::CommandBufferBeginInfo begin_info{};
-            begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+            vk::CommandBufferBeginInfo begin_info{
+                .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+            };
 
             Base::get().begin( begin_info );
         }
@@ -358,12 +361,16 @@ private:
         return stats.total;
     }
 
-    static constexpr VmaAllocationCreateInfo k_buffer_alloc_create_info = {
+// G++ throws unnecessary warning here.
+#if defined( __GNUG__ )
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    static constexpr VmaAllocationCreateInfo k_buffer_alloc_create_info{
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO
     };
 
-    static constexpr VmaAllocationCreateInfo k_image_alloc_create_info = {
+    static constexpr VmaAllocationCreateInfo k_image_alloc_create_info{
         .usage = VMA_MEMORY_USAGE_AUTO,
         .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     };
@@ -372,6 +379,8 @@ private:
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = &vkGetDeviceProcAddr
     };
+#pragma GCC diagnostic pop 
+#endif // defined( __GNUG__ )
 
 public:
     Mman( vkwrap::VulkanVersion version, vk::Instance instance, 
@@ -382,10 +391,8 @@ public:
         m_queue{ queue },
         m_cmd_pool{ cmd_pool }
     {
-
-        // FIX: version setting.
         VmaAllocatorCreateInfo create_info{};
-        create_info.vulkanApiVersion = static_cast<uint32_t>( version );
+        create_info.vulkanApiVersion = utils::toUnderlying( version );
         create_info.instance = instance;
         create_info.physicalDevice = physical_device;
         create_info.device = logical_device;
