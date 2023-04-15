@@ -38,25 +38,27 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
-# Quality of life external libs
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
 
-function ( add_spirv_shader TARGET_NAME INPUT_FILE )
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
-        COMMAND ${glslc} -c ${INPUT_FILE} -o ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
-        MAIN_DEPENDENCY ${INPUT_FILE}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-    add_custom_target ( ${TARGET_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv )
-    set ( ${TARGET_NAME}_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv PARENT_SCOPE )
-endfunction ()
+# Quality of life external libs
+add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
+
+# -v- VulkanMemoryAllocator configuration -v-
+set( VMA_STATIC_VULKAN_FUNCTIONS OFF )
+set( VMA_DYNAMIC_VULKAN_FUNCTIONS ON )
+
+# Force CMake to override lib's options with ours. 
+set( CMAKE_POLICY_DEFAULT_CMP0077 NEW )
+
+add_subdirectory ( 3rd-party/VulkanMemoryAllocator EXCLUDE_FROM_ALL )
+
+target_compile_features( VulkanMemoryAllocator PUBLIC cxx_std_20 )
+# -^- VulkanMemoryAllocator configuration -^-
 
 
 set ( VKWRAP_SOURCES
@@ -68,7 +70,7 @@ set ( VKWRAP_SOURCES
 
 add_library ( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories ( vkwrap PUBLIC include/vkwrap include/common include/glfw )
-target_link_libraries ( vkwrap PUBLIC range-v3 spdlog glfw Vulkan::Vulkan )
+target_link_libraries ( vkwrap PUBLIC range-v3 spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan )
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
