@@ -12,6 +12,7 @@
 #include <range/v3/range/conversion.hpp>
 
 #include <array>
+#include <bit>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -23,7 +24,7 @@ template <> struct hash<vk::Buffer>
 {
     size_t operator()( const vk::Buffer& buffer ) const
     {
-        return reinterpret_cast<size_t>( buffer.operator VkBuffer() );
+        return std::bit_cast<size_t>( buffer.operator VkBuffer() );
     } // operator()
 
 }; // struct hash<vk::Buffer>
@@ -32,7 +33,7 @@ template <> struct hash<vk::Image>
 {
     size_t operator()( const vk::Image& image ) const
     {
-        return reinterpret_cast<size_t>( image.operator VkImage() );
+        return std::bit_cast<size_t>( image.operator VkImage() );
     } // operator()
 
 }; // struct hash<vk::Image>
@@ -41,6 +42,18 @@ template <> struct hash<vk::Image>
 
 namespace vkwrap
 {
+
+struct AccessMasks
+{
+    vk::AccessFlags src;
+    vk::AccessFlags dst;
+};
+
+struct PipelineStages
+{
+    vk::PipelineStageFlags src;
+    vk::PipelineStageFlags dst;
+};
 
 inline bool
 hasStencil( vk::Format format )
@@ -54,11 +67,9 @@ hasStencil( vk::Format format )
         Format::eD32SfloatS8Uint,
     };
 
-    auto isEqualFormats = [ format ]( Format format_with_stencil ) {
+    return ranges::any_of( k_formats_with_stencil, [ format ]( Format format_with_stencil ) {
         return format == format_with_stencil;
-    };
-
-    return ranges::any_of( k_formats_with_stencil, isEqualFormats );
+    } );
 } // hasStencil
 
 inline vk::ImageAspectFlags
@@ -83,7 +94,7 @@ chooseAspectMask( vk::Format format, vk::ImageLayout new_layout )
     return aspect_mask;
 } // chooseAspectMask
 
-inline std::pair<vk::AccessFlags, vk::AccessFlags>
+inline AccessMasks
 chooseAccessMasks( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
     using vk::AccessFlagBits;
@@ -119,35 +130,40 @@ createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old
     using vk::AccessFlagBits;
     using vk::ImageMemoryBarrier;
 
-    ImageMemoryBarrier barrier{};
-
-    barrier.image = image;
-
-    barrier.oldLayout = old_layout;
-    barrier.newLayout = new_layout;
-
-    /** Any combination of image::sharingMode,
-     * barrier::srcQueueFamilyIndex, barrier::dstQueueFamilyIndex is allowed.
-     */
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
     auto [ src_access, dst_access ] = chooseAccessMasks( old_layout, new_layout );
-    barrier.srcAccessMask = src_access;
-    barrier.dstAccessMask = dst_access;
 
-    // We use images with one layer and one mipmap.
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+    // clang-format off
+    ImageMemoryBarrier barrier{
+        .srcAccessMask = src_access,
+        .dstAccessMask = dst_access,
 
-    barrier.subresourceRange.aspectMask = chooseAspectMask( format, new_layout );
+        .oldLayout = old_layout,
+        .newLayout = new_layout,
+
+        /** Any combination of image::sharingMode,
+         * barrier::srcQueueFamilyIndex, barrier::dstQueueFamilyIndex is allowed.
+         */
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+
+        .image = image,
+
+        .subresourceRange = {
+            .aspectMask = chooseAspectMask( format, new_layout ),
+
+            // We use images with one layer and one mipmap.
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        }
+    };
+    // clang-format on
 
     return barrier;
 } // createImageBarrierInfo
 
-inline std::pair<vk::PipelineStageFlags, vk::PipelineStageFlags>
+inline PipelineStages
 choosePipelineStages( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
     using vk::ImageLayout;
@@ -226,26 +242,29 @@ class Mman
 
         void end() const { Base::get().end(); }
 
+        void submit() const
+        {
+            vk::SubmitInfo submit_info{ .commandBufferCount = 1, .pCommandBuffers = &Base::get() };
+
+            m_queue.submit( std::array{ submit_info } );
+        } // submit
+
+        void wait() const { m_queue.waitIdle(); }
+
       public:
         OneTimeCommand( vk::Device device, vk::CommandPool cmd_pool, vk::Queue queue )
             : Base{ createCommandBuffer( device, cmd_pool ) },
               m_queue{ queue }
         {
-            begin();
         } // oneTimeCommand
 
-        void submitAndWait() const
+        void submitAndWait( std::function<void( vk::CommandBuffer& )> func )
         {
+            begin();
+            func( this->get() );
             end();
-
-            // clang-format off
-            vk::SubmitInfo submit_info{ 
-                .commandBufferCount = 1, 
-                .pCommandBuffers = &Base::get() };
-            // clang-format on
-
-            m_queue.submit( std::array{ submit_info } );
-            m_queue.waitIdle();
+            submit();
+            wait();
         } // submitAndWait
 
         using Base::operator->;
@@ -300,10 +319,6 @@ class Mman
         return stats.total;
     } // getTotalStats
 
-// G++ throws unnecessary warning here.
-#if defined( __GNUG__ )
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     static constexpr VmaAllocationCreateInfo k_buffer_alloc_create_info{
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO };
@@ -315,8 +330,6 @@ class Mman
     static constexpr VmaVulkanFunctions k_vulkan_functions = {
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = &vkGetDeviceProcAddr };
-#pragma GCC diagnostic pop
-#endif // defined( __GNUG__ )
 
   public:
     Mman(
@@ -332,24 +345,15 @@ class Mman
           m_cmd_pool{ cmd_pool }
     {
 
-// G++ throws unnecessary warning here.
-#if defined( __GNUG__ )
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
         VmaAllocatorCreateInfo create_info{
             .physicalDevice = physical_device,
             .device = logical_device,
             .pVulkanFunctions = &k_vulkan_functions,
             .instance = instance,
             .vulkanApiVersion = utils::toUnderlying( version ) };
-#pragma GCC diagnostic pop
-#endif // defined( __GNUG__ )
 
         VkResult result = vmaCreateAllocator( &create_info, &m_vma );
-        if ( result != VK_SUCCESS )
-        {
-            throw vk::SystemError{ vk::Result{ result }, "Mman: allocator creation error." };
-        }
+        vk::resultCheck( vk::Result{ result }, "Mman: allocator creation error." );
     } // Mman
 
     ~Mman() { vmaDestroyAllocator( m_vma ); }
@@ -372,10 +376,7 @@ class Mman
             &allocation,
             nullptr );
 
-        if ( result != VK_SUCCESS )
-        {
-            throw vk::SystemError{ vk::Result{ result }, "Mman: buffer allocation error." };
-        }
+        vk::resultCheck( vk::Result{ result }, "Mman: buffer allocation error." );
 
         vk::Buffer buffer_hpp{ buffer };
         BufferInfo buffer_info{ allocation, create_info.size };
@@ -398,10 +399,7 @@ class Mman
             &allocation,
             nullptr );
 
-        if ( result != VK_SUCCESS )
-        {
-            throw vk::SystemError{ vk::Result{ result }, "Mman: image allocation error." };
-        }
+        vk::resultCheck( vk::Result{ result }, "Mman: image allocation error." );
 
         vk::Image image_hpp{ image };
         ImageInfo image_info{ allocation, create_info.format, create_info.initialLayout, create_info.extent };
@@ -428,10 +426,7 @@ class Mman
         uint8_t* mapped = nullptr;
 
         VkResult result = vmaMapMemory( m_vma, *findAllocation( buffer ), reinterpret_cast<void**>( &mapped ) );
-        if ( result != VK_SUCCESS )
-        {
-            throw vk::SystemError{ vk::Result{ result }, "Mman: buffer mapping error." };
-        }
+        vk::resultCheck( vk::Result{ result }, "Mman: buffer mapping error." );
 
         return mapped;
     } // map
@@ -441,11 +436,7 @@ class Mman
     void flush( vk::Buffer buffer )
     {
         VkResult result = vmaFlushAllocation( m_vma, *findAllocation( buffer ), 0, VK_WHOLE_SIZE );
-
-        if ( result != VK_SUCCESS )
-        {
-            throw vk::SystemError{ vk::Result{ result }, "Mman: buffer flushing error." };
-        }
+        vk::resultCheck( vk::Result{ result }, "Mman: buffer flushing error." );
     } // flush
 
     void copy(
@@ -457,9 +448,8 @@ class Mman
     {
         vk::BufferCopy region{ src_offset, dst_offset, size };
 
-        OneTimeCommand cmd = createCommand();
-        cmd->copyBuffer( src_buffer, dst_buffer, std::array{ region } );
-        cmd.submitAndWait();
+        createCommand().submitAndWait(
+            [ & ]( auto& cmd ) { cmd.copyBuffer( src_buffer, dst_buffer, std::array{ region } ); } );
     } // copy
 
     void copy( vk::Buffer src_buffer, vk::Buffer dst_buffer )
@@ -472,65 +462,52 @@ class Mman
         // TODO: add interface to configure image and buffer params.
 
         ImageInfo* image_info = findInfo( dst_image );
-        vk::BufferImageCopy region{};
+        vk::BufferImageCopy region{
+            .bufferOffset = 0,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
 
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
-        region.bufferImageHeight = 0;
+            .imageSubresource =
+                { .aspectMask = vk::ImageAspectFlagBits::eColor,
 
-        region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+                  // We use images with one layer and one mipmap.
+                  .mipLevel = 0,
+                  .baseArrayLayer = 0,
+                  .layerCount = 1 },
 
-        // We use images with one layer and one mipmap.
-        region.imageSubresource.mipLevel = 0;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
-
-        region.imageOffset = vk::Offset3D{ 0, 0, 0 };
-        region.imageExtent = vk::Extent3D{
-            image_info->extent.width,
-            image_info->extent.height,
-            1 /* depth */
+            .imageOffset = vk::Offset3D{ 0, 0, 0 },
+            .imageExtent =
+                vk::Extent3D{
+                    image_info->extent.width,
+                    image_info->extent.height,
+                    1 /* depth */
+                },
         };
 
-        OneTimeCommand cmd = createCommand();
-        cmd->copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
-        cmd.submitAndWait();
+        createCommand().submitAndWait( [ & ]( auto& cmd ) {
+            cmd.copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
+        } );
     } // copy
 
     void transit( vk::Image image, vk::ImageLayout new_layout )
     {
         ImageInfo* image_info = findInfo( image );
 
-        vk::ImageMemoryBarrier barrier{};
-        vk::PipelineStageFlags src_stage{};
-        vk::PipelineStageFlags dst_stage{};
+        auto [ src_stage, dst_stage ] = choosePipelineStages( image_info->layout, new_layout );
+        vk::ImageMemoryBarrier barrier{
+            createImageBarrierInfo( image, image_info->format, image_info->layout, new_layout ) };
 
-        try
-        {
-            barrier = createImageBarrierInfo( image, image_info->format, image_info->layout, new_layout );
-
-            auto [ src_stage_tmp, dst_stage_tmp ] = choosePipelineStages( image_info->layout, new_layout );
-            src_stage = src_stage_tmp;
-            dst_stage = dst_stage_tmp;
-        } catch ( Error& e )
-        {
-            throw Error{ std::string{ "Mman: " } + e.what() };
-        }
-
-        OneTimeCommand cmd = createCommand();
-        cmd->pipelineBarrier(
-            src_stage,
-            dst_stage,
-            vk::DependencyFlagBits::eByRegion, /** TODO: learn more about dependency.
-                                                * Probably, it may work incorrect.
-                                                */
-            0,
-            nullptr,
-            0,
-            nullptr,
-            1,
-            &barrier );
-        cmd.submitAndWait();
+        createCommand().submitAndWait( [ src_stage = src_stage, dst_stage = dst_stage, &barrier ]( auto& cmd ) {
+            cmd.pipelineBarrier(
+                src_stage,
+                dst_stage,
+                vk::DependencyFlagBits::eByRegion, /** TODO: learn more about dependency.
+                                                    * Probably, it may work incorrect.
+                                                    */
+                std::array<vk::MemoryBarrier, 0>{},
+                std::array<vk::BufferMemoryBarrier, 0>{},
+                std::array{ barrier } );
+        } );
 
         image_info->layout = new_layout;
     } // transit

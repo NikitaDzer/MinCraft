@@ -1,4 +1,4 @@
-cmake_minimum_required ( VERSION 3.11 )
+cmake_minimum_required ( VERSION 3.13 )
 project ( MinCraft )
 
 option ( INSOURCEBUILD OFF ) # Prevent in-source style builds
@@ -9,7 +9,7 @@ endif ()
 if ( MSVC )
   add_compile_options( /W4 )
 else()
-  add_compile_options( -Wall -Wextra -Wpedantic )
+  add_compile_options( -Wall -Wextra -Wpedantic -Wno-missing-field-initializers )
 endif()
 
 option ( LINT OFF )
@@ -55,7 +55,7 @@ function ( suppress_warnings TARGET_NAME )
     if ( MSVC )
         list( REMOVE_ITEM target_options /W4 )
     else ()
-        list( REMOVE_ITEM target_options -Wall -Wextra -Wpedantic )
+        list( APPEND target_options -w )
     endif ()
 
     set_property( TARGET ${TARGET_NAME} PROPERTY COMPILE_OPTIONS ${target_options} )
