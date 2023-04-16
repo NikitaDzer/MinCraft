@@ -320,14 +320,19 @@ class Mman
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = &vkGetDeviceProcAddr };
 
-    static vk::UniqueCommandBuffer createCommandBuffer( vk::Device device, vk::CommandPool cmd_pool )
+    static OneTimeCommand createCommand( vk::Device device, vk::CommandPool cmd_pool, vk::Queue queue )
     {
         vk::CommandBufferAllocateInfo alloc_info{
             .commandPool = cmd_pool,
             .level = vk::CommandBufferLevel::ePrimary,
             .commandBufferCount = 1 };
 
-        return std::move( device.allocateCommandBuffersUnique( alloc_info )[ 0 ] );
+        // clang-format off
+        vk::UniqueCommandBuffer cmd_buffer{ 
+            std::move( device.allocateCommandBuffersUnique( alloc_info )[ 0 ] ) };
+        // clang-format on
+
+        return { std::move( cmd_buffer ), queue };
     } // createCommandBuffer
 
   public:
@@ -340,9 +345,8 @@ class Mman
         vk::CommandPool cmd_pool )
         : m_vma{ VK_NULL_HANDLE },
           m_queue{ queue },
-          m_cmd{ createCommandBuffer( logical_device, cmd_pool ), queue }
+          m_cmd{ createCommand( logical_device, cmd_pool, queue ) }
     {
-
         VmaAllocatorCreateInfo create_info{
             .physicalDevice = physical_device,
             .device = logical_device,
