@@ -1,9 +1,9 @@
-#include "input/keyboard.h"
+#include "glfw/input/keyboard.h"
 
 #include <mutex>
 #include <unordered_map>
 
-namespace input::glfw
+namespace glfw::input
 {
 
 // Storage for global variables
@@ -64,4 +64,4 @@ KeyboardHandler::keyCallback( KeyIndex key, KeyAction action, ModifierFlag modif
     events.push_back( event );
 }
 
-} // namespace input::glfw
+} // namespace glfw::input

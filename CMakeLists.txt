@@ -26,9 +26,8 @@ elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
         -Wdouble-promotion
         -Wformat=2
         -Wimplicit-fallthrough
-        -Wno-missing-field-initializers
     )
-elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
+else ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
     add_compile_options (
         -Wall
         -Wextra
@@ -49,10 +48,7 @@ elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
         -Wdouble-promotion
         -Wformat=2
         -Wimplicit-fallthrough
-        -Wno-missing-field-initializers
     )
-else ()
-    message(FATAL_ERROR "Unsupported compiler: [${CMAKE_CXX_COMPILER_ID}]")
 endif ()
 
 option ( LINT OFF )
