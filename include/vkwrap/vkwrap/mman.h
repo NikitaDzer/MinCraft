@@ -47,13 +47,13 @@ struct AccessMasks
 {
     vk::AccessFlags src;
     vk::AccessFlags dst;
-};
+}; // struct AccessMasks
 
 struct PipelineStages
 {
     vk::PipelineStageFlags src;
     vk::PipelineStageFlags dst;
-};
+}; // struct PipelineStages
 
 inline bool
 hasStencil( vk::Format format )
@@ -220,16 +220,6 @@ class Mman
       private:
         vk::Queue m_queue;
 
-        vk::UniqueCommandBuffer createCommandBuffer( vk::Device device, vk::CommandPool cmd_pool ) const
-        {
-            vk::CommandBufferAllocateInfo alloc_info{
-                .commandPool = cmd_pool,
-                .level = vk::CommandBufferLevel::ePrimary,
-                .commandBufferCount = 1 };
-
-            return std::move( device.allocateCommandBuffersUnique( alloc_info )[ 0 ] );
-        } // createCommandBuffer
-
         void begin() const
         {
             // clang-format off
@@ -252,8 +242,8 @@ class Mman
         void wait() const { m_queue.waitIdle(); }
 
       public:
-        OneTimeCommand( vk::Device device, vk::CommandPool cmd_pool, vk::Queue queue )
-            : Base{ createCommandBuffer( device, cmd_pool ) },
+        OneTimeCommand( vk::UniqueCommandBuffer&& unique_cmd, vk::Queue queue )
+            : Base{ std::move( unique_cmd ) },
               m_queue{ queue }
         {
         } // oneTimeCommand
@@ -261,7 +251,7 @@ class Mman
         void submitAndWait( std::function<void( vk::CommandBuffer& )> func )
         {
             begin();
-            func( this->get() );
+            func( Base::get() );
             end();
             submit();
             wait();
@@ -272,9 +262,8 @@ class Mman
 
   private:
     VmaAllocator m_vma;
-    vk::Device m_device;
     vk::Queue m_queue;
-    vk::CommandPool m_cmd_pool;
+    OneTimeCommand m_cmd;
 
     std::unordered_map<vk::Buffer, BufferInfo> m_buffers_info;
     std::unordered_map<vk::Image, ImageInfo> m_images_info;
@@ -309,8 +298,6 @@ class Mman
     void clearInfo( vk::Buffer buffer ) { m_buffers_info.erase( buffer ); }
     void clearInfo( vk::Image image ) { m_images_info.erase( image ); }
 
-    OneTimeCommand createCommand() const { return { m_device, m_cmd_pool, m_queue }; }
-
     VmaDetailedStatistics getTotalStats() const
     {
         VmaTotalStatistics stats{};
@@ -318,6 +305,8 @@ class Mman
 
         return stats.total;
     } // getTotalStats
+
+    OneTimeCommand& getCommand() { return m_cmd; }
 
     static constexpr VmaAllocationCreateInfo k_buffer_alloc_create_info{
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
@@ -331,6 +320,16 @@ class Mman
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = &vkGetDeviceProcAddr };
 
+    static vk::UniqueCommandBuffer createCommandBuffer( vk::Device device, vk::CommandPool cmd_pool )
+    {
+        vk::CommandBufferAllocateInfo alloc_info{
+            .commandPool = cmd_pool,
+            .level = vk::CommandBufferLevel::ePrimary,
+            .commandBufferCount = 1 };
+
+        return std::move( device.allocateCommandBuffersUnique( alloc_info )[ 0 ] );
+    } // createCommandBuffer
+
   public:
     Mman(
         vkwrap::VulkanVersion version,
@@ -340,9 +339,8 @@ class Mman
         vk::Queue queue,
         vk::CommandPool cmd_pool )
         : m_vma{ VK_NULL_HANDLE },
-          m_device{ logical_device },
           m_queue{ queue },
-          m_cmd_pool{ cmd_pool }
+          m_cmd{ createCommandBuffer( logical_device, cmd_pool ), queue }
     {
 
         VmaAllocatorCreateInfo create_info{
@@ -448,8 +446,11 @@ class Mman
     {
         vk::BufferCopy region{ src_offset, dst_offset, size };
 
-        createCommand().submitAndWait(
-            [ & ]( auto& cmd ) { cmd.copyBuffer( src_buffer, dst_buffer, std::array{ region } ); } );
+        // clang-format off
+        getCommand().submitAndWait( [ & ]( auto& cmd ) { 
+            cmd.copyBuffer( src_buffer, dst_buffer, std::array{ region } ); 
+        });
+        // clang-format on
     } // copy
 
     void copy( vk::Buffer src_buffer, vk::Buffer dst_buffer )
@@ -484,7 +485,7 @@ class Mman
                 },
         };
 
-        createCommand().submitAndWait( [ & ]( auto& cmd ) {
+        getCommand().submitAndWait( [ & ]( auto& cmd ) {
             cmd.copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
         } );
     } // copy
@@ -497,7 +498,7 @@ class Mman
         vk::ImageMemoryBarrier barrier{
             createImageBarrierInfo( image, image_info->format, image_info->layout, new_layout ) };
 
-        createCommand().submitAndWait( [ src_stage = src_stage, dst_stage = dst_stage, &barrier ]( auto& cmd ) {
+        getCommand().submitAndWait( [ src_stage = src_stage, dst_stage = dst_stage, &barrier ]( auto& cmd ) {
             cmd.pipelineBarrier(
                 src_stage,
                 dst_stage,
