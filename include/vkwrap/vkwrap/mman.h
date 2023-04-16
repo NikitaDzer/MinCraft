@@ -1,37 +1,20 @@
 #pragma once
 
 #include "common/vulkan_include.h"
-
 #include <vk_mem_alloc.h>
 
+#include "utils/misc.h"
 #include "vkwrap/core.h"
 #include "vkwrap/error.h"
-#include "utils/misc.h"
 
-#include <memory>
-#include <array>
-#include <utility>
-#include <unordered_map>
-
-#include <range/v3/view/set_algorithm.hpp>
-#include <range/v3/view/take.hpp>
-#include <range/v3/view/transform.hpp>
-
-#include <range/v3/algorithm/copy.hpp>
-#include <range/v3/algorithm/set_algorithm.hpp>
-#include <range/v3/algorithm/sort.hpp>
 #include <range/v3/algorithm/any_of.hpp>
 
-#include "range/v3/range/conversion.hpp"
-#include <range/v3/iterator/insert_iterators.hpp>
-#include <range/v3/range/concepts.hpp>
+#include <range/v3/range/conversion.hpp>
 
-#include <range/v3/view/all.hpp>
-#include <range/v3/view/filter.hpp>
-#include <range/v3/view/iota.hpp>
-#include <range/v3/view/zip.hpp>
-#include <range/v3/view/zip_with.hpp>
-
+#include <array>
+#include <memory>
+#include <unordered_map>
+#include <utility>
 
 namespace std
 {
@@ -41,18 +24,20 @@ template <> struct hash<vk::Buffer>
     size_t operator()( const vk::Buffer& buffer ) const
     {
         return reinterpret_cast<size_t>( buffer.operator VkBuffer() );
-    }
-}; 
+    } // operator()
+
+}; // struct hash<vk::Buffer>
 
 template <> struct hash<vk::Image>
 {
     size_t operator()( const vk::Image& image ) const
     {
         return reinterpret_cast<size_t>( image.operator VkImage() );
-    }
-}; 
+    } // operator()
 
-}
+}; // struct hash<vk::Image>
+
+} // namespace std
 
 namespace vkwrap
 {
@@ -62,32 +47,31 @@ hasStencil( vk::Format format )
 {
     using vk::Format;
 
-    constexpr auto k_formats_with_stencil = std::array{ 
+    constexpr auto k_formats_with_stencil = std::array{
         Format::eS8Uint,
         Format::eD16UnormS8Uint,
         Format::eD24UnormS8Uint,
         Format::eD32SfloatS8Uint,
     };
 
-    auto isEqualFormats = [ format ]( Format format_with_stencil )
-    {
+    auto isEqualFormats = [ format ]( Format format_with_stencil ) {
         return format == format_with_stencil;
     };
 
     return ranges::any_of( k_formats_with_stencil, isEqualFormats );
-}
+} // hasStencil
 
 inline vk::ImageAspectFlags
 chooseAspectMask( vk::Format format, vk::ImageLayout new_layout )
 {
-    using vk::ImageLayout;
-    using vk::ImageAspectFlags;
     using vk::ImageAspectFlagBits;
+    using vk::ImageAspectFlags;
+    using vk::ImageLayout;
 
     if ( new_layout != ImageLayout::eDepthStencilAttachmentOptimal )
     {
         return ImageAspectFlagBits::eColor;
-    } 
+    }
 
     ImageAspectFlags aspect_mask{ ImageAspectFlagBits::eDepth };
 
@@ -97,47 +81,43 @@ chooseAspectMask( vk::Format format, vk::ImageLayout new_layout )
     }
 
     return aspect_mask;
-}
+} // chooseAspectMask
 
 inline std::pair<vk::AccessFlags, vk::AccessFlags>
 chooseAccessMasks( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
-    using vk::AccessFlags;
     using vk::AccessFlagBits;
+    using vk::AccessFlags;
     using vk::ImageLayout;
 
     AccessFlags src{ AccessFlagBits::eNone };
     AccessFlags dst{ AccessFlagBits::eNone };
 
-    if ( old_layout == ImageLayout::eUndefined 
-         && new_layout == ImageLayout::eTransferDstOptimal )
+    if ( old_layout == ImageLayout::eUndefined && new_layout == ImageLayout::eTransferDstOptimal )
     {
         src = AccessFlagBits::eNone;
         dst = AccessFlagBits::eTransferWrite;
-    } else if ( old_layout == ImageLayout::eTransferDstOptimal 
-                && new_layout == ImageLayout::eShaderReadOnlyOptimal )
+    } else if ( old_layout == ImageLayout::eTransferDstOptimal && new_layout == ImageLayout::eShaderReadOnlyOptimal )
     {
         src = AccessFlagBits::eTransferWrite;
         dst = AccessFlagBits::eShaderRead;
-    } else if ( old_layout == ImageLayout::eUndefined 
-                && new_layout == ImageLayout::eDepthStencilAttachmentOptimal)
+    } else if ( old_layout == ImageLayout::eUndefined && new_layout == ImageLayout::eDepthStencilAttachmentOptimal )
     {
         src = AccessFlagBits::eNone;
-        dst = AccessFlagBits::eDepthStencilAttachmentRead 
-              | AccessFlagBits::eDepthStencilAttachmentWrite;
+        dst = AccessFlagBits::eDepthStencilAttachmentRead | AccessFlagBits::eDepthStencilAttachmentWrite;
     } else
     {
         throw Error{ "chooseAccessMasks: unimplemented layout transition." };
     }
 
     return { src, dst };
-}
+} // chooseAccessMasks
 
-inline vk::ImageMemoryBarrier 
+inline vk::ImageMemoryBarrier
 createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
-    using vk::ImageMemoryBarrier;
     using vk::AccessFlagBits;
+    using vk::ImageMemoryBarrier;
 
     ImageMemoryBarrier barrier{};
 
@@ -146,21 +126,15 @@ createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old
     barrier.oldLayout = old_layout;
     barrier.newLayout = new_layout;
 
-    /** Any combination of image::sharingMode, 
-      * barrier::srcQueueFamilyIndex, barrier::dstQueueFamilyIndex is allowed.
-      */
+    /** Any combination of image::sharingMode,
+     * barrier::srcQueueFamilyIndex, barrier::dstQueueFamilyIndex is allowed.
+     */
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-    try 
-    {
-        auto [ src_access, dst_access ] = chooseAccessMasks( old_layout, new_layout );
-        barrier.srcAccessMask = src_access;
-        barrier.dstAccessMask = dst_access;
-    } catch ( Error& e )
-    {
-        throw;
-    }
+    auto [ src_access, dst_access ] = chooseAccessMasks( old_layout, new_layout );
+    barrier.srcAccessMask = src_access;
+    barrier.dstAccessMask = dst_access;
 
     // We use images with one layer and one mipmap.
     barrier.subresourceRange.baseMipLevel = 0;
@@ -171,30 +145,27 @@ createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old
     barrier.subresourceRange.aspectMask = chooseAspectMask( format, new_layout );
 
     return barrier;
-}
+} // createImageBarrierInfo
 
 inline std::pair<vk::PipelineStageFlags, vk::PipelineStageFlags>
 choosePipelineStages( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
-    using vk::PipelineStageFlags;
-    using vk::PipelineStageFlagBits;
     using vk::ImageLayout;
+    using vk::PipelineStageFlagBits;
+    using vk::PipelineStageFlags;
 
     PipelineStageFlags src{ PipelineStageFlagBits::eNone };
     PipelineStageFlags dst{ PipelineStageFlagBits::eNone };
 
-    if ( old_layout == ImageLayout::eUndefined 
-         && new_layout == ImageLayout::eTransferDstOptimal )
+    if ( old_layout == ImageLayout::eUndefined && new_layout == ImageLayout::eTransferDstOptimal )
     {
         src = PipelineStageFlagBits::eTopOfPipe;
         dst = PipelineStageFlagBits::eTransfer;
-    } else if ( old_layout == ImageLayout::eTransferDstOptimal 
-                && new_layout == ImageLayout::eShaderReadOnlyOptimal )
+    } else if ( old_layout == ImageLayout::eTransferDstOptimal && new_layout == ImageLayout::eShaderReadOnlyOptimal )
     {
         src = PipelineStageFlagBits::eTransfer;
         dst = PipelineStageFlagBits::eFragmentShader;
-    } else if ( old_layout == ImageLayout::eUndefined 
-                && new_layout == ImageLayout::eDepthStencilAttachmentOptimal)
+    } else if ( old_layout == ImageLayout::eUndefined && new_layout == ImageLayout::eDepthStencilAttachmentOptimal )
     {
         src = PipelineStageFlagBits::eTopOfPipe;
         dst = PipelineStageFlagBits::eEarlyFragmentTests;
@@ -204,17 +175,17 @@ choosePipelineStages( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
     }
 
     return { src, dst };
-}
+} // choosePipelineStages
 
 class Mman
 {
 
-private:
+  private:
     struct BufferInfo
     {
         VmaAllocation allocation;
         vk::DeviceSize size;
-    };
+    }; // struct BufferInfo
 
     struct ImageInfo
     {
@@ -222,85 +193,65 @@ private:
         vk::Format format;
         vk::ImageLayout layout;
         vk::Extent3D extent;
-    };
+    }; // struct ImageInfo
 
-    class SingleAction : private vk::UniqueCommandBuffer
+    class OneTimeCommand : private vk::UniqueCommandBuffer
     {
-    
-    private:
+
+      private:
         using Base = vk::UniqueCommandBuffer;
 
-    private:
+      private:
         vk::Queue m_queue;
 
-        vk::UniqueCommandBuffer createCommandBuffer( vk::Device device, vk::CommandPool cmd_pool )
+        vk::UniqueCommandBuffer createCommandBuffer( vk::Device device, vk::CommandPool cmd_pool ) const
         {
             vk::CommandBufferAllocateInfo alloc_info{
                 .commandPool = cmd_pool,
                 .level = vk::CommandBufferLevel::ePrimary,
-                .commandBufferCount = 1
-            };
+                .commandBufferCount = 1 };
 
             return std::move( device.allocateCommandBuffersUnique( alloc_info )[ 0 ] );
-        }
+        } // createCommandBuffer
 
-        void begin()
+        void begin() const
         {
-            vk::CommandBufferBeginInfo begin_info{
-                .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
-            };
+            // clang-format off
+            vk::CommandBufferBeginInfo begin_info{ 
+                .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit };
+            // clang-format on
 
             Base::get().begin( begin_info );
-        }
+        } // begin
 
-        void end()
-        {
-            Base::get().end();
-        }
+        void end() const { Base::get().end(); }
 
-        void submitAndWait()
+      public:
+        OneTimeCommand( vk::Device device, vk::CommandPool cmd_pool, vk::Queue queue )
+            : Base{ createCommandBuffer( device, cmd_pool ) },
+              m_queue{ queue }
         {
-            vk::SubmitInfo submit_info{};
-            submit_info.commandBufferCount = 1;
-            submit_info.pCommandBuffers = &Base::get();
+            begin();
+        } // oneTimeCommand
+
+        void submitAndWait() const
+        {
+            end();
+
+            // clang-format off
+            vk::SubmitInfo submit_info{ 
+                .commandBufferCount = 1, 
+                .pCommandBuffers = &Base::get() };
+            // clang-format on
 
             m_queue.submit( std::array{ submit_info } );
             m_queue.waitIdle();
-        }
-        
-    public:
-        SingleAction( vk::Device device, vk::CommandPool cmd_pool, vk::Queue queue ):
-            Base{ createCommandBuffer( device, cmd_pool ) },
-            m_queue{ queue }
-        {
-            begin(); 
-        }
+        } // submitAndWait
 
-        SingleAction( const SingleAction& ) = delete;
-        SingleAction& operator = ( const SingleAction& ) = delete;
+        using Base::operator->;
+    }; // class OneTimeCommand
 
-        SingleAction( SingleAction&& action ):
-            Base{ std::move( action ) },
-            m_queue{ std::move( action.m_queue ) }
-        {
-        }
-
-        SingleAction& operator = ( SingleAction&& action )
-        {
-            std::swap( *this, action );
-            return *this;
-        }
-
-        ~SingleAction()
-        {
-            end();
-            submitAndWait();
-        }
-
-        using Base::operator ->;
-    };
-
-private:
+  private:
     VmaAllocator m_vma;
     vk::Device m_device;
     vk::Queue m_queue;
@@ -311,47 +262,35 @@ private:
 
     BufferInfo* findInfo( vk::Buffer buffer )
     {
-        if ( auto entry = m_buffers_info.find( buffer );
-             entry == m_buffers_info.end() )
+        if ( auto entry = m_buffers_info.find( buffer ); entry == m_buffers_info.end() )
         {
-            throw Error{ "Mman: buffer info not found." };    
+            throw Error{ "Mman: buffer info not found." };
         } else
         {
             return &entry->second;
         }
-    }
+    } // findInfo
 
     ImageInfo* findInfo( vk::Image image )
     {
-        if ( auto entry = m_images_info.find( image );
-             entry == m_images_info.end() )
+        if ( auto entry = m_images_info.find( image ); entry == m_images_info.end() )
         {
             throw Error{ "Mman: image info not found." };
         } else
         {
             return &entry->second;
         }
-    }
+    } // findInfo
 
-    VmaAllocation* findAllocation( auto target )
-    {
-        return &findInfo( target )->allocation; 
-    }
+    VmaAllocation* findAllocation( auto target ) { return &findInfo( target )->allocation; }
 
-    void addInfo( vk::Buffer buffer, const BufferInfo& info )
-    {
-        m_buffers_info.insert({ buffer, info });
-    }
+    void addInfo( vk::Buffer buffer, const BufferInfo& info ) { m_buffers_info.insert( { buffer, info } ); }
+    void addInfo( vk::Image image, const ImageInfo& info ) { m_images_info.insert( { image, info } ); }
 
-    void addInfo( vk::Image image, const ImageInfo& info )
-    {
-        m_images_info.insert({ image, info });
-    }
+    void clearInfo( vk::Buffer buffer ) { m_buffers_info.erase( buffer ); }
+    void clearInfo( vk::Image image ) { m_images_info.erase( image ); }
 
-    SingleAction createAction() const
-    {
-        return { m_device, m_cmd_pool, m_queue };
-    }
+    OneTimeCommand createCommand() const { return { m_device, m_cmd_pool, m_queue }; }
 
     VmaDetailedStatistics getTotalStats() const
     {
@@ -359,7 +298,7 @@ private:
         vmaCalculateStatistics( m_vma, &stats );
 
         return stats.total;
-    }
+    } // getTotalStats
 
 // G++ throws unnecessary warning here.
 #if defined( __GNUG__ )
@@ -367,83 +306,84 @@ private:
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     static constexpr VmaAllocationCreateInfo k_buffer_alloc_create_info{
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO
-    };
+        .usage = VMA_MEMORY_USAGE_AUTO };
 
     static constexpr VmaAllocationCreateInfo k_image_alloc_create_info{
         .usage = VMA_MEMORY_USAGE_AUTO,
-        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    };
+        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
 
     static constexpr VmaVulkanFunctions k_vulkan_functions = {
         .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
-        .vkGetDeviceProcAddr = &vkGetDeviceProcAddr
-    };
-#pragma GCC diagnostic pop 
+        .vkGetDeviceProcAddr = &vkGetDeviceProcAddr };
+#pragma GCC diagnostic pop
 #endif // defined( __GNUG__ )
 
-public:
-    Mman( vkwrap::VulkanVersion version, vk::Instance instance, 
-          vk::PhysicalDevice physical_device, vk::Device logical_device, 
-          vk::Queue queue, vk::CommandPool cmd_pool ):
-        m_vma{ VK_NULL_HANDLE },
-        m_device{ logical_device },
-        m_queue{ queue },
-        m_cmd_pool{ cmd_pool }
+  public:
+    Mman(
+        vkwrap::VulkanVersion version,
+        vk::Instance instance,
+        vk::PhysicalDevice physical_device,
+        vk::Device logical_device,
+        vk::Queue queue,
+        vk::CommandPool cmd_pool )
+        : m_vma{ VK_NULL_HANDLE },
+          m_device{ logical_device },
+          m_queue{ queue },
+          m_cmd_pool{ cmd_pool }
     {
-        VmaAllocatorCreateInfo create_info{};
-        create_info.vulkanApiVersion = utils::toUnderlying( version );
-        create_info.instance = instance;
-        create_info.physicalDevice = physical_device;
-        create_info.device = logical_device;
-        create_info.pVulkanFunctions = &k_vulkan_functions;
+
+// G++ throws unnecessary warning here.
+#if defined( __GNUG__ )
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+        VmaAllocatorCreateInfo create_info{
+            .physicalDevice = physical_device,
+            .device = logical_device,
+            .pVulkanFunctions = &k_vulkan_functions,
+            .instance = instance,
+            .vulkanApiVersion = utils::toUnderlying( version ) };
+#pragma GCC diagnostic pop
+#endif // defined( __GNUG__ )
 
         VkResult result = vmaCreateAllocator( &create_info, &m_vma );
         if ( result != VK_SUCCESS )
         {
-            throw Error{ "Mman: allocator creation error." };
+            throw VulkanError{ "Mman: allocator creation error.", result };
         }
-    }
+    } // Mman
 
-    ~Mman()
-    {
-        vmaDestroyAllocator( m_vma );
-    }
+    ~Mman() { vmaDestroyAllocator( m_vma ); }
 
     Mman( const Mman& ) = delete;
     Mman( Mman&& ) = delete;
-    Mman& operator = ( const Mman& ) = delete;
-    Mman& operator = ( Mman&& ) = delete;
+    Mman& operator=( const Mman& ) = delete;
+    Mman& operator=( Mman&& ) = delete;
 
     vk::Buffer create( const vk::BufferCreateInfo& create_info )
     {
         VkBuffer buffer{};
         VmaAllocation allocation{};
 
-        VkResult result = vmaCreateBuffer( 
-            m_vma, 
-            &static_cast<const VkBufferCreateInfo&>( create_info ), 
-            &k_buffer_alloc_create_info, 
-            &buffer, 
-            &allocation, 
-            nullptr 
-        );
+        VkResult result = vmaCreateBuffer(
+            m_vma,
+            &static_cast<const VkBufferCreateInfo&>( create_info ),
+            &k_buffer_alloc_create_info,
+            &buffer,
+            &allocation,
+            nullptr );
 
         if ( result != VK_SUCCESS )
         {
-            throw Error{ "Mman: buffer allocation error." };
+            throw VulkanError{ "Mman: buffer allocation error.", result };
         }
 
         vk::Buffer buffer_hpp{ buffer };
-        BufferInfo buffer_info{
-            allocation,
-            create_info.size
-        };
+        BufferInfo buffer_info{ allocation, create_info.size };
 
         addInfo( buffer_hpp, buffer_info );
 
         return buffer_hpp;
-    }
+    } // create
 
     vk::Image create( const vk::ImageCreateInfo& create_info )
     {
@@ -456,82 +396,76 @@ public:
             &k_image_alloc_create_info,
             &image,
             &allocation,
-            nullptr
-        );
+            nullptr );
 
         if ( result != VK_SUCCESS )
         {
-            throw Error{ "Mman: image allocation error." };
+            throw VulkanError{ "Mman: image allocation error.", result };
         }
 
         vk::Image image_hpp{ image };
-        ImageInfo image_info{ 
-            allocation,
-            create_info.format,
-            create_info.initialLayout,
-            create_info.extent 
-        };
+        ImageInfo image_info{ allocation, create_info.format, create_info.initialLayout, create_info.extent };
 
         addInfo( image_hpp, image_info );
 
         return image_hpp;
-    }
+    } // create
 
     void destroy( vk::Buffer buffer )
     {
         vmaDestroyBuffer( m_vma, buffer, *findAllocation( buffer ) );
-    }
+        clearInfo( buffer );
+    } // destroy
 
     void destroy( vk::Image image )
     {
         vmaDestroyImage( m_vma, image, *findAllocation( image ) );
-    }
+        clearInfo( image );
+    } // destroy
 
     uint8_t* map( vk::Buffer buffer )
     {
         uint8_t* mapped = nullptr;
 
-        VkResult result = vmaMapMemory( m_vma, *findAllocation( buffer ), reinterpret_cast<void **>( &mapped ) );
+        VkResult result = vmaMapMemory( m_vma, *findAllocation( buffer ), reinterpret_cast<void**>( &mapped ) );
         if ( result != VK_SUCCESS )
         {
-            throw Error{ "Mman: buffer mapping error." };
+            throw VulkanError{ "Mman: buffer mapping error.", result };
         }
 
         return mapped;
-    }
+    } // map
 
-    void unmap( vk::Buffer buffer )
-    {
-        vmaUnmapMemory( m_vma, *findAllocation( buffer ) );
-    }
+    void unmap( vk::Buffer buffer ) { vmaUnmapMemory( m_vma, *findAllocation( buffer ) ); }
 
     void flush( vk::Buffer buffer )
     {
         VkResult result = vmaFlushAllocation( m_vma, *findAllocation( buffer ), 0, VK_WHOLE_SIZE );
-        
+
         if ( result != VK_SUCCESS )
         {
-            throw Error{ "Mman: buffer flushing error." };
+            throw VulkanError{ "Mman: buffer flushing error.", result };
         }
-    }
+    } // flush
 
-    void copy( vk::Buffer src_buffer, vk::Buffer dst_buffer, 
-               vk::DeviceSize src_offset, vk::DeviceSize dst_offset, 
-               vk::DeviceSize size )
+    void copy(
+        vk::Buffer src_buffer,
+        vk::Buffer dst_buffer,
+        vk::DeviceSize src_offset,
+        vk::DeviceSize dst_offset,
+        vk::DeviceSize size )
     {
         vk::BufferCopy region{ src_offset, dst_offset, size };
 
-        createAction()->copyBuffer(
-            src_buffer, 
-            dst_buffer, 
-            std::array{ region }
-        );
-    }
+        OneTimeCommand cmd = createCommand();
+        cmd->copyBuffer( src_buffer, dst_buffer, std::array{ region } );
+        cmd.submitAndWait();
+    } // copy
 
     void copy( vk::Buffer src_buffer, vk::Buffer dst_buffer )
     {
         copy( src_buffer, dst_buffer, 0, 0, findInfo( src_buffer )->size );
-    }
+    } // copy
 
     void copy( vk::Buffer src_buffer, vk::Image dst_image )
     {
@@ -545,7 +479,7 @@ public:
         region.bufferImageHeight = 0;
 
         region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-        
+
         // We use images with one layer and one mipmap.
         region.imageSubresource.mipLevel = 0;
         region.imageSubresource.baseArrayLayer = 0;
@@ -558,15 +492,12 @@ public:
             1 /* depth */
         };
 
-        createAction()->copyBufferToImage(
-            src_buffer,
-            dst_image,
-            image_info->layout,
-            std::array{ region }
-        );
-    }
+        OneTimeCommand cmd = createCommand();
+        cmd->copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
+        cmd.submitAndWait();
+    } // copy
 
-    void transit( vk::Image image, vk::ImageLayout new_layout )
+    void transitImage( vk::Image image, vk::ImageLayout new_layout )
     {
         ImageInfo* image_info = findInfo( image );
 
@@ -576,15 +507,9 @@ public:
 
         try
         {
-            barrier = createImageBarrierInfo( 
-                image,
-                image_info->format,
-                image_info->layout,
-                new_layout
-            );
+            barrier = createImageBarrierInfo( image, image_info->format, image_info->layout, new_layout );
 
-            auto [ src_stage_tmp, dst_stage_tmp ] 
-                = choosePipelineStages( image_info->layout, new_layout );
+            auto [ src_stage_tmp, dst_stage_tmp ] = choosePipelineStages( image_info->layout, new_layout );
             src_stage = src_stage_tmp;
             dst_stage = dst_stage_tmp;
         } catch ( Error& e )
@@ -592,74 +517,40 @@ public:
             throw Error{ std::string{ "Mman: " } + e.what() };
         }
 
-        createAction()->pipelineBarrier( 
-            src_stage, 
+        OneTimeCommand cmd = createCommand();
+        cmd->pipelineBarrier(
+            src_stage,
             dst_stage,
             vk::DependencyFlagBits::eByRegion, /** TODO: learn more about dependency.
-                                                 * Probably, it may work incorrect.
-                                                 */
-            0, nullptr,
-            0, nullptr,
-            1, &barrier
-        );
+                                                * Probably, it may work incorrect.
+                                                */
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &barrier );
+        cmd.submitAndWait();
 
         image_info->layout = new_layout;
-    }
+    } // transitImage
 
-    vk::DeviceSize getAllocatedBytes()
-    {
-        return getTotalStats().statistics.blockBytes;
-    }
+    vk::DeviceSize getAllocatedBytes() { return getTotalStats().statistics.blockBytes; }
 
-    vk::DeviceSize getUsedBytes()
-    {
-        return getTotalStats().statistics.allocationBytes;
-    }
+    vk::DeviceSize getUsedBytes() { return getTotalStats().statistics.allocationBytes; }
 
     uint64_t getAllocatedBytesMB()
     {
         constexpr uint64_t bytes_in_mb = 1024 * 1024;
         return getAllocatedBytes() / bytes_in_mb;
-    }
+    } // getAllocatedBytesMB
 
     uint64_t getUsedBytesMB()
     {
         constexpr uint64_t bytes_in_mb = 1024 * 1024;
         return getUsedBytes() / bytes_in_mb;
-    }
+    } // getUsedBytesMB
 
-};
+}; // class Mman
 
-
-// TODO: concept for base template class.
-template <class Base>
-class Allocatable : public Base
-{
-
-private:
-    Mman* m_mman;
-
-public:
-    Allocatable( const Base& base, Mman& mman ):
-        Base{ base },
-        m_mman{ &mman }
-    {
-    }
-
-    virtual ~Allocatable()
-    {
-        m_mman->destroy( *this );
-    }
-
-    Allocatable( const Allocatable& ) = delete;
-    Allocatable( Allocatable&& ) = delete;
-
-    Allocatable& operator = ( const Allocatable& ) = delete;
-    Allocatable& operator = ( Allocatable&& ) = delete;
-
-    Mman* getMman() { return m_mman; }
-
-};
-
-
-}
+} // namespace vkwrap
