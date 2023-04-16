@@ -9,7 +9,7 @@
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
 
-#include "window/window.h"
+#include "glfw/window.h"
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
@@ -110,10 +110,8 @@ try
     // Or `export SPDLOG_LEVEL=warn` to print only warnings and errors
 
     vkwrap::initializeLoader(); // Load basic functions that are instance independent
-    using wnd::glfw::Window;
-    using wnd::glfw::WindowManager;
-
-    WindowManager::initialize();
+    using glfw::wnd::Window;
+    glfw::Instance glfw_instance;
 
     auto counting_functor = std::make_shared<CountingCallback>();
     auto callback =
@@ -126,7 +124,7 @@ try
     instance_builder.withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withDebugMessenger()
         .withValidationLayers()
-        .withExtensions( WindowManager::getRequiredExtensions() )
+        .withExtensions( glfw_instance.getRequiredExtensions() )
         .withCallback( callback );
 
     // This assert is for testing purposes.
@@ -201,6 +199,11 @@ try
                         .createPipeline( logical_device.get() );
 
     fmt::print( "Pipeline creation sucess\n" );
+
+    while ( window.running() )
+    {
+        glfwPollEvents();
+    }
 
 } catch ( vkwrap::UnsupportedError& e )
 {

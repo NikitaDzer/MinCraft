@@ -2,8 +2,8 @@
 #include <spdlog/fmt/bundled/format.h>
 
 #include "common/glfw_include.h"
-#include "input/keyboard.h"
-#include "window/window.h"
+#include "glfw/input/keyboard.h"
+#include "glfw/window.h"
 
 #include <array>
 #include <atomic>
@@ -19,26 +19,26 @@ main()
 try
 {
     spdlog::cfg::load_env_levels();
-    wnd::glfw::WindowManager::initialize();
+    auto glfw_instance = glfw::Instance{};
 
     fmt::print( "Required extensions:\n" );
 
     // clang-format off
-    for ( auto extensions = wnd::glfw::WindowManager::getRequiredExtensions(); 
+    for ( auto extensions = glfw_instance.getRequiredExtensions(); 
           auto&& extension : extensions )
     {
         fmt::print( "{}\n", extension );
     }
     // clang-format on
 
-    wnd::glfw::Window window{ { .title = "Mincraft V2" } };
+    auto window = glfw::wnd::Window{ { .title = "Mincraft V2" } };
 
     std::jthread printer{ [ & ]( std::stop_token token ) {
-        using input::glfw::KeyState;
-        using input::glfw::KeyAction;
+        using glfw::input::KeyState;
+        using glfw::input::KeyAction;
 
-        auto& keyboard = input::glfw::KeyboardHandler::instance( window );
-        keyboard.monitor( std::to_array<input::glfw::KeyIndex>( { GLFW_KEY_A, GLFW_KEY_D } ) );
+        auto& keyboard = glfw::input::KeyboardHandler::instance( window );
+        keyboard.monitor( std::to_array<glfw::input::KeyIndex>( { GLFW_KEY_A, GLFW_KEY_D } ) );
 
         auto state_to_string = []( KeyState st ) {
             switch ( st )
@@ -88,7 +88,7 @@ try
 
     printer.request_stop();
 
-} catch ( wnd::Error& e )
+} catch ( glfw::Error& e )
 {
     fmt::print( "GLFW window system error: {}\n", e.what() );
 } catch ( std::exception& e )

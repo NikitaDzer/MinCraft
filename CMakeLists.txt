@@ -7,10 +7,49 @@ if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBU
 endif ()
 
 if ( MSVC )
-  add_compile_options( /W4 )
-else()
-  add_compile_options( -Wall -Wextra -Wpedantic )
-endif()
+    add_compile_options( /W4 )
+elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
+    add_compile_options (
+        -Wall
+        -Wextra
+        -pedantic
+        -Wshadow
+        -Wnon-virtual-dtor
+        -Wcast-align
+        -Wunused
+        -Woverloaded-virtual
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wmisleading-indentation
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+    )
+else ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
+    add_compile_options (
+        -Wall
+        -Wextra
+        -pedantic
+        -Wshadow
+        -Wnon-virtual-dtor
+        -Wcast-align
+        -Wunused
+        -Woverloaded-virtual
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wmisleading-indentation
+        -Wduplicated-cond
+        -Wduplicated-branches
+        -Wlogical-op
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+    )
+endif ()
 
 option ( LINT OFF )
 

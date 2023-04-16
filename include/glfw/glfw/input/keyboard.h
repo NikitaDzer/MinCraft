@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace input::glfw
+namespace glfw::input
 {
 
 enum class KeyAction : int
@@ -139,8 +139,7 @@ class KeyboardHandler
   private:
     static void keyCallbackWrapper( GLFWwindow* window, int key, int /* code */, int action, int mods )
     {
-        auto& self = instance( window );
-        self.keyCallback( key, static_cast<KeyAction>( action ), ModifierFlag{ mods } );
+        instance( window ).keyCallback( key, static_cast<KeyAction>( action ), ModifierFlag{ mods } );
     }
 
     void keyCallback( KeyIndex key, KeyAction action, ModifierFlag modifier );
@@ -199,4 +198,4 @@ class KeyboardHandler
     static std::mutex s_handler_map_mx;
 };
 
-}; // namespace input::glfw
+}; // namespace glfw::input
