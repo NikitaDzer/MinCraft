@@ -348,7 +348,7 @@ class Mman
         VkResult result = vmaCreateAllocator( &create_info, &m_vma );
         if ( result != VK_SUCCESS )
         {
-            throw VulkanError{ "Mman: allocator creation error.", result };
+            throw vk::SystemError{ vk::Result{ result }, "Mman: allocator creation error." };
         }
     } // Mman
 
@@ -374,7 +374,7 @@ class Mman
 
         if ( result != VK_SUCCESS )
         {
-            throw VulkanError{ "Mman: buffer allocation error.", result };
+            throw vk::SystemError{ vk::Result{ result }, "Mman: buffer allocation error." };
         }
 
         vk::Buffer buffer_hpp{ buffer };
@@ -400,7 +400,7 @@ class Mman
 
         if ( result != VK_SUCCESS )
         {
-            throw VulkanError{ "Mman: image allocation error.", result };
+            throw vk::SystemError{ vk::Result{ result }, "Mman: image allocation error." };
         }
 
         vk::Image image_hpp{ image };
@@ -430,7 +430,7 @@ class Mman
         VkResult result = vmaMapMemory( m_vma, *findAllocation( buffer ), reinterpret_cast<void**>( &mapped ) );
         if ( result != VK_SUCCESS )
         {
-            throw VulkanError{ "Mman: buffer mapping error.", result };
+            throw vk::SystemError{ vk::Result{ result }, "Mman: buffer mapping error." };
         }
 
         return mapped;
@@ -444,7 +444,7 @@ class Mman
 
         if ( result != VK_SUCCESS )
         {
-            throw VulkanError{ "Mman: buffer flushing error.", result };
+            throw vk::SystemError{ vk::Result{ result }, "Mman: buffer flushing error." };
         }
     } // flush
 
@@ -497,7 +497,7 @@ class Mman
         cmd.submitAndWait();
     } // copy
 
-    void transitImage( vk::Image image, vk::ImageLayout new_layout )
+    void transit( vk::Image image, vk::ImageLayout new_layout )
     {
         ImageInfo* image_info = findInfo( image );
 
@@ -533,7 +533,7 @@ class Mman
         cmd.submitAndWait();
 
         image_info->layout = new_layout;
-    } // transitImage
+    } // transit
 
     vk::DeviceSize getAllocatedBytes() { return getTotalStats().statistics.blockBytes; }
 

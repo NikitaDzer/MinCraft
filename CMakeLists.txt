@@ -38,6 +38,28 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
+function ( add_spirv_shader TARGET_NAME INPUT_FILE )
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
+        COMMAND ${glslc} -c ${INPUT_FILE} -o ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
+        MAIN_DEPENDENCY ${INPUT_FILE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    add_custom_target ( ${TARGET_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv )
+    set ( ${TARGET_NAME}_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv PARENT_SCOPE )
+endfunction ()
+
+function ( suppress_warnings TARGET_NAME )
+    get_target_property( target_options ${TARGET_NAME} COMPILE_OPTIONS )
+
+    if ( MSVC )
+        list( REMOVE_ITEM target_options /W4 )
+    else ()
+        list( REMOVE_ITEM target_options -Wall -Wextra -Wpedantic )
+    endif ()
+
+    set_property( TARGET ${TARGET_NAME} PROPERTY COMPILE_OPTIONS ${target_options} )
+endfunction ()
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
@@ -58,15 +80,7 @@ set( CMAKE_POLICY_DEFAULT_CMP0077 NEW )
 add_subdirectory ( 3rd-party/VulkanMemoryAllocator EXCLUDE_FROM_ALL )
 
 target_compile_features( VulkanMemoryAllocator PRIVATE cxx_std_20 )
-
-if ( MSVC )
-    target_compile_options( VulkanMemoryAllocator PRIVATE cxx_std_20 )
-else()
-    get_target_property( target_options VulkanMemoryAllocator COMPILE_OPTIONS )
-    list( REMOVE_ITEM target_options -Wall -Wextra -Wpedantic )
-    set_property( TARGET VulkanMemoryAllocator PROPERTY COMPILE_OPTIONS ${target_options} )
-endif()
-
+suppress_warnings( VulkanMemoryAllocator )
 # -^- VulkanMemoryAllocator configuration -^-
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
