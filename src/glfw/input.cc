@@ -1,3 +1,4 @@
+#include "glfw/core.h"
 #include "glfw/input/keyboard.h"
 
 #include <mutex>
@@ -7,25 +8,35 @@ namespace glfw::input
 {
 
 // Storage for global variables
-KeyboardHandler::HandlerMap KeyboardHandler::s_keyboard_handler_map;
-std::mutex KeyboardHandler::s_handler_map_mx;
+KeyboardHandler::GlobalHandlerTable KeyboardHandler::s_handler_table;
 
 KeyboardHandler&
 KeyboardHandler::instance( GLFWwindow* window )
 {
-    auto g = std::unique_lock{ s_handler_map_mx };
+    std::call_once( s_handler_table.initialized, []() {
+        s_handler_table.handler_map = std::make_unique<KeyboardHandler::HandlerMap>();
+    } );
 
-    if ( auto handler = s_keyboard_handler_map.find( window ); handler != s_keyboard_handler_map.end() )
+    assert( s_handler_table.handler_map );
+
+    auto g = std::unique_lock{ s_handler_table.mutex };
+    auto& map = *s_handler_table.handler_map;
+
+    if ( auto handler = map.find( window ); handler != map.end() )
     {
-        auto* ptr = handler->second.get();
-        assert( ptr && "Class invariant broken" );
-        return *ptr;
+        assert( handler->second );
+        return *handler->second;
     }
 
-    auto& ref = *s_keyboard_handler_map.emplace( window, std::make_unique<KeyboardHandler>() ).first->second;
+    auto handler = std::make_unique<KeyboardHandler>();
+    auto& ref = *map.emplace( window, std::move( handler ) ).first->second;
     g.unlock();
 
-    glfwSetKeyCallback( window, keyCallbackWrapper );
+    if ( !glfwSetKeyCallback( window, keyCallbackWrapper ) )
+    {
+        checkError();
+    }
+
     return ref;
 }
 
@@ -45,23 +56,8 @@ KeyboardHandler::keyCallback( KeyIndex key, KeyAction action, ModifierFlag modif
         return;
     }
 
-    auto& [ current, mods, events ] = found->second;
-
-    switch ( action )
-    {
-    case KeyAction::e_press:
-        current = KeyState::e_pressed;
-        break;
-    case KeyAction::e_release:
-        current = KeyState::e_released;
-        break;
-    default:
-        break;
-    }
-
-    mods = modifier;
-    auto event = ButtonEvent{ .mods = modifier, .action = action };
-    events.push_back( event );
+    auto& event_info = found->second;
+    event_info.pushEvent( ButtonEvent{ .mods = modifier, .action = action } );
 }
 
 } // namespace glfw::input

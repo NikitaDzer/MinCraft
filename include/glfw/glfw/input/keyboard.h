@@ -128,6 +128,25 @@ struct TrackedKeyInfo
 
     operator bool() const { return !events.empty(); }
 
+    void pushEvent( ButtonEvent event )
+    {
+        mods = event.mods;
+
+        switch ( event.action )
+        {
+        case KeyAction::e_press:
+            current = KeyState::e_pressed;
+            break;
+        case KeyAction::e_release:
+            current = KeyState::e_released;
+            break;
+        default:
+            break;
+        }
+
+        events.push_back( event );
+    }
+
   public:
     KeyState current = KeyState::e_released;          // Stores whether the button is pressed at the moment
     ModifierFlag mods = ModifierFlagBits::e_mod_none; // Latest modificators used with the key
@@ -190,12 +209,19 @@ class KeyboardHandler
 
   private:
     KeyInfoMap m_tracked_keys;
-    mutable std::mutex m_mx;
+    mutable std::mutex m_mx; // Mutable for const-correctness
 
   private:
     using HandlerMap = std::unordered_map<GLFWwindow*, std::unique_ptr<KeyboardHandler>>;
-    static HandlerMap s_keyboard_handler_map;
-    static std::mutex s_handler_map_mx;
+
+    struct GlobalHandlerTable
+    {
+        std::once_flag initialized;
+        std::mutex mutex;
+        std::unique_ptr<HandlerMap> handler_map;
+    };
+
+    static GlobalHandlerTable s_handler_table;
 };
 
 }; // namespace glfw::input
