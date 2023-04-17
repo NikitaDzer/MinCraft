@@ -242,7 +242,7 @@ class Mman
         void wait() const { m_queue.waitIdle(); }
 
       public:
-        OneTimeCommand( vk::UniqueCommandBuffer&& unique_cmd, vk::Queue queue )
+        OneTimeCommand( vk::UniqueCommandBuffer unique_cmd, vk::Queue queue )
             : Base{ std::move( unique_cmd ) },
               m_queue{ queue }
         {
@@ -290,7 +290,7 @@ class Mman
         }
     } // findInfo
 
-    VmaAllocation* findAllocation( auto target ) { return &findInfo( target )->allocation; }
+    VmaAllocation getAllocation( auto target ) { return findInfo( target )->allocation; }
 
     void addInfo( vk::Buffer buffer, const BufferInfo& info ) { m_buffers_info.insert( { buffer, info } ); }
     void addInfo( vk::Image image, const ImageInfo& info ) { m_images_info.insert( { image, info } ); }
@@ -380,12 +380,10 @@ class Mman
 
         vk::resultCheck( vk::Result{ result }, "Mman: buffer allocation error." );
 
-        vk::Buffer buffer_hpp{ buffer };
         BufferInfo buffer_info{ allocation, create_info.size };
+        addInfo( buffer, buffer_info );
 
-        addInfo( buffer_hpp, buffer_info );
-
-        return buffer_hpp;
+        return buffer;
     } // create
 
     vk::Image create( const vk::ImageCreateInfo& create_info )
@@ -403,23 +401,21 @@ class Mman
 
         vk::resultCheck( vk::Result{ result }, "Mman: image allocation error." );
 
-        vk::Image image_hpp{ image };
         ImageInfo image_info{ allocation, create_info.format, create_info.initialLayout, create_info.extent };
+        addInfo( image, image_info );
 
-        addInfo( image_hpp, image_info );
-
-        return image_hpp;
+        return image;
     } // create
 
     void destroy( vk::Buffer buffer )
     {
-        vmaDestroyBuffer( m_vma, buffer, *findAllocation( buffer ) );
+        vmaDestroyBuffer( m_vma, buffer, getAllocation( buffer ) );
         clearInfo( buffer );
     } // destroy
 
     void destroy( vk::Image image )
     {
-        vmaDestroyImage( m_vma, image, *findAllocation( image ) );
+        vmaDestroyImage( m_vma, image, getAllocation( image ) );
         clearInfo( image );
     } // destroy
 
@@ -427,17 +423,17 @@ class Mman
     {
         uint8_t* mapped = nullptr;
 
-        VkResult result = vmaMapMemory( m_vma, *findAllocation( buffer ), reinterpret_cast<void**>( &mapped ) );
+        VkResult result = vmaMapMemory( m_vma, getAllocation( buffer ), reinterpret_cast<void**>( &mapped ) );
         vk::resultCheck( vk::Result{ result }, "Mman: buffer mapping error." );
 
         return mapped;
     } // map
 
-    void unmap( vk::Buffer buffer ) { vmaUnmapMemory( m_vma, *findAllocation( buffer ) ); }
+    void unmap( vk::Buffer buffer ) { vmaUnmapMemory( m_vma, getAllocation( buffer ) ); }
 
     void flush( vk::Buffer buffer )
     {
-        VkResult result = vmaFlushAllocation( m_vma, *findAllocation( buffer ), 0, VK_WHOLE_SIZE );
+        VkResult result = vmaFlushAllocation( m_vma, getAllocation( buffer ), 0, VK_WHOLE_SIZE );
         vk::resultCheck( vk::Result{ result }, "Mman: buffer flushing error." );
     } // flush
 
