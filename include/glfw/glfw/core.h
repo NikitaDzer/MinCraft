@@ -84,19 +84,19 @@ class Error : public std::runtime_error
 inline void
 checkError()
 {
-    auto get_error = []() -> std::pair<ErrorCode, std::string> {
+    auto get_error = []() {
         // As per the documentation: The returned string is allocated and freed by GLFW. You should not free it
         // yourself. It is guaranteed to be valid only until the next error occurs or the library is terminated.
         // For this reason it's prudent to create a copy of the data so that this pointer does not dangle.
         const char* temporary_message;
         auto ec = glfwGetError( &temporary_message );
-        return std::pair{ static_cast<ErrorCode>( ec ), std::string{ temporary_message } };
+        return std::pair{ static_cast<ErrorCode>( ec ), temporary_message };
     };
 
     auto [ error_code, message ] = get_error();
     if ( error_code != ErrorCode::e_no_error )
     {
-        throw Error{ error_code, std::move( message ) };
+        throw Error{ error_code, message };
     }
 }
 
