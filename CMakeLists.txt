@@ -1,4 +1,4 @@
-cmake_minimum_required ( VERSION 3.11 )
+cmake_minimum_required ( VERSION 3.13 )
 project ( MinCraft )
 
 option ( INSOURCEBUILD OFF ) # Prevent in-source style builds
@@ -9,7 +9,7 @@ endif ()
 if ( MSVC )
   add_compile_options( /W4 )
 else()
-  add_compile_options( -Wall -Wextra -Wpedantic )
+  add_compile_options( -Wall -Wextra -Wpedantic -Wno-missing-field-initializers )
 endif()
 
 option ( LINT OFF )
@@ -38,14 +38,50 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
-# Quality of life external libs
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
+function ( add_spirv_shader TARGET_NAME INPUT_FILE )
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
+        COMMAND ${glslc} -c ${INPUT_FILE} -o ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
+        MAIN_DEPENDENCY ${INPUT_FILE}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    add_custom_target ( ${TARGET_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv )
+    set ( ${TARGET_NAME}_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv PARENT_SCOPE )
+endfunction ()
+
+function ( suppress_warnings TARGET_NAME )
+    get_target_property( target_options ${TARGET_NAME} COMPILE_OPTIONS )
+
+    if ( MSVC )
+        list( REMOVE_ITEM target_options /W4 )
+    else ()
+        list( APPEND target_options -w )
+    endif ()
+
+    set_property( TARGET ${TARGET_NAME} PROPERTY COMPILE_OPTIONS ${target_options} )
+endfunction ()
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
+
+# Quality of life external libs
+add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
+
+# -v- VulkanMemoryAllocator configuration -v-
+set( VMA_STATIC_VULKAN_FUNCTIONS OFF )
+set( VMA_DYNAMIC_VULKAN_FUNCTIONS ON )
+
+# Force CMake to override lib's options with ours. 
+set( CMAKE_POLICY_DEFAULT_CMP0077 NEW )
+
+add_subdirectory ( 3rd-party/VulkanMemoryAllocator EXCLUDE_FROM_ALL )
+
+target_compile_features( VulkanMemoryAllocator PRIVATE cxx_std_20 )
+suppress_warnings( VulkanMemoryAllocator )
+# -^- VulkanMemoryAllocator configuration -^-
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
@@ -58,7 +94,6 @@ function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     set ( ${TARGET_NAME}_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv PARENT_SCOPE )
 endfunction ()
 
-
 set ( VKWRAP_SOURCES
     src/vk/debug.cc
     src/vk/loader.cc
@@ -68,7 +103,7 @@ set ( VKWRAP_SOURCES
 
 add_library ( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories ( vkwrap PUBLIC include/vkwrap include/common include/glfw )
-target_link_libraries ( vkwrap PUBLIC range-v3 spdlog glfw Vulkan::Vulkan )
+target_link_libraries ( vkwrap PUBLIC range-v3 spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan )
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
