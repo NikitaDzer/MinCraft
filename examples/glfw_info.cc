@@ -18,37 +18,12 @@ using namespace std::literals::chrono_literals;
 namespace
 {
 
-using glfw::ButtonAction;
-using glfw::ButtonState;
-
-auto state_to_string = []( ButtonState st ) {
-    switch ( st )
-    {
-    case ButtonState::e_pressed:
-        return "Pressed";
-    case ButtonState::e_released:
-        return "Released";
-    }
-};
-
-auto action_to_string = []( ButtonAction st ) {
-    switch ( st )
-    {
-    case ButtonAction::e_press:
-        return "Press";
-    case ButtonAction::e_release:
-        return "Release";
-    case ButtonAction::e_repeat:
-        return "Repeat";
-    }
-};
-
 auto
 launch_thread( glfw::wnd::Window& window )
 {
     auto loop_work = [ &window ]( std::stop_token token ) {
         auto& keyboard = glfw::input::KeyboardHandler::instance( window );
-        keyboard.monitor( std::to_array( { GLFW_KEY_A, GLFW_KEY_D } ) );
+        keyboard.monitor( std::array{ GLFW_KEY_A, GLFW_KEY_D } );
         auto& mouse = glfw::input::MouseHandler::instance( window );
         mouse.setNormal();
 
@@ -59,10 +34,12 @@ launch_thread( glfw::wnd::Window& window )
             auto print = []( std::string key, auto info ) {
                 if ( info.hasBeenPressed() )
                 {
-                    std::cout << fmt::format( "Key: {}, State: {}\n", key, state_to_string( info.current ) );
+                    std::cout
+                        << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
                     for ( auto i = 0; auto&& press : info.presses() )
                     {
-                        std::cout << fmt::format( "Event [{}], State: {}\n", i++, action_to_string( press.action ) );
+                        auto action_string = glfw::input::buttonActionToString( press.action );
+                        std::cout << fmt::format( "Event [{}], State: {}\n", i++, action_string );
                     }
                 }
             };
@@ -88,8 +65,13 @@ launch_thread( glfw::wnd::Window& window )
                     break;
                 }
 
-                std::cout << fmt::format( "Mouse position: [x = {}, y = {}] -- ", x, y );
-                std::cout << fmt::format( "Mouse movement: [dx = {}, dy = {}]\n", dx, dy );
+                std::cout << fmt::format(
+                    "Mouse: position = [x = {}, y = {}]; movement = [dx = {}, dy = {}]\n",
+                    x,
+                    y,
+                    dx,
+                    dy );
+
             } while ( false );
 
             std::this_thread::sleep_for( 25ms );

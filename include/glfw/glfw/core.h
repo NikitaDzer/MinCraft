@@ -22,141 +22,6 @@
 namespace glfw
 {
 
-enum class ButtonAction : int
-{
-    e_press = GLFW_PRESS,
-    e_release = GLFW_RELEASE,
-    e_repeat = GLFW_REPEAT,
-};
-
-enum class ButtonState
-{
-    e_released,
-    e_pressed,
-};
-
-enum class ModifierFlagBits : int
-{
-    e_mod_none = 0,
-    e_mod_shift = GLFW_MOD_SHIFT,
-    e_mod_ctrl = GLFW_MOD_CONTROL,
-    e_mod_alt = GLFW_MOD_ALT,
-    e_mod_super = GLFW_MOD_SUPER,
-    e_mod_caps = GLFW_MOD_CAPS_LOCK,
-    e_mod_numlock = GLFW_MOD_NUM_LOCK,
-};
-
-class ModifierFlag
-{
-  public:
-    using Underlying = std::underlying_type_t<ModifierFlagBits>;
-
-  public:
-    ModifierFlag( ModifierFlagBits flag = ModifierFlagBits::e_mod_none )
-        : m_underlying{ utils::toUnderlying( flag ) }
-    {
-    }
-
-    explicit ModifierFlag( Underlying underlying )
-        : m_underlying{ underlying }
-    {
-    }
-
-  public:
-    bool operator==( const ModifierFlag& rhs ) const = default;
-
-    ModifierFlag& operator|=( const ModifierFlag& rhs ) &
-    {
-        m_underlying |= rhs.m_underlying;
-        return *this;
-    }
-
-    ModifierFlag& operator&=( const ModifierFlag& rhs ) &
-    {
-        m_underlying &= rhs.m_underlying;
-        return *this;
-    }
-
-    bool isSet( const ModifierFlagBits& bit ) const { return m_underlying & utils::toUnderlying( bit ); }
-
-  private:
-    Underlying m_underlying;
-};
-
-inline ModifierFlag
-operator|( const ModifierFlag& lhs, const ModifierFlag& rhs )
-{
-    auto copy = lhs;
-    copy |= rhs;
-    return copy;
-}
-
-inline ModifierFlag
-operator&( const ModifierFlag& lhs, const ModifierFlag& rhs )
-{
-    auto copy = lhs;
-    copy &= rhs;
-    return copy;
-}
-
-struct ButtonEvent
-{
-    ModifierFlag mods;
-    ButtonAction action;
-};
-
-struct ButtonEventInfo
-{
-  public:
-    using Events = std::vector<ButtonEvent>;
-
-    ButtonEventInfo() = default;
-
-    // Kind of redundant, but whatever
-    bool isPressed() const { return ( current == ButtonState::e_pressed ); }
-    bool isReleased() const { return ( current == ButtonState::e_released ); }
-
-    auto presses() const
-    {
-        return ranges::views::filter( events, []( const ButtonEvent& event ) {
-            return event.action == ButtonAction::e_press;
-        } );
-    }
-
-    bool hasBeenPressed() const
-    {
-        return ranges::any_of( presses(), []( auto&& ) {
-            return true;
-        } ); // Hacky way to check if the range is not empty
-    }
-
-    operator bool() const { return !events.empty(); }
-
-    void pushEvent( ButtonEvent event )
-    {
-        mods = event.mods;
-
-        switch ( event.action )
-        {
-        case ButtonAction::e_press:
-            current = ButtonState::e_pressed;
-            break;
-        case ButtonAction::e_release:
-            current = ButtonState::e_released;
-            break;
-        default:
-            break;
-        }
-
-        events.push_back( event );
-    }
-
-  public:
-    ButtonState current = ButtonState::e_released;    // Stores whether the button is pressed at the moment
-    ModifierFlag mods = ModifierFlagBits::e_mod_none; // Latest modificators used with the key
-    Events events;
-};
-
 enum class ErrorCode : int
 {
     e_no_error = GLFW_NO_ERROR,
@@ -204,6 +69,10 @@ errorCodeToString( ErrorCode error_code )
         return "The specified window does not have an OpenGL or OpenGL ES context";
     case ErrorCode::e_user_error:
         return "A user error has occured";
+    default:
+        assert( 0 && "Unhandled enum case" );
+        std::terminate();
+        break;
     }
 } // errorCodeToString
 
@@ -248,13 +117,13 @@ inline void
 throwOnErrorCallback( int error_code, const char* message )
 {
     throw ::glfw::Error{ static_cast<ErrorCode>( error_code ), message };
-}
+} // throwOnErrorCallback
 
 inline void
 enableExceptions()
 {
     glfwSetErrorCallback( throwOnErrorCallback );
-}
+} // enableExceptions
 
 inline void
 logAction(
@@ -297,7 +166,7 @@ struct Version
   public:
     constexpr auto operator<=>( const Version& ) const = default;
     std::string to_string() const { return fmt::format( "{}.{}.{}", major, minor, revision ); }
-}; // WindowAPIversion
+}; // Version
 
 constexpr auto k_current_min_version = Version{ GLFW_VERSION_MAJOR, GLFW_VERSION_MINOR, GLFW_VERSION_REVISION };
 constexpr auto k_api_min_version = Version{ 3, 3 };
@@ -331,7 +200,7 @@ class Instance
         } catch ( ... )
         {
         }
-    }
+    } // ~Instance
 
   private:
     static void initialize()
@@ -367,7 +236,8 @@ class Instance
         glfwGetVersion( &version.major, &version.minor, &version.revision );
         return version;
     } // getVersion
-};
+
+}; // Instance
 
 namespace detail
 {
@@ -403,7 +273,7 @@ private:
     std::once_flag initialized;
     std::mutex mutex;
     std::unique_ptr<HandlerMap> handler_map;
-};
+}; // GlobalHandlerTable
 
 } // namespace detail
 

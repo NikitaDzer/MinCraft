@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common/glfw_include.h"
 #include "glfw/core.h"
+#include "glfw/input.h"
 
 #include <range/v3/algorithm/copy.hpp>
 #include <range/v3/range/concepts.hpp>
@@ -23,7 +23,7 @@ class KeyboardHandler
     static void keyCallbackWrapper( GLFWwindow* window, int key, int /* code */, int action, int mods )
     {
         instance( window ).keyCallback( key, static_cast<ButtonAction>( action ), ModifierFlag{ mods } );
-    }
+    } // keyCallbackWrapper
 
     void keyCallback( KeyIndex key, ButtonAction action, ModifierFlag modifier )
     {
@@ -36,7 +36,7 @@ class KeyboardHandler
             auto g = std::lock_guard{ m_mx };
             m_button_events[ key ].pushEvent( ButtonEvent{ .mods = modifier, .action = action } );
         }
-    }
+    } // keyCallback
 
     using TrackedKeysSet = std::unordered_set<KeyIndex>;
     using KeyEventMap = std::unordered_map<KeyIndex, ButtonEventInfo>;
@@ -50,7 +50,7 @@ class KeyboardHandler
         return *s_handler_table.lookup( window, [ window ]() {
             return std::unique_ptr<KeyboardHandler>{ new KeyboardHandler{ window } };
         } );
-    }
+    } // instance
 
   public:
     // Note that these functions don't have to be synchronized, because only one thread should call clear and/or
@@ -87,7 +87,7 @@ class KeyboardHandler
         } );
 
         return old_map;
-    }
+    } // poll
 
   private:
     TrackedKeysSet m_tracked_keys;
