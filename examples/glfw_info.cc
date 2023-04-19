@@ -3,6 +3,7 @@
 
 #include "common/glfw_include.h"
 #include "glfw/input/keyboard.h"
+#include "glfw/input/mouse.h"
 #include "glfw/window.h"
 
 #include <array>
@@ -13,6 +14,92 @@
 #include <thread>
 
 using namespace std::literals::chrono_literals;
+
+namespace
+{
+
+using glfw::ButtonAction;
+using glfw::ButtonState;
+
+auto state_to_string = []( ButtonState st ) {
+    switch ( st )
+    {
+    case ButtonState::e_pressed:
+        return "Pressed";
+    case ButtonState::e_released:
+        return "Released";
+    }
+};
+
+auto action_to_string = []( ButtonAction st ) {
+    switch ( st )
+    {
+    case ButtonAction::e_press:
+        return "Press";
+    case ButtonAction::e_release:
+        return "Release";
+    case ButtonAction::e_repeat:
+        return "Repeat";
+    }
+};
+
+auto
+launch_thread( glfw::wnd::Window& window )
+{
+    auto loop_work = [ &window ]( std::stop_token token ) {
+        auto& keyboard = glfw::input::KeyboardHandler::instance( window );
+        keyboard.monitor( std::to_array( { GLFW_KEY_A, GLFW_KEY_D } ) );
+        auto& mouse = glfw::input::MouseHandler::instance( window );
+        mouse.setNormal();
+
+        while ( !token.stop_requested() )
+        {
+            auto mouse_poll = mouse.poll();
+
+            auto print = []( std::string key, auto info ) {
+                if ( info.hasBeenPressed() )
+                {
+                    std::cout << fmt::format( "Key: {}, State: {}\n", key, state_to_string( info.current ) );
+                    for ( auto i = 0; auto&& press : info.presses() )
+                    {
+                        std::cout << fmt::format( "Event [{}], State: {}\n", i++, action_to_string( press.action ) );
+                    }
+                }
+            };
+
+            for ( auto&& [ key, info ] : keyboard.poll() )
+            {
+                std::string_view key_name = glfwGetKeyName( key, 0 );
+                print( std::string{ key_name }, info );
+            }
+
+            for ( auto&& [ key, info ] : mouse_poll.buttons )
+            {
+                print( fmt::format( "Mouse button [{}]", key ), info );
+            }
+
+            do
+            {
+                auto [ x, y ] = mouse_poll.position;
+                auto [ dx, dy ] = mouse_poll.movement;
+
+                if ( dx == 0.0 && dy == 0.0 )
+                {
+                    break;
+                }
+
+                std::cout << fmt::format( "Mouse position: [x = {}, y = {}] -- ", x, y );
+                std::cout << fmt::format( "Mouse movement: [dx = {}, dy = {}]\n", dx, dy );
+            } while ( false );
+
+            std::this_thread::sleep_for( 25ms );
+        }
+    };
+
+    return std::jthread{ loop_work };
+}
+
+} // namespace
 
 int
 main()
@@ -32,54 +119,7 @@ try
     // clang-format on
 
     auto window = glfw::wnd::Window{ { .title = "Mincraft V2" } };
-
-    std::jthread printer{ [ & ]( std::stop_token token ) {
-        using glfw::input::KeyState;
-        using glfw::input::KeyAction;
-
-        auto& keyboard = glfw::input::KeyboardHandler::instance( window );
-        keyboard.monitor( std::to_array<glfw::input::KeyIndex>( { GLFW_KEY_A, GLFW_KEY_D } ) );
-
-        auto state_to_string = []( KeyState st ) {
-            switch ( st )
-            {
-            case KeyState::e_pressed:
-                return "Pressed";
-            case KeyState::e_released:
-                return "Released";
-            }
-        };
-
-        auto action_to_string = []( KeyAction st ) {
-            switch ( st )
-            {
-            case KeyAction::e_press:
-                return "Press";
-            case KeyAction::e_release:
-                return "Release";
-            case KeyAction::e_repeat:
-                return "Repeat";
-            }
-        };
-
-        while ( !token.stop_requested() )
-        {
-            for ( auto&& [ key, info ] : keyboard.poll() )
-            {
-                std::string_view key_name = glfwGetKeyName( key, 0 );
-                if ( info.hasBeenPressed() )
-                {
-                    std::cout << fmt::format( "Key: {}, State: {}\n", key_name, state_to_string( info.current ) );
-                    for ( auto i = 0; auto&& press : info.presses() )
-                    {
-                        std::cout << fmt::format( "Event [{}], State: {}\n", i++, action_to_string( press.action ) );
-                    }
-                }
-            }
-
-            std::this_thread::sleep_for( 25ms );
-        }
-    } };
+    auto printer = launch_thread( window );
 
     while ( window.running() )
     {
