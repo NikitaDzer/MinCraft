@@ -1,227 +1,101 @@
 #pragma once
 
 #include "common/glfw_include.h"
-#include "utils/misc.h"
+#include "glfw/core.h"
 
-#include "range/v3/algorithm/any_of.hpp"
-#include "range/v3/range/concepts.hpp"
-#include "range/v3/view/all.hpp"
-#include "range/v3/view/filter.hpp"
+#include <range/v3/algorithm/copy.hpp>
+#include <range/v3/range/concepts.hpp>
 
 #include <concepts>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace glfw::input
 {
 
-enum class KeyAction : int
-{
-    e_press = GLFW_PRESS,
-    e_release = GLFW_RELEASE,
-    e_repeat = GLFW_REPEAT,
-};
-
-enum class ModifierFlagBits : int
-{
-    e_mod_none = 0,
-    e_mod_shift = GLFW_MOD_SHIFT,
-    e_mod_ctrl = GLFW_MOD_CONTROL,
-    e_mod_alt = GLFW_MOD_ALT,
-    e_mod_super = GLFW_MOD_SUPER,
-    e_mod_caps = GLFW_MOD_CAPS_LOCK,
-    e_mod_numlock = GLFW_MOD_NUM_LOCK,
-};
-
-class ModifierFlag
-{
-  public:
-    using Underlying = std::underlying_type_t<ModifierFlagBits>;
-
-  public:
-    ModifierFlag( ModifierFlagBits flag = ModifierFlagBits::e_mod_none )
-        : m_underlying{ utils::toUnderlying( flag ) }
-    {
-    }
-
-    explicit ModifierFlag( Underlying underlying )
-        : m_underlying{ underlying }
-    {
-    }
-
-  public:
-    bool operator==( const ModifierFlag& rhs ) const = default;
-
-    ModifierFlag& operator|=( const ModifierFlag& rhs ) &
-    {
-        m_underlying |= rhs.m_underlying;
-        return *this;
-    }
-
-    ModifierFlag& operator&=( const ModifierFlag& rhs ) &
-    {
-        m_underlying &= rhs.m_underlying;
-        return *this;
-    }
-
-    bool isSet( const ModifierFlagBits& bit ) const { return m_underlying & utils::toUnderlying( bit ); }
-
-  private:
-    Underlying m_underlying;
-};
-
-inline ModifierFlag
-operator|( const ModifierFlag& lhs, const ModifierFlag& rhs )
-{
-    auto copy = lhs;
-    copy |= rhs;
-    return copy;
-}
-
-inline ModifierFlag
-operator&( const ModifierFlag& lhs, const ModifierFlag& rhs )
-{
-    auto copy = lhs;
-    copy &= rhs;
-    return copy;
-}
-
-enum class KeyState
-{
-    e_released,
-    e_pressed,
-};
-
 using KeyIndex = int;
-
-struct ButtonEvent
-{
-    ModifierFlag mods;
-    KeyAction action;
-};
-
-struct TrackedKeyInfo
-{
-  public:
-    using Events = std::vector<ButtonEvent>;
-
-    TrackedKeyInfo() = default;
-
-    // Kind of redundant, but whatever
-    bool isPressed() const { return ( current == KeyState::e_pressed ); }
-    bool isReleased() const { return ( current == KeyState::e_released ); }
-
-    auto presses() const
-    {
-        return ranges::views::filter( events, []( const ButtonEvent& event ) {
-            return event.action == KeyAction::e_press;
-        } );
-    }
-
-    bool hasBeenPressed() const
-    {
-        return ranges::any_of( presses(), []( auto&& ) {
-            return true;
-        } ); // Hacky way to check if the range is not empty
-    }
-
-    operator bool() const { return !events.empty(); }
-
-    void pushEvent( ButtonEvent event )
-    {
-        mods = event.mods;
-
-        switch ( event.action )
-        {
-        case KeyAction::e_press:
-            current = KeyState::e_pressed;
-            break;
-        case KeyAction::e_release:
-            current = KeyState::e_released;
-            break;
-        default:
-            break;
-        }
-
-        events.push_back( event );
-    }
-
-  public:
-    KeyState current = KeyState::e_released;          // Stores whether the button is pressed at the moment
-    ModifierFlag mods = ModifierFlagBits::e_mod_none; // Latest modificators used with the key
-    Events events;
-};
 
 class KeyboardHandler
 {
   private:
     static void keyCallbackWrapper( GLFWwindow* window, int key, int /* code */, int action, int mods )
     {
-        instance( window ).keyCallback( key, static_cast<KeyAction>( action ), ModifierFlag{ mods } );
+        instance( window ).keyCallback( key, static_cast<ButtonAction>( action ), ModifierFlag{ mods } );
     }
 
-    void keyCallback( KeyIndex key, KeyAction action, ModifierFlag modifier );
+    void keyCallback( KeyIndex key, ButtonAction action, ModifierFlag modifier )
+    {
+        if ( action == ButtonAction::e_repeat )
+        {
+            return; // We are not really interested in repeat input, which is mainly used for text input
+        }
 
-  public:
-    using KeyInfoMap = std::unordered_map<KeyIndex, TrackedKeyInfo>;
-    static KeyboardHandler& instance( GLFWwindow* window );
+        {
+            auto g = std::lock_guard{ m_mx };
+            m_button_events[ key ].pushEvent( ButtonEvent{ .mods = modifier, .action = action } );
+        }
+    }
+
+    using TrackedKeysSet = std::unordered_set<KeyIndex>;
+    using KeyEventMap = std::unordered_map<KeyIndex, ButtonEventInfo>;
 
   private:
-    static void insertKey( KeyInfoMap& map, KeyIndex key ) { map.emplace( key, TrackedKeyInfo{} ); }
-    void insertKey( KeyIndex key ) { insertKey( m_tracked_keys, key ); }
+    KeyboardHandler( GLFWwindow* window ) { glfwSetKeyCallback( window, keyCallbackWrapper ); }
 
   public:
+    static KeyboardHandler& instance( GLFWwindow* window )
+    {
+        return *s_handler_table.lookup( window, [ window ]() {
+            return std::unique_ptr<KeyboardHandler>{ new KeyboardHandler{ window } };
+        } );
+    }
+
+  public:
+    // Note that these functions don't have to be synchronized, because only one thread should call clear and/or
+    // monitor.
+
     void clear()
     {
-        auto g = std::lock_guard{ m_mx };
-        m_tracked_keys.clear();
+        m_tracked_keys.clear(); // Remove all tracked keys.
     }
 
     void monitor( KeyIndex key )
     {
-        auto g = std::lock_guard{ m_mx };
-        insertKey( key );
+        m_tracked_keys.insert( key ); // Notify when this key has any events associated with it.
     }
 
     void monitor( ranges::range auto&& range )
     {
-        auto g = std::lock_guard{ m_mx };
-        for ( auto&& key : range )
-        {
-            insertKey( key );
-        }
+        ranges::copy( range, std::inserter( m_tracked_keys, m_tracked_keys.end() ) );
     }
 
   public:
-    KeyInfoMap poll()
+    KeyEventMap poll()
     {
-        auto g = std::lock_guard{ m_mx };
+        KeyEventMap old_map;
 
-        auto copy = KeyInfoMap{};
-        for ( auto&& [ key, _ ] : m_tracked_keys )
         {
-            insertKey( copy, key );
+            auto g = std::lock_guard{ m_mx };
+            old_map = std::exchange( m_button_events, KeyEventMap{} );
         }
 
-        return std::exchange( m_tracked_keys, std::move( copy ) );
+        std::erase_if( old_map, [ this ]( const auto& item ) {
+            auto&& key = item.first;
+            return !m_tracked_keys.contains( key );
+        } );
+
+        return old_map;
     }
 
   private:
-    KeyInfoMap m_tracked_keys;
-    mutable std::mutex m_mx; // Mutable for const-correctness
+    TrackedKeysSet m_tracked_keys;
+    KeyEventMap m_button_events;
+    mutable std::mutex m_mx;
 
   private:
-    using HandlerMap = std::unordered_map<GLFWwindow*, std::unique_ptr<KeyboardHandler>>;
-
-    struct GlobalHandlerTable
-    {
-        std::once_flag initialized;
-        std::mutex mutex;
-        std::unique_ptr<HandlerMap> handler_map;
-    };
-
-    static GlobalHandlerTable s_handler_table;
+    static inline detail::GlobalHandlerTable<std::unique_ptr<KeyboardHandler>> s_handler_table;
 };
 
 }; // namespace glfw::input
