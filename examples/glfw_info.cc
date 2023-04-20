@@ -18,7 +18,7 @@ using namespace std::literals::chrono_literals;
 namespace
 {
 
-auto
+std::jthread
 launch_thread( glfw::wnd::Window& window )
 {
     auto loop_work = [ &window ]( std::stop_token token ) {
@@ -55,24 +55,18 @@ launch_thread( glfw::wnd::Window& window )
                 print( fmt::format( "Mouse button [{}]", key ), info );
             }
 
-            do
+            auto [ x, y ] = mouse_poll.position;
+            auto [ dx, dy ] = mouse_poll.movement;
+
+            if ( dx != 0.0 || dy != 0.0 )
             {
-                auto [ x, y ] = mouse_poll.position;
-                auto [ dx, dy ] = mouse_poll.movement;
-
-                if ( dx == 0.0 && dy == 0.0 )
-                {
-                    break;
-                }
-
                 std::cout << fmt::format(
                     "Mouse: position = [x = {}, y = {}]; movement = [dx = {}, dy = {}]\n",
                     x,
                     y,
                     dx,
                     dy );
-
-            } while ( false );
+            }
 
             std::this_thread::sleep_for( 25ms );
         }
