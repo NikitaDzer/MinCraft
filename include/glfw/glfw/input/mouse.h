@@ -42,17 +42,17 @@ class MouseHandler
   private:
     void buttonCallback( MouseButtonIndex key, ButtonAction action, ModifierFlag modifier )
     {
-        assert( action != ButtonAction::e_repeat );
+        assert( action != ButtonAction::k_repeat );
 
         {
-            auto g = std::lock_guard{ m_mx };
+            auto guard = std::lock_guard{ m_mx };
             m_event_map[ key ].pushEvent( ButtonEvent{ .mods = modifier, .action = action } );
         }
     } // buttonCallback
 
     void positionCallback( double x, double y )
     {
-        auto g = std::lock_guard{ m_mx };
+        auto guard = std::lock_guard{ m_mx };
         m_position = MousePosition{ .x = x, .y = y };
     } // positionCallback
 
@@ -92,7 +92,7 @@ class MouseHandler
         ButtonEventMap old_map;
 
         {
-            auto g = std::lock_guard{ m_mx };
+            auto guard = std::lock_guard{ m_mx };
             old_map = std::exchange( m_event_map, ButtonEventMap{} );
         }
 
@@ -107,7 +107,7 @@ class MouseHandler
     MousePosition m_position;     // Current position
     MousePosition m_old_position; // Position from the previous poll call
     GLFWwindow* const m_window;
-    mutable std::mutex m_mx;
+    std::mutex m_mx;
 
   private:
     static inline detail::GlobalHandlerTable<std::unique_ptr<MouseHandler>> s_handler_table;
