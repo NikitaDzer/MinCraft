@@ -7,10 +7,53 @@ if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBU
 endif ()
 
 if ( MSVC )
-  add_compile_options( /W4 )
-else()
-  add_compile_options( -Wall -Wextra -Wpedantic -Wno-missing-field-initializers )
-endif()
+    add_compile_options( /W4 )
+elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
+    add_compile_options (
+        -Wall
+        -Wextra
+        -pedantic
+        -Wshadow
+        -Wnon-virtual-dtor
+        -Wcast-align
+        -Wunused
+        -Woverloaded-virtual
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wmisleading-indentation
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+        -Wno-missing-field-initializers
+    )
+elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
+    add_compile_options (
+        -Wall
+        -Wextra
+        -pedantic
+        -Wshadow
+        -Wnon-virtual-dtor
+        -Wcast-align
+        -Wunused
+        -Woverloaded-virtual
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wmisleading-indentation
+        -Wduplicated-cond
+        -Wduplicated-branches
+        -Wlogical-op
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+        -Wno-missing-field-initializers
+    )
+else ()
+    message(FATAL_ERROR "Unsupported compiler: [${CMAKE_CXX_COMPILER_ID}]")
+endif ()
 
 option ( LINT OFF )
 
@@ -38,6 +81,16 @@ if ( ${SANITIZE} )
     add_link_options( -fsanitize=undefined,address -fno-omit-frame-pointer )
 endif ()
 
+option ( THREAD_SANITIZE OFF )
+if ( ${THREAD_SANITIZE} )
+    add_compile_options( -fsanitize=thread -fno-omit-frame-pointer )
+    add_link_options( -fsanitize=thread -fno-omit-frame-pointer )
+endif ()
+
+if ( THREAD_SANITIZE AND SANITIZE )
+    message(FATAL_ERROR "Thread and address sanitizer can't be used together")
+endif ()
+
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
@@ -61,14 +114,15 @@ function ( suppress_warnings TARGET_NAME )
     set_property( TARGET ${TARGET_NAME} PROPERTY COMPILE_OPTIONS ${target_options} )
 endfunction ()
 
+# Quality of life external libs
+set(RANGES_CXX_STD 20)
+add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
+
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
-
-# Quality of life external libs
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 # -v- VulkanMemoryAllocator configuration -v-
 set( VMA_STATIC_VULKAN_FUNCTIONS OFF )

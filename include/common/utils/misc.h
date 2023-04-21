@@ -2,15 +2,20 @@
 
 #include "utils/concepts.h"
 
-#include <bit>
+#include <cassert>
+#include <concepts>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <mutex>
+#include <type_traits>
+#include <unordered_map>
 
 namespace utils
 {
 
 template <Hashable T>
-void
+constexpr void
 hashCombine( std::size_t& seed, const T& v )
 {
     std::hash<T> hasher;
@@ -18,9 +23,8 @@ hashCombine( std::size_t& seed, const T& v )
 }
 
 // Convert to bool
-template <ExplicitlyConvertibleTo<bool> T>
-bool
-toBool( const T& arg )
+constexpr bool
+toBool( const ExplicitlyConvertibleTo<bool> auto& arg )
 {
     return static_cast<bool>( arg );
 }

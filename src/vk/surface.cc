@@ -23,7 +23,7 @@ physicalDeviceSupportsPresent( vk::PhysicalDevice physical_device, vk::SurfaceKH
         nullptr //
     );
 
-    auto indices = ranges::views::iota( 0 ) | ranges::views::take( queue_family_count );
+    auto indices = ranges::views::iota( uint32_t{ 0 } ) | ranges::views::take( queue_family_count );
     return ranges::any_of( indices, [ physical_device, surface ]( auto&& index ) {
         return physical_device.getSurfaceSupportKHR( index, surface );
     } );
