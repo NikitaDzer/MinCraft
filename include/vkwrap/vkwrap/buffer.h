@@ -4,7 +4,6 @@
 
 #include "vkwrap/core.h"
 #include "vkwrap/mman.h"
-#include "vkwrap/queues.h"
 #include "vkwrap/utils.h"
 
 #include "utils/patchable.h"
@@ -12,7 +11,6 @@
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 
-#include <concepts>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -86,9 +84,10 @@ class Buffer : private vk::Buffer
     Buffer( const Buffer& ) = delete;
     Buffer& operator=( const Buffer& ) = delete;
 
-    void update( const auto& raw_data, size_t n_bytes )
+    // TODO: make it more type-safe.
+    void update( auto* raw_data, size_t n_bytes )
     {
-        uint8_t* src = reinterpret_cast<uint8_t*>( &raw_data );
+        uint8_t* src = reinterpret_cast<uint8_t*>( raw_data );
         uint8_t* dst = m_mman->map( *this );
 
         std::copy( src, src + n_bytes, dst );
@@ -111,16 +110,15 @@ class Buffer : private vk::Buffer
 class BufferBuilder
 {
 
-  private:
-    using Queues = std::vector<Queue>;
-
   public:
+    using QueueFamilyIndices = std::vector<QueueFamilyIndex>;
+
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         BufferPartialInfo,
-        ( std::optional<vk::DeviceSize>,       size   ),
-        ( std::optional<vk::BufferUsageFlags>, usage  ),
-        ( std::optional<Queues>,               queues )
+        ( std::optional<vk::DeviceSize>,       size    ),
+        ( std::optional<vk::BufferUsageFlags>, usage   ),
+        ( std::optional<QueueFamilyIndices>,   indices )
     );
     // clang-format on
 
@@ -137,30 +135,28 @@ class BufferBuilder
     {
         BufferPartialInfo partial{};
 
-        m_presetter( partial );
+        presetter( partial );
         m_setter( partial );
         partial.patchWith( m_partial );
 
         return partial;
     } // makePartialInfo
 
-    // clang-format off
-    static inline Setter m_presetter = []( auto& ){};
-
-    static constexpr vk::BufferCreateInfo k_initial_create_info{
+    static constexpr vk::BufferCreateInfo k_initial_create_info = {
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
     };
-    // clang-format on
 
   public:
+    // clang-format off
+    static inline Setter presetter = []( auto& ){};
+    // clang-format on
+
     BufferBuilder() = default;
 
     BufferBuilder& withSetter( Setter setter ) &
     {
-        assert( setter );
-
         m_setter = setter;
         return *this;
     } // withSetter
@@ -177,36 +173,25 @@ class BufferBuilder
         return *this;
     } // withUsage
 
-    template <ranges::range Range>
-        requires std::same_as<ranges::range_value_t<Range>, Queue>
-    BufferBuilder& withQueues( Range&& queues ) &
+    BufferBuilder& withQueueFamilyIndices( ranges::range auto&& indices ) &
     {
-        assert( !queues.empty() );
-
-        m_partial.queues = ranges::to_vector( queues );
+        m_partial.indices = ranges::to_vector( indices );
         return *this;
-    } // withQueues
+    } // withQueueFamilyIndices
 
     Buffer make( Mman& mman ) const&
     {
         BufferPartialInfo partial = makePartialInfo();
         partial.assertCheckMembers();
+        assert( !partial.indices->empty() );
 
         vk::BufferCreateInfo create_info{ k_initial_create_info };
         create_info.size = *partial.size;
         create_info.usage = *partial.usage;
-
-        SharingInfoSetter setter{ *partial.queues };
-        setter.setTo( create_info );
+        vkwrap::writeSuitableSharingInfo( create_info, partial.indices.value() );
 
         return { create_info, mman };
     } // make
-
-    static void setPresetter( Setter presetter )
-    {
-        assert( presetter );
-        m_presetter = presetter;
-    } // setPresetter
 
 }; // class BufferBuilder
 

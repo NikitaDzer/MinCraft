@@ -4,7 +4,6 @@
 
 #include "vkwrap/core.h"
 #include "vkwrap/mman.h"
-#include "vkwrap/queues.h"
 #include "vkwrap/utils.h"
 
 #include "utils/patchable.h"
@@ -12,7 +11,6 @@
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 
-#include <concepts>
 #include <exception>
 #include <functional>
 #include <optional>
@@ -35,10 +33,10 @@ chooseImageViewType( vk::ImageType type )
     switch ( type )
     {
     case ImageType::e1D:
-        return ImageViewType::e1DArray;
+        return ImageViewType::e1D;
 
     case ImageType::e2D:
-        return ImageViewType::e2DArray;
+        return ImageViewType::e2D;
 
     case ImageType::e3D:
         return ImageViewType::e3D;
@@ -75,7 +73,8 @@ class Image : private vk::Image
         .subresourceRange = { 
             .baseMipLevel = 0, 
             .levelCount = 1, 
-            .baseArrayLayer = 0 }
+            .baseArrayLayer = 0, 
+            .layerCount = 1 } 
     };
     // clang-format on
 
@@ -95,7 +94,6 @@ class Image : private vk::Image
         view_create_info.setFormat( image_create_info.format );
 
         view_create_info.subresourceRange.setAspectMask( chooseAspectMask( image_create_info.format ) );
-        view_create_info.subresourceRange.setLayerCount( image_create_info.arrayLayers );
 
         return view_create_info;
     } // makeImageViewCreateInfo
@@ -152,16 +150,12 @@ class Image : private vk::Image
         swap( *this, tmp );
 
         return *this;
-    } // operator=( Image&& )
+    } // operator = ( Image&& )
 
     Image( const Image& ) = delete;
     Image& operator=( const Image& ) = delete;
 
     void update( vk::Buffer src_buffer ) { m_mman->copy( src_buffer, *this ); }
-    void update( vk::Buffer src_buffer, Mman::RegionMaker maker )
-    {
-        m_mman->copy( src_buffer, *this, maker );
-    } // update
 
     void transit( vk::ImageLayout new_layout ) { m_mman->transit( *this, new_layout ); }
 
@@ -178,21 +172,19 @@ class Image : private vk::Image
 class ImageBuilder
 {
 
-  private:
-    using Queues = std::vector<Queue>;
-
   public:
+    using QueueFamilyIndices = std::vector<QueueFamilyIndex>;
+
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         ImagePartialInfo,
-        ( std::optional<vk::ImageType>,           image_type   ),
-        ( std::optional<vk::Format>,              format       ),
-        ( std::optional<vk::Extent3D>,            extent       ),
-        ( std::optional<uint32_t>,                array_layers ),
-        ( std::optional<vk::SampleCountFlagBits>, samples      ),
-        ( std::optional<vk::ImageTiling>,         tiling       ),
-        ( std::optional<vk::ImageUsageFlags>,     usage        ),
-        ( std::optional<Queues>,                  queues       )
+        ( std::optional<vk::ImageType>,           image_type ),
+        ( std::optional<vk::Format>,              format    ),
+        ( std::optional<vk::Extent3D>,            extent    ),
+        ( std::optional<vk::SampleCountFlagBits>, samples   ),
+        ( std::optional<vk::ImageTiling>,         tiling    ),
+        ( std::optional<vk::ImageUsageFlags>,     usage     ),
+        ( std::optional<QueueFamilyIndices>,      indices   )
     );
     // clang-format on
 
@@ -209,17 +201,14 @@ class ImageBuilder
     {
         ImagePartialInfo partial{};
 
-        m_presetter( partial );
+        presetter( partial );
         m_setter( partial );
         partial.patchWith( m_partial );
 
         return partial;
     } // makePartialInfo
 
-    // clang-format off
-    static inline Setter m_presetter = []( auto& ){};
-
-    static constexpr vk::ImageCreateInfo k_initial_create_info{
+    static constexpr vk::ImageCreateInfo k_initial_create_info = {
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
@@ -227,18 +216,21 @@ class ImageBuilder
         // We don't use compressed images.
         .mipLevels = 1,
 
+        // One layer in an image.
+        .arrayLayers = 1,
+
         // Initial layout is unknown.
-        .initialLayout = vk::ImageLayout::eUndefined
-    };
-    // clang-format on
+        .initialLayout = vk::ImageLayout::eUndefined };
 
   public:
+    // clang-format off
+    static inline Setter presetter = []( auto& ){};
+    // clang-format on
+
     ImageBuilder() = default;
 
     ImageBuilder& withSetter( Setter setter ) &
     {
-        assert( setter );
-
         m_setter = setter;
         return *this;
     } // withSetter
@@ -261,14 +253,6 @@ class ImageBuilder
         return *this;
     } // withExtent
 
-    ImageBuilder& withArrayLayers( uint32_t array_layers )
-    {
-        assert( array_layers >= 1 );
-
-        m_partial.array_layers = array_layers;
-        return *this;
-    } // withArrayLayers
-
     ImageBuilder& withSampleCount( vk::SampleCountFlagBits samples ) &
     {
         m_partial.samples = samples;
@@ -287,42 +271,28 @@ class ImageBuilder
         return *this;
     } // withUsage
 
-    template <ranges::range Range>
-        requires std::same_as<ranges::range_value_t<Range>, Queue>
-    ImageBuilder& withQueues( Range&& queues ) &
+    ImageBuilder& withQueueFamilyIndices( ranges::range auto&& indices ) &
     {
-        assert( !queues.empty() );
-
-        m_partial.queues = ranges::to_vector( queues );
+        m_partial.indices = ranges::to_vector( indices );
         return *this;
-    } // withQueues
+    } // withQueueFamilyIndices
 
     Image make( Mman& mman ) const&
     {
         ImagePartialInfo partial{ makePartialInfo() };
         partial.assertCheckMembers();
-        assert( !partial.queues->empty() );
+        assert( !partial.indices->empty() );
 
         vk::ImageCreateInfo create_info{ k_initial_create_info };
-        create_info.imageType = *partial.image_type;
-        create_info.format = *partial.format;
-        create_info.extent = *partial.extent;
-        create_info.arrayLayers = *partial.array_layers;
-        create_info.samples = *partial.samples;
-        create_info.tiling = *partial.tiling;
-        create_info.usage = *partial.usage;
-
-        SharingInfoSetter setter{ *partial.queues };
-        setter.setTo( create_info );
+        create_info.setImageType( *partial.image_type );
+        create_info.setFormat( *partial.format );
+        create_info.setExtent( *partial.extent );
+        create_info.setTiling( *partial.tiling );
+        create_info.setUsage( *partial.usage );
+        vkwrap::writeSuitableSharingInfo( create_info, partial.indices.value() );
 
         return { create_info, mman };
     } // make
-
-    static void setPresetter( Setter presetter )
-    {
-        assert( presetter );
-        m_presetter = presetter;
-    } // setPresetter
 
 }; // class ImageBuilder
 

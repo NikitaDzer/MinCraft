@@ -68,7 +68,7 @@ class SamplerBuilder
     {
         SamplerPartialInfo partial{};
 
-        m_presetter( partial );
+        presetter( partial );
         m_setter( partial );
         partial.patchWith( m_partial );
 
@@ -80,10 +80,7 @@ class SamplerBuilder
         return physical_device.getProperties().limits.maxSamplerAnisotropy;
     } // getMaxAnisotropy
 
-    // clang-format off
-    static inline Setter m_presetter = []( auto& ){};
-
-    static constexpr vk::SamplerCreateInfo k_initial_create_info{
+    static constexpr vk::SamplerCreateInfo k_sampler_initial_create_info{
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
@@ -99,15 +96,16 @@ class SamplerBuilder
         .minLod = 0.0f,
         .maxLod = 0.0f,
     };
-    // clang-format on
 
   public:
+    // clang-format off
+    static inline Setter presetter = []( auto& ){};
+    // clang-format on
+
     SamplerBuilder() = default;
 
     SamplerBuilder& withSetter( Setter setter ) &
     {
-        assert( setter );
-
         m_setter = setter;
         return *this;
     } // withSetter
@@ -160,34 +158,28 @@ class SamplerBuilder
         return *this;
     } // withUnnormalizedCoordinates
 
-    Sampler make( vk::Device device, vk::PhysicalDevice physical_device ) const&
+    Sampler make( vk::PhysicalDevice physical_device, vk::Device logical_device ) const&
     {
         SamplerPartialInfo partial{ makePartialInfo() };
         partial.assertCheckMembers();
 
-        vk::SamplerCreateInfo create_info{ k_initial_create_info };
+        vk::SamplerCreateInfo create_info{ k_sampler_initial_create_info };
 
-        create_info.magFilter = *partial.mag_filter;
-        create_info.minFilter = *partial.min_filter;
+        create_info.setMagFilter( *partial.mag_filter );
+        create_info.setMinFilter( *partial.min_filter );
 
-        create_info.addressModeU = *partial.address_mode_u;
-        create_info.addressModeV = *partial.address_mode_v;
-        create_info.addressModeW = *partial.address_mode_w;
+        create_info.setAddressModeU( *partial.address_mode_u );
+        create_info.setAddressModeV( *partial.address_mode_v );
+        create_info.setAddressModeW( *partial.address_mode_w );
 
-        create_info.anisotropyEnable = *partial.anisotropy_enable;
-        create_info.maxAnisotropy = getMaxAnisotropy( physical_device );
+        create_info.setAnisotropyEnable( *partial.anisotropy_enable );
+        create_info.setMaxAnisotropy( getMaxAnisotropy( physical_device ) );
 
-        create_info.compareOp = *partial.compare_op;
-        create_info.unnormalizedCoordinates = *partial.unnormalized_coordinates;
+        create_info.setCompareOp( *partial.compare_op );
+        create_info.setUnnormalizedCoordinates( *partial.unnormalized_coordinates );
 
-        return { device.createSamplerUnique( create_info ) };
+        return { logical_device.createSamplerUnique( create_info ) };
     } // make
-
-    static void setPresetter( Setter presetter )
-    {
-        assert( presetter );
-        m_presetter = presetter;
-    } // setPresetter
 
 }; // class SamplerBuilder
 
