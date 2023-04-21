@@ -2,6 +2,7 @@
 
 #include "chunk/position.h"
 
+#include "utils/misc.h"
 #include <cassert>
 #include <cstdint>
 #include <unordered_map>
@@ -11,10 +12,9 @@ namespace chunk
 
 enum class BlockID : uint16_t
 {
+
 #define REGISTER_BLOCK( block_name, ... ) k_##block_name,
-
 #include "detail/block_id.inc"
-
 #undef REGISTER_BLOCK
 }; // enum class BlockID
 
@@ -30,23 +30,17 @@ class Chunk
         return m_chunk_begin[ index ];
     } // Chunk::operator[] const
 
-    const BlockID& operator[]( const pos::LocalBlockPos& pos ) const&
+    const BlockID& at( uint8_t x, uint8_t y, uint8_t z ) const&
     {
-        assert( pos.x < k_max_width_length && pos.y < k_max_width_length );
-        return m_chunk_begin[ k_max_width_length * k_max_height * pos.x + k_max_height * pos.y + pos.z ];
-    } // Chunk::operator[] const
+        assert( x < k_max_width_length && y < k_max_width_length );
+        return m_chunk_begin[ k_max_width_length * k_max_height * x + k_max_height * y + z ];
+    }
 
-    BlockID& operator[]( int index ) &
+    BlockID& at( uint8_t x, uint8_t y, uint8_t z ) &
     {
-        assert( index < k_block_count );
-        return m_chunk_begin[ index ];
-    } // Chunk::operator[]
-
-    BlockID& operator[]( const pos::LocalBlockPos& pos ) &
-    {
-        assert( pos.x < k_max_width_length && pos.y < k_max_width_length );
-        return m_chunk_begin[ k_max_width_length * k_max_height * pos.x + k_max_height * pos.y + pos.z ];
-    } // Chunk::operator[]
+        assert( x < k_max_width_length && y < k_max_width_length );
+        return m_chunk_begin[ k_max_width_length * k_max_height * x + k_max_height * y + z ];
+    }
 
     BlockID& getChunkBegin() & { return m_chunk_begin[ 0 ]; }
 
