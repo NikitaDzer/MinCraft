@@ -73,7 +73,7 @@ target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
 set ( CHUNK_SOURCES
-    src/chunk/region.cc
+    src/chunk/chunk_man.cc
     src/chunk/chunk_gen.cc
 )
 
