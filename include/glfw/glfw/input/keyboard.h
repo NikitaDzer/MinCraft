@@ -27,13 +27,13 @@ class KeyboardHandler
 
     void keyCallback( KeyIndex key, ButtonAction action, ModifierFlag modifier )
     {
-        if ( action == ButtonAction::e_repeat )
+        if ( action == ButtonAction::k_repeat )
         {
             return; // We are not really interested in repeat input, which is mainly used for text input
         }
 
         {
-            auto g = std::lock_guard{ m_mx };
+            auto guard = std::lock_guard{ m_mx };
             m_button_events[ key ].pushEvent( ButtonEvent{ .mods = modifier, .action = action } );
         }
     } // keyCallback
@@ -77,7 +77,7 @@ class KeyboardHandler
         KeyEventMap old_map;
 
         {
-            auto g = std::lock_guard{ m_mx };
+            auto guard = std::lock_guard{ m_mx };
             old_map = std::exchange( m_button_events, KeyEventMap{} );
         }
 
@@ -92,7 +92,7 @@ class KeyboardHandler
   private:
     TrackedKeysSet m_tracked_keys;
     KeyEventMap m_button_events;
-    mutable std::mutex m_mx;
+    std::mutex m_mx;
 
   private:
     static inline detail::GlobalHandlerTable<std::unique_ptr<KeyboardHandler>> s_handler_table;

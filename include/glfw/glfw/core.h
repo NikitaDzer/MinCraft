@@ -5,7 +5,7 @@
 #include <spdlog/fmt/bundled/format.h>
 #include <spdlog/spdlog.h>
 
-#include <range/v3/view/iota.hpp>
+#include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/take.hpp>
 
 #include <range/v3/algorithm/any_of.hpp>
@@ -24,18 +24,18 @@ namespace glfw
 
 enum class ErrorCode : int
 {
-    e_no_error = GLFW_NO_ERROR,
-    e_not_initialized = GLFW_NOT_INITIALIZED,
-    e_no_current_context = GLFW_NO_CURRENT_CONTEXT,
-    e_invalid_enum = GLFW_INVALID_ENUM,
-    e_invalid_value = GLFW_INVALID_VALUE,
-    e_out_of_memory = GLFW_OUT_OF_MEMORY,
-    e_api_unavailable = GLFW_API_UNAVAILABLE,
-    e_version_unavailable = GLFW_VERSION_UNAVAILABLE,
-    e_platform_error = GLFW_PLATFORM_ERROR,
-    e_format_unavailable = GLFW_FORMAT_UNAVAILABLE,
-    e_no_window_context = GLFW_NO_WINDOW_CONTEXT,
-    e_user_error, // Used for other errors reserved for this wrapper library
+    k_no_error = GLFW_NO_ERROR,
+    k_not_initialized = GLFW_NOT_INITIALIZED,
+    k_no_current_context = GLFW_NO_CURRENT_CONTEXT,
+    k_invalid_enum = GLFW_INVALID_ENUM,
+    k_invalid_value = GLFW_INVALID_VALUE,
+    k_out_of_memory = GLFW_OUT_OF_MEMORY,
+    k_api_unavailable = GLFW_API_UNAVAILABLE,
+    k_version_unavailable = GLFW_VERSION_UNAVAILABLE,
+    k_platform_error = GLFW_PLATFORM_ERROR,
+    k_format_unavailable = GLFW_FORMAT_UNAVAILABLE,
+    k_no_window_context = GLFW_NO_WINDOW_CONTEXT,
+    k_user_error, // Used for other errors reserved for this wrapper library
 };                // enum class ErrorCode
 
 // Utility to get an error description. Messages taken from documentation:
@@ -45,29 +45,29 @@ errorCodeToString( ErrorCode error_code )
 {
     switch ( error_code )
     {
-    case ErrorCode::e_no_error:
+    case ErrorCode::k_no_error:
         return "No error has occurred";
-    case ErrorCode::e_not_initialized:
+    case ErrorCode::k_not_initialized:
         return "API has not been initialized";
-    case ErrorCode::e_no_current_context:
+    case ErrorCode::k_no_current_context:
         return "No context is current for this thread";
-    case ErrorCode::e_invalid_enum:
+    case ErrorCode::k_invalid_enum:
         return "One of the arguments to the function was an invalid enum value";
-    case ErrorCode::e_invalid_value:
+    case ErrorCode::k_invalid_value:
         return "One of the arguments to the function was an invalid value";
-    case ErrorCode::e_out_of_memory:
+    case ErrorCode::k_out_of_memory:
         return "A memory allocation failed";
-    case ErrorCode::e_api_unavailable:
+    case ErrorCode::k_api_unavailable:
         return "Could not find support for the requested API on the system";
-    case ErrorCode::e_version_unavailable:
+    case ErrorCode::k_version_unavailable:
         return "The requested OpenGL or OpenGL ES version is not available";
-    case ErrorCode::e_platform_error:
+    case ErrorCode::k_platform_error:
         return "A platform-specific error occurred that does not match any of the more specific categories";
-    case ErrorCode::e_format_unavailable:
+    case ErrorCode::k_format_unavailable:
         return "The requested format is not supported or available";
-    case ErrorCode::e_no_window_context:
+    case ErrorCode::k_no_window_context:
         return "The specified window does not have an OpenGL or OpenGL ES context";
-    case ErrorCode::e_user_error:
+    case ErrorCode::k_user_error:
         return "A user error has occured";
     default:
         assert( 0 && "Unhandled enum case" );
@@ -98,13 +98,13 @@ checkError()
         // As per the documentation: The returned string is allocated and freed by GLFW. You should not free it
         // yourself. It is guaranteed to be valid only until the next error occurs or the library is terminated.
         // For this reason it's prudent to create a copy of the data so that this pointer does not dangle.
-        const char* temporary_message;
+        const char* temporary_message = nullptr;
         auto ec = glfwGetError( &temporary_message );
         return std::pair{ static_cast<ErrorCode>( ec ), temporary_message };
     };
 
     auto [ error_code, message ] = get_error();
-    if ( error_code != ErrorCode::e_no_error )
+    if ( error_code != ErrorCode::k_no_error )
     {
         throw Error{ error_code, message };
     }
@@ -145,9 +145,9 @@ logAction(
     if ( !additional.empty() )
     {
         ss << fmt::format( "\n -- Additional info --" );
-        for ( auto i : ranges::views::iota( uint32_t{ 0 } ) | ranges::views::take( additional.size() ) )
+        for ( auto&& [ index, msg ] : ranges::views::enumerate( additional ) )
         {
-            ss << fmt::format( "\n[{}]. {}", i, additional[ i ] );
+            ss << fmt::format( "\n[{}]. {}", index, msg );
         }
     }
 
@@ -254,7 +254,7 @@ template <typename T> class GlobalHandlerTable
         std::call_once( initialized, [ this ]() { handler_map = std::make_unique<HandlerMap>(); } );
         assert( handler_map );
 
-        auto g = std::unique_lock{ mutex };
+        auto guard = std::lock_guard{ mutex };
 
         if ( auto handler = handler_map->find( window ); handler != handler_map->end() )
         {

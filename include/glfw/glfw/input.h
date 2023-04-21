@@ -14,15 +14,15 @@ namespace glfw::input
 
 enum class ButtonAction : int
 {
-    e_press = GLFW_PRESS,
-    e_release = GLFW_RELEASE,
-    e_repeat = GLFW_REPEAT,
+    k_press = GLFW_PRESS,
+    k_release = GLFW_RELEASE,
+    k_repeat = GLFW_REPEAT,
 }; // ButtonAction
 
 enum class ButtonState
 {
-    e_released,
-    e_pressed,
+    k_released,
+    k_pressed,
 }; // ButtonState
 
 constexpr std::string_view
@@ -30,9 +30,9 @@ buttonStateToString( ButtonState st )
 {
     switch ( st )
     {
-    case ButtonState::e_pressed:
+    case ButtonState::k_pressed:
         return "Pressed";
-    case ButtonState::e_released:
+    case ButtonState::k_released:
         return "Released";
     default:
         assert( 0 && "Unhandled enum case" );
@@ -46,11 +46,11 @@ buttonActionToString( ButtonAction st )
 {
     switch ( st )
     {
-    case ButtonAction::e_press:
+    case ButtonAction::k_press:
         return "Press";
-    case ButtonAction::e_release:
+    case ButtonAction::k_release:
         return "Release";
-    case ButtonAction::e_repeat:
+    case ButtonAction::k_repeat:
         return "Repeat";
     default:
         assert( 0 && "Unhandled enum case" );
@@ -61,13 +61,13 @@ buttonActionToString( ButtonAction st )
 
 enum class ModifierFlagBits : int
 {
-    e_mod_none = 0,
-    e_mod_shift = GLFW_MOD_SHIFT,
-    e_mod_ctrl = GLFW_MOD_CONTROL,
-    e_mod_alt = GLFW_MOD_ALT,
-    e_mod_super = GLFW_MOD_SUPER,
-    e_mod_caps = GLFW_MOD_CAPS_LOCK,
-    e_mod_numlock = GLFW_MOD_NUM_LOCK,
+    k_mod_none = 0,
+    k_mod_shift = GLFW_MOD_SHIFT,
+    k_mod_ctrl = GLFW_MOD_CONTROL,
+    k_mod_alt = GLFW_MOD_ALT,
+    k_mod_super = GLFW_MOD_SUPER,
+    k_mod_caps = GLFW_MOD_CAPS_LOCK,
+    k_mod_numlock = GLFW_MOD_NUM_LOCK,
 }; // ModifierFlagBits
 
 class ModifierFlag
@@ -76,7 +76,7 @@ class ModifierFlag
     using Underlying = std::underlying_type_t<ModifierFlagBits>;
 
   public:
-    ModifierFlag( ModifierFlagBits flag = ModifierFlagBits::e_mod_none )
+    ModifierFlag( ModifierFlagBits flag = ModifierFlagBits::k_mod_none )
         : m_underlying{ utils::toUnderlying( flag ) }
     {
     }
@@ -137,13 +137,13 @@ struct ButtonEventInfo
     ButtonEventInfo() = default;
 
     // Kind of redundant, but whatever
-    bool isPressed() const { return ( current == ButtonState::e_pressed ); }   // isPressed
-    bool isReleased() const { return ( current == ButtonState::e_released ); } // isReleased
+    bool isPressed() const { return ( current == ButtonState::k_pressed ); }   // isPressed
+    bool isReleased() const { return ( current == ButtonState::k_released ); } // isReleased
 
     auto presses() const
     {
         return ranges::views::filter( events, []( const ButtonEvent& event ) {
-            return event.action == ButtonAction::e_press;
+            return event.action == ButtonAction::k_press;
         } );
     } // presses
 
@@ -162,11 +162,11 @@ struct ButtonEventInfo
 
         switch ( event.action )
         {
-        case ButtonAction::e_press:
-            current = ButtonState::e_pressed;
+        case ButtonAction::k_press:
+            current = ButtonState::k_pressed;
             break;
-        case ButtonAction::e_release:
-            current = ButtonState::e_released;
+        case ButtonAction::k_release:
+            current = ButtonState::k_released;
             break;
         default:
             break;
@@ -176,8 +176,8 @@ struct ButtonEventInfo
     } // pushEvent
 
   public:
-    ButtonState current = ButtonState::e_released;    // Stores whether the button is pressed at the moment
-    ModifierFlag mods = ModifierFlagBits::e_mod_none; // Latest modificators used with the key
+    ButtonState current = ButtonState::k_released;    // Stores whether the button is pressed at the moment
+    ModifierFlag mods = ModifierFlagBits::k_mod_none; // Latest modificators used with the key
     Events events;
 }; // ButtonEventInfo
 
