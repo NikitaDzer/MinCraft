@@ -4,8 +4,10 @@
 #include <vk_mem_alloc.h>
 
 #include "utils/misc.h"
+
 #include "vkwrap/core.h"
 #include "vkwrap/error.h"
+#include "vkwrap/utils.h"
 
 #include <range/v3/algorithm/any_of.hpp>
 
@@ -72,28 +74,6 @@ hasStencil( vk::Format format )
     } );
 } // hasStencil
 
-inline vk::ImageAspectFlags
-chooseAspectMask( vk::Format format, vk::ImageLayout new_layout )
-{
-    using vk::ImageAspectFlagBits;
-    using vk::ImageAspectFlags;
-    using vk::ImageLayout;
-
-    if ( new_layout != ImageLayout::eDepthStencilAttachmentOptimal )
-    {
-        return ImageAspectFlagBits::eColor;
-    }
-
-    ImageAspectFlags aspect_mask{ ImageAspectFlagBits::eDepth };
-
-    if ( hasStencil( format ) )
-    {
-        aspect_mask |= ImageAspectFlagBits::eStencil;
-    }
-
-    return aspect_mask;
-} // chooseAspectMask
-
 inline AccessMasks
 chooseAccessMasks( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
@@ -149,7 +129,7 @@ createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old
         .image = image,
 
         .subresourceRange = {
-            .aspectMask = chooseAspectMask( format, new_layout ),
+            .aspectMask = chooseAspectMask( format ),
 
             // We use images with one layer and one mipmap.
             .baseMipLevel = 0,
@@ -262,6 +242,7 @@ class Mman
 
   private:
     VmaAllocator m_vma;
+    vk::Device m_device;
     vk::Queue m_queue;
     OneTimeCommand m_cmd;
 
@@ -344,6 +325,7 @@ class Mman
         vk::Queue queue,
         vk::CommandPool cmd_pool )
         : m_vma{ VK_NULL_HANDLE },
+          m_device{ logical_device },
           m_queue{ queue },
           m_cmd{ createCommand( logical_device, cmd_pool, queue ) }
     {
@@ -477,13 +459,7 @@ class Mman
                   .layerCount = 1 },
 
             .imageOffset = vk::Offset3D{ 0, 0, 0 },
-            .imageExtent =
-                vk::Extent3D{
-                    image_info->extent.width,
-                    image_info->extent.height,
-                    1 /* depth */
-                },
-        };
+            .imageExtent = image_info->extent };
 
         getCommand().submitAndWait( [ & ]( auto& cmd ) {
             cmd.copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
@@ -512,6 +488,8 @@ class Mman
 
         image_info->layout = new_layout;
     } // transit
+
+    vk::Device getDevice() const { return m_device; }
 
     vk::DeviceSize getAllocatedBytes() { return getTotalStats().statistics.blockBytes; }
 
