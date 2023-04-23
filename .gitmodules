@@ -7,3 +7,6 @@
 [submodule "3rd-party/VulkanMemoryAllocator"]
 	path = 3rd-party/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "3rd-party/imgui"]
+	path = 3rd-party/imgui
+	url = https://github.com/ocornut/imgui.git
