@@ -124,6 +124,7 @@ endfunction ()
 # Quality of life external libs
 set( RANGES_CXX_STD 20 )
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/popl EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 
 # External dependecies
@@ -203,3 +204,13 @@ if ( ${CHUNKS_TEST} )
     add_example_executable( chunks_test examples/chunks_test.cc )
     target_link_libraries( chunks_test PRIVATE chunk )
 endif ()
+
+# Main app target
+set ( MINCRAFT_SOURCES
+    src/mincraft.cc
+)
+
+add_executable ( mincraft ${MINCRAFT_SOURCES} )
+target_link_libraries ( mincraft PRIVATE vkwrap popl )
+target_enable_linter ( mincraft )
+target_compile_features ( mincraft PUBLIC cxx_std_20 )

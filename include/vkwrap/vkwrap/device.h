@@ -68,6 +68,9 @@ physicalDeviceQueueFamilyCount( const vk::PhysicalDevice& physical_device )
 
 class PhysicalDevice : private vk::PhysicalDevice
 {
+  private:
+    using Base = vk::PhysicalDevice;
+
   public:
     PhysicalDevice( const vk::PhysicalDevice& physical_device )
         : vk::PhysicalDevice{ physical_device }
@@ -83,8 +86,9 @@ class PhysicalDevice : private vk::PhysicalDevice
 
     uint32_t queueFamilyCount() const { return physicalDeviceQueueFamilyCount( *this ); }
 
-    using vk::PhysicalDevice::getFeatures;
-    using vk::PhysicalDevice::operator bool;
+    using Base::getFeatures;
+    using Base::operator bool;
+    using Base::getFormatProperties;
 
     bool operator==( const PhysicalDevice& other ) const = default;
 }; // PhysicalDevice
@@ -260,6 +264,8 @@ class LogicalDevice : private vk::UniqueDevice
         : vk::UniqueDevice{ std::move( logical_device ) }
     {
     }
+
+    operator vk::Device() const { return get(); }
 }; // LogicalDevice
 
 class LogicalDeviceBuilder

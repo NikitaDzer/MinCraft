@@ -268,7 +268,7 @@ class InstanceBuilder
   public:
     InstanceBuilder() = default;
 
-    GenericInstance make() const
+    [[nodiscard]] GenericInstance make() const
     {
         if ( m_with_debug )
         {
