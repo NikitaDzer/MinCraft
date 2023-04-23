@@ -87,13 +87,13 @@
                                                                                                                        \
         static constexpr auto getAccessors()                                                                           \
         {                                                                                                              \
-            return boost::hana::accessors<name>();                                                                     \
+            return boost::hana::accessors<struct_name>();                                                              \
         } /* getAccessors */                                                                                           \
                                                                                                                        \
       public:                                                                                                          \
-        ADD_METHOD_ASSERT_CHECK_MEMBERS( name );                                                                       \
+        ADD_METHOD_ASSERT_CHECK_MEMBERS( struct_name );                                                                \
                                                                                                                        \
-        void patchWith( const name& patchable )                                                                        \
+        void patchWith( const struct_name& patchable )                                                                 \
         {                                                                                                              \
             const auto members = boost::hana::members( patchable );                                                    \
             const auto members_count = boost::hana::size( members );                                                   \

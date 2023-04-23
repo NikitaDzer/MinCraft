@@ -2,16 +2,16 @@
 
 #include <range/v3/view/all.hpp>
 #include <range/v3/view/filter.hpp>
-#include <range/v3/view/unique.hpp>
 
 #include <range/v3/algorithm/contains.hpp>
+
+#include <range/v3/action/sort.hpp>
+#include <range/v3/action/unique.hpp>
 
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 
-#include <bits/ranges_algo.h>
-#include <ranges>
-#include <vector>
+#include <utility>
 
 namespace utils
 {
@@ -32,7 +32,8 @@ template <ranges::range Range>
 auto
 getUniqueElements( Range&& range )
 {
-    return std::forward<Range>( range ) | ranges::views::all | ranges::views::unique | ranges::to_vector;
+    auto sorted = std::forward<Range>( range ) | ranges::to_vector | ranges::actions::sort;
+    return ranges::actions::unique( sorted );
 } // getUniqueElements
 
 }; // namespace utils
