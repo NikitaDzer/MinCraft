@@ -11,6 +11,7 @@
 #include "vkwrap/queues.h"
 
 #include "glfw/window.h"
+#include "gui/gui.hpp"
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/fmt/bundled/core.h>
