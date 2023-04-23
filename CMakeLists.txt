@@ -130,7 +130,7 @@ add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
-find_package ( Boost 1.61.0 REQUIRED )
+find_package ( Hana REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
 
 # -v- VulkanMemoryAllocator configuration -v-
@@ -166,7 +166,7 @@ set ( VKWRAP_SOURCES
 
 add_library ( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories ( vkwrap PUBLIC include/vkwrap include/common include/glfw )
-target_link_libraries ( vkwrap PUBLIC range-v3 Boost::boost spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan )
+target_link_libraries ( vkwrap PUBLIC range-v3 hana spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan )
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 

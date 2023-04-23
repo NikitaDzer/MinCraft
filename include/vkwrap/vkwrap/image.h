@@ -4,6 +4,7 @@
 
 #include "vkwrap/core.h"
 #include "vkwrap/mman.h"
+#include "vkwrap/queues.h"
 #include "vkwrap/utils.h"
 
 #include "utils/patchable.h"
@@ -173,7 +174,7 @@ class ImageBuilder
 {
 
   public:
-    using QueueFamilyIndices = std::vector<QueueFamilyIndex>;
+    using Queues = std::vector<Queue>;
 
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
@@ -184,7 +185,7 @@ class ImageBuilder
         ( std::optional<vk::SampleCountFlagBits>, samples   ),
         ( std::optional<vk::ImageTiling>,         tiling    ),
         ( std::optional<vk::ImageUsageFlags>,     usage     ),
-        ( std::optional<QueueFamilyIndices>,      indices   )
+        ( std::optional<Queues>,                  queues    )
     );
     // clang-format on
 
@@ -271,17 +272,17 @@ class ImageBuilder
         return *this;
     } // withUsage
 
-    ImageBuilder& withQueueFamilyIndices( ranges::range auto&& indices ) &
+    ImageBuilder& withQueues( ranges::range auto&& queues ) &
     {
-        m_partial.indices = ranges::to_vector( indices );
+        m_partial.queues = ranges::to_vector( queues );
         return *this;
-    } // withQueueFamilyIndices
+    } // withQueues
 
     Image make( Mman& mman ) const&
     {
         ImagePartialInfo partial{ makePartialInfo() };
         partial.assertCheckMembers();
-        assert( !partial.indices->empty() );
+        assert( !partial.queues->empty() );
 
         vk::ImageCreateInfo create_info{ k_initial_create_info };
         create_info.setImageType( *partial.image_type );
@@ -289,7 +290,9 @@ class ImageBuilder
         create_info.setExtent( *partial.extent );
         create_info.setTiling( *partial.tiling );
         create_info.setUsage( *partial.usage );
-        vkwrap::writeSuitableSharingInfo( create_info, partial.indices.value() );
+
+        SharingInfoSetter setter{ partial.queues.value() };
+        setter.setTo( create_info );
 
         return { create_info, mman };
     } // make

@@ -87,13 +87,18 @@ class Buffer : private vk::Buffer
     // TODO: make it more type-safe.
     void update( auto* raw_data, size_t n_bytes )
     {
-        uint8_t* src = reinterpret_cast<uint8_t*>( raw_data );
-        uint8_t* dst = m_mman->map( *this );
+        assert( raw_data );
 
-        std::copy( src, src + n_bytes, dst );
-        m_mman->flush( *this );
+        if ( raw_data != nullptr )
+        {
+            uint8_t* src = reinterpret_cast<uint8_t*>( raw_data );
+            uint8_t* dst = m_mman->map( *this );
 
-        m_mman->unmap( *this );
+            std::copy( src, src + n_bytes, dst );
+            m_mman->flush( *this );
+
+            m_mman->unmap( *this );
+        }
     } // update
 
     void update( ranges::contiguous_range auto&& range ) { update( range.data(), range.size() ); }
@@ -188,7 +193,9 @@ class BufferBuilder
         vk::BufferCreateInfo create_info{ k_initial_create_info };
         create_info.size = *partial.size;
         create_info.usage = *partial.usage;
-        vkwrap::writeSuitableSharingInfo( create_info, partial.indices.value() );
+
+        SharingInfoSetter setter{ partial.indices.value() };
+        setter.setTo( create_info );
 
         return { create_info, mman };
     } // make
