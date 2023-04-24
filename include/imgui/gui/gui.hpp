@@ -98,6 +98,8 @@ class ImGuiResources
 
     void renderFrame() { ImGui::Render(); }
 
+    void fillCommandBuffer( vk::CommandBuffer& cmd ) { ImGui_ImplVulkan_RenderDrawData( ImGui::GetDrawData(), cmd ); }
+
   private:
     ImGuiResourceFlagType initializeLibrary(
         vk::Instance instance,

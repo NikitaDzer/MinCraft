@@ -1,7 +1,9 @@
 #include "common/vulkan_include.h"
+#include "utils/color.h"
 
 #include "vkwrap/command.h"
 #include "vkwrap/device.h"
+#include "vkwrap/framebuffer.h"
 #include "vkwrap/instance.h"
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
@@ -18,6 +20,8 @@
 #include <popl/popl.hpp>
 
 #include <range/v3/algorithm/any_of.hpp>
+#include <range/v3/view/iota.hpp>
+#include <range/v3/view/single.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -182,6 +186,104 @@ getFramebufferExtent( const glfw::wnd::Window& window )
         .height = static_cast<uint32_t>( framebuffer_size.height ) };
 }
 
+using Framebuffers = std::vector<vkwrap::Framebuffer>;
+
+struct SwapchainRecreateResult
+{
+    vkwrap::Swapchain swapchain;
+    Framebuffers framebuffers;
+};
+
+Framebuffers
+recreateFramebuffers( vkwrap::Swapchain& swapchain, vk::Device logical_device, vk::RenderPass render_pass )
+{
+    auto extent = swapchain.extent();
+    Framebuffers framebuffers;
+
+    for ( auto& view : swapchain.views() )
+    {
+        auto framebuffer_builder = vkwrap::FramebufferBuilder{};
+        framebuffer_builder.withAttachments( ranges::views::single( view.get() ) )
+            .withWidth( extent.width )
+            .withHeight( extent.height )
+            .withRenderPass( render_pass );
+
+        framebuffers.push_back( framebuffer_builder.make( logical_device ) );
+    }
+
+    return framebuffers;
+}
+
+vkwrap::Swapchain
+recreateSwapchain(
+    const glfw::wnd::Window& window,
+    vk::PhysicalDevice physical_device,
+    vk::Device logical_device,
+    vk::SurfaceKHR surface,
+    vkwrap::Queue graphics_queue,
+    vkwrap::Queue present_queue,
+    vkwrap::Swapchain old_swapchain = {} )
+{
+    auto extent = getFramebufferExtent( window );
+
+    while ( extent.width == 0 || extent.height == 0 )
+    {
+        // Busy waiting loop. Should work for now
+        extent = getFramebufferExtent( window );
+    }
+
+    auto new_swapchain = vkwrap::Swapchain{
+        physical_device,
+        logical_device,
+        surface,
+        extent,
+        graphics_queue,
+        present_queue,
+        old_swapchain.get() };
+
+    logical_device.waitIdle();
+    old_swapchain.reset();
+
+    return new_swapchain;
+}
+
+struct FrameSyncPrimitives
+{
+    vk::UniqueSemaphore image_availible_semaphore;
+    vk::UniqueSemaphore render_finished_semaphore;
+    vk::UniqueFence in_flight_fence;
+};
+
+struct FrameRenderingInfos
+{
+    std::vector<FrameSyncPrimitives> sync_primitives;
+    std::vector<vk::UniqueCommandBuffer> imgui_command_buffers;
+};
+
+static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
+
+FrameRenderingInfos
+createRenderInfos( vk::Device logical_device, vkwrap::CommandPool& command_pool )
+{
+    FrameRenderingInfos frame_render_info;
+
+    auto frames = k_max_frames_in_flight;
+
+    for ( [[maybe_unused]] auto&& i = uint32_t{ 0 }; i < frames; ++i )
+    {
+        auto primitives = FrameSyncPrimitives{
+            .image_availible_semaphore = logical_device.createSemaphoreUnique( {} ),
+            .render_finished_semaphore = logical_device.createSemaphoreUnique( {} ),
+            .in_flight_fence = logical_device.createFenceUnique( { .flags = vk::FenceCreateFlagBits::eSignaled } ) };
+
+        frame_render_info.sync_primitives.push_back( std::move( primitives ) );
+    }
+
+    frame_render_info.imgui_command_buffers = command_pool.createCmdBuffers( static_cast<uint32_t>( frames ) );
+
+    return frame_render_info;
+}
+
 void
 runApplication( std::span<const char*> command_line_args )
 {
@@ -210,16 +312,18 @@ runApplication( std::span<const char*> command_line_args )
     auto [ logical_device, graphics_queue, present_queue ] =
         createLogicalDeviceQueues( physical_device.get(), surface.get() );
 
-    auto command_pool = vkwrap::CommandPool{ logical_device, graphics_queue };
+    auto command_pool =
+        vkwrap::CommandPool{ logical_device, graphics_queue, vk::CommandPoolCreateFlagBits::eResetCommandBuffer };
+
     auto one_time_cmd = vkwrap::OneTimeCommand{ command_pool, graphics_queue.get() };
 
-    auto swapchain = vkwrap::Swapchain{
+    auto swapchain = recreateSwapchain(
+        window,
         physical_device.get(),
         logical_device,
         surface.get(),
-        getFramebufferExtent( window ),
         graphics_queue,
-        present_queue };
+        present_queue );
 
     auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
     auto render_pass = pipeline_builder.withColorAttachment( swapchain.format().format )
@@ -236,10 +340,134 @@ runApplication( std::span<const char*> command_line_args )
         .upload_context = one_time_cmd,
         .render_pass = render_pass } };
 
+    auto framebuffers = recreateFramebuffers( swapchain, logical_device, render_pass );
+    auto render_infos = createRenderInfos( logical_device, command_pool );
+
+    auto recreate_swapchain_wrapped =
+        [ &, &logical_device = logical_device, &graphics_queue = graphics_queue, &present_queue = present_queue ]() {
+            swapchain = recreateSwapchain(
+                window,
+                physical_device.get(),
+                logical_device,
+                surface.get(),
+                graphics_queue,
+                present_queue,
+                std::move( swapchain ) );
+
+            framebuffers = recreateFramebuffers( swapchain, logical_device, render_pass );
+        };
+
+    uint32_t current_frame = 0;
+
+    auto fill_command_buffer = [ &imgui_resources,
+                                 &render_pass,
+                                 &framebuffers ]( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent ) {
+        static constexpr auto k_clear_color = vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } };
+
+        const auto render_pass_info = vk::RenderPassBeginInfo{
+            .renderPass = render_pass,
+            .framebuffer = framebuffers[ image_index ].get(),
+            .renderArea = { vk::Offset2D{ 0, 0 }, extent },
+            .clearValueCount = 1,
+            .pClearValues = &k_clear_color };
+
+        cmd.reset();
+        cmd.begin( vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse } );
+        cmd.beginRenderPass( render_pass_info, vk::SubpassContents::eInline );
+
+        imgui_resources.fillCommandBuffer( cmd );
+
+        cmd.endRenderPass();
+        cmd.end();
+    };
+
+    auto render_frame =
+        [ &, &logical_device = logical_device, &graphics_queue = graphics_queue, &present_queue = present_queue ]() {
+            auto& current_frame_data = render_infos.sync_primitives.at( current_frame );
+            auto& command_buffer = render_infos.imgui_command_buffers.at( current_frame );
+            logical_device->waitForFences( current_frame_data.in_flight_fence.get(), VK_TRUE, UINT64_MAX );
+
+            const auto acquire_info = vk::AcquireNextImageInfoKHR{
+                .swapchain = swapchain.get(),
+                .timeout = UINT64_MAX,
+                .semaphore = current_frame_data.image_availible_semaphore.get(),
+                .fence = nullptr,
+                .deviceMask = 1 };
+
+            uint32_t image_index;
+            try
+            {
+                image_index = logical_device->acquireNextImage2KHR( acquire_info ).value;
+            } catch ( vk::OutOfDateKHRError& )
+            {
+                recreate_swapchain_wrapped();
+                return;
+            }
+
+            fill_command_buffer( command_buffer.get(), image_index, swapchain.extent() );
+
+            const auto cmds = std::array{ *command_buffer };
+
+            vk::PipelineStageFlags wait_stages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+            const auto submit_info = vk::SubmitInfo{
+                .waitSemaphoreCount = 1,
+                .pWaitSemaphores = std::addressof( *current_frame_data.image_availible_semaphore ),
+                .pWaitDstStageMask = &wait_stages,
+                .commandBufferCount = cmds.size(),
+                .pCommandBuffers = cmds.data(),
+                .signalSemaphoreCount = 1,
+                .pSignalSemaphores = std::addressof( *current_frame_data.render_finished_semaphore ) };
+
+            logical_device->resetFences( *current_frame_data.in_flight_fence );
+            graphics_queue.submit( submit_info, *current_frame_data.in_flight_fence );
+
+            vk::PresentInfoKHR present_info = {
+                .waitSemaphoreCount = 1,
+                .pWaitSemaphores = std::addressof( *current_frame_data.render_finished_semaphore ),
+                .swapchainCount = 1,
+                .pSwapchains = &swapchain.get(),
+                .pImageIndices = &image_index };
+
+            vk::Result result_present;
+            try
+            {
+                result_present = present_queue.presentKHR( present_info );
+            } catch ( vk::OutOfDateKHRError& )
+            {
+                result_present = vk::Result::eErrorOutOfDateKHR;
+            }
+
+            if ( result_present == vk::Result::eSuboptimalKHR || result_present == vk::Result::eErrorOutOfDateKHR )
+            {
+                recreate_swapchain_wrapped();
+            }
+
+            current_frame = ( current_frame + 1 ) % k_max_frames_in_flight;
+        };
+
+    auto terminate = [ &logical_device = logical_device ]() {
+        logical_device->waitIdle();
+    };
+
+    auto draw_gui = []() {
+        ImGui::ShowDemoWindow();
+    };
+
+    auto loop = [ & ]() {
+        imgui_resources.newFrame();
+        draw_gui();
+        imgui_resources.renderFrame();
+        render_frame();
+    };
+
     while ( window.running() )
     {
         glfwPollEvents();
+        loop();
     }
+
+    terminate();
 }
 
 } // namespace

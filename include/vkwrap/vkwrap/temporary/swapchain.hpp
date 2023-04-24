@@ -157,6 +157,7 @@ class Swapchain : private vk::UniqueSwapchainKHR
     using Base::operator*;
     using Base::operator->;
     using Base::operator bool;
+    using Base::reset;
 
   public:
     auto& images() const& { return m_images; }
