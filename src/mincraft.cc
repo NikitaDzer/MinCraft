@@ -429,15 +429,7 @@ runApplication( std::span<const char*> command_line_args )
                 .pSwapchains = &swapchain.get(),
                 .pImageIndices = &image_index };
 
-            vk::Result result_present;
-            try
-            {
-                result_present = present_queue.presentKHR( present_info );
-            } catch ( vk::OutOfDateKHRError& )
-            {
-                result_present = vk::Result::eErrorOutOfDateKHR;
-            }
-
+            vk::Result result_present = present_queue.presentKHRWithOutOfDate( present_info );
             if ( result_present == vk::Result::eSuboptimalKHR || result_present == vk::Result::eErrorOutOfDateKHR )
             {
                 recreate_swapchain_wrapped();
