@@ -1,7 +1,3 @@
-/* Simple program that demostrates the usage of <vulkan.hpp> C++ wrappers.
- *
- */
-
 #include "common/vulkan_include.h"
 
 #include "vkwrap/command.h"
@@ -9,6 +5,8 @@
 #include "vkwrap/instance.h"
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
+
+#include "vkwrap/temporary/swapchain.hpp"
 
 #include "glfw/window.h"
 #include "gui/gui.hpp"
@@ -175,6 +173,15 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
     return LogicalDeviceCreateResult{ .device = std::move( logical_device ), .graphics = graphics, .present = present };
 }
 
+vk::Extent2D
+getFramebufferExtent( const glfw::wnd::Window& window )
+{
+    auto framebuffer_size = window.getFramebufferSize();
+    return vk::Extent2D{
+        .width = static_cast<uint32_t>( framebuffer_size.width ),
+        .height = static_cast<uint32_t>( framebuffer_size.height ) };
+}
+
 void
 runApplication( std::span<const char*> command_line_args )
 {
@@ -205,6 +212,29 @@ runApplication( std::span<const char*> command_line_args )
 
     auto command_pool = vkwrap::CommandPool{ logical_device, graphics_queue };
     auto one_time_cmd = vkwrap::OneTimeCommand{ command_pool, graphics_queue.get() };
+
+    auto swapchain = vkwrap::Swapchain{
+        physical_device.get(),
+        logical_device,
+        surface.get(),
+        getFramebufferExtent( window ),
+        graphics_queue,
+        present_queue };
+
+    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
+    auto render_pass = pipeline_builder.withColorAttachment( swapchain.format().format )
+                           .withRenderPass( logical_device )
+                           .getRenderPass();
+
+    auto imgui_resources = imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
+        .instance = vk_instance,
+        .window = window.get(),
+        .physical_device = physical_device.get(),
+        .logical_device = logical_device,
+        .graphics = graphics_queue,
+        .swapchain = swapchain,
+        .upload_context = one_time_cmd,
+        .render_pass = render_pass } };
 
     while ( window.running() )
     {

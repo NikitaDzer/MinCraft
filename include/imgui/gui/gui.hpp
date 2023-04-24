@@ -8,6 +8,8 @@
 #include "vkwrap/descriptors.h"
 #include "vkwrap/queues.h"
 
+#include "vkwrap/temporary/swapchain.hpp"
+
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
@@ -103,7 +105,7 @@ class ImGuiResources
         vk::PhysicalDevice physical_device,
         vk::Device logical_device,
         vkwrap::Queue graphics,
-        /* swapchain, */
+        const vkwrap::Swapchain& swapchain,
         vkwrap::OneTimeCommand& upload_context,
         vk::RenderPass render_pass )
     {
@@ -122,8 +124,8 @@ class ImGuiResources
             .PipelineCache = VK_NULL_HANDLE,
             .DescriptorPool = *m_descriptor_pool,
             .Subpass = 0,
-            .MinImageCount = 0 /* Should get changed when swapchain is done */,
-            .ImageCount = 0 /* Should get changed when swapchain is done */,
+            .MinImageCount = swapchain.minImageCount(),
+            .ImageCount = static_cast<uint32_t>( swapchain.images().size() ),
             .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
             .Allocator = nullptr,
             .CheckVkResultFn = checkVkResult };
@@ -144,7 +146,7 @@ class ImGuiResources
         vk::PhysicalDevice physical_device;
         vk::Device logical_device;
         vkwrap::Queue graphics;
-        /* swapchain, */
+        const vkwrap::Swapchain& swapchain;
         vkwrap::OneTimeCommand& upload_context;
         vk::RenderPass render_pass;
     };
@@ -157,6 +159,7 @@ class ImGuiResources
               info.physical_device,
               info.logical_device,
               info.graphics,
+              info.swapchain,
               info.upload_context,
               info.render_pass ) }
     {
