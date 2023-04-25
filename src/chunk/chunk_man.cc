@@ -1,5 +1,5 @@
-#include "chunk/chunk_gen.h"
 #include "chunk/chunk_man.h"
+#include "chunk/chunk_gen.h"
 
 namespace chunk
 {
