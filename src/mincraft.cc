@@ -116,33 +116,18 @@ parseOptions( std::span<const char*> command_line_args )
 }
 
 vkwrap::PhysicalDevice
-pickPhysicalDevice( vk::Instance instance, vk::SurfaceKHR surface )
+pickPhysicalDevice( vk::Instance instance, vk::SurfaceKHR surface, vkwrap::SwapchainReqs swapchain_requirements )
 {
     vkwrap::PhysicalDeviceSelector physical_selector;
 
-    auto depth_weight = []( vkwrap::PhysicalDeviceInfo info ) -> int {
-        auto candidates = std::to_array<vk::Format>(
-            { vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint } );
-
-        auto is_compatible =
-            ranges::any_of( candidates, [ physical_device = info.device ]( vk::Format format ) -> bool {
-                auto props = physical_device.getFormatProperties( format );
-                return ( props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment ) ==
-                    vk::FormatFeatureFlagBits::eDepthStencilAttachment;
-            } );
-
-        return ( is_compatible ? 0 : -1 );
-    };
-
     // Calculate weights depending on the requirements. Should be expanded to check for Format capabilities e.t.c. Help
     // needed :)
-    auto weight_functor = [ depth_weight ]( vkwrap::PhysicalDeviceInfo info ) {
-        return depth_weight( info );
+    auto weight_functor = [ &swapchain_requirements ]( vkwrap::PhysicalDeviceInfo info ) {
+        return swapchain_requirements.calculateWeight( info.device.get() );
     };
 
     physical_selector.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
         .withTypes( std::array{ vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
-        .withPresent( surface )
         .withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withWeight( weight_functor );
 
@@ -153,7 +138,7 @@ pickPhysicalDevice( vk::Instance instance, vk::SurfaceKHR surface )
         throw std::runtime_error{ "No suitable physical devices found" };
     }
 
-    return suitable_devices.at( 0 ).device;
+    return suitable_devices.at( 0 ).info.device;
 }
 
 struct LogicalDeviceCreateResult
@@ -224,18 +209,21 @@ recreateFramebuffers( vkwrap::Swapchain& swapchain, vk::Device logical_device, v
 static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
 
 vkwrap::SwapchainReqs
-getSwapchainRequirements()
+getSwapchainRequirements( vk::SurfaceKHR surface )
 {
     auto formats = std::to_array<vkwrap::SwapchainReqsBuilder::WeightFormat>(
-        { { .format = { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 },
-          { .format = { vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 } } );
+        { { .property = { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 },
+          { .property = { vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 } } );
 
     auto modes = std::to_array<vkwrap::SwapchainReqsBuilder::WeightMode>(
-        { { .mode = vk::PresentModeKHR::eFifo, .weight = 1000 }, //
-          { .mode = vk::PresentModeKHR::eMailbox, .weight = 0 } } );
+        { { .property = vk::PresentModeKHR::eFifo, .weight = 1000 }, //
+          { .property = vk::PresentModeKHR::eMailbox, .weight = 0 } } );
 
     auto requirement_builder = vkwrap::SwapchainReqsBuilder{};
-    requirement_builder.withMinImageCount( k_max_frames_in_flight ).withFormats( formats ).withModes( modes );
+    requirement_builder.withMinImageCount( k_max_frames_in_flight )
+        .withFormats( formats )
+        .withModes( modes )
+        .withSurface( surface );
 
     return requirement_builder.make();
 }
@@ -247,7 +235,7 @@ createSwapchain(
     vk::SurfaceKHR surface,
     vkwrap::Queue graphics_queue,
     vkwrap::Queue present_queue,
-    vkwrap::SwapchainReqs swapchain_requirements )
+    const vkwrap::SwapchainReqs& swapchain_requirements )
 {
     auto min_image_count = std::max(
         swapchain_requirements.getMinImageCount(),
@@ -327,7 +315,8 @@ runApplication( std::span<const char*> command_line_args )
 
     auto vk_instance = createInstance( glfw_instance, options.validation ).instance;
     auto surface = window.createSurface( vk_instance );
-    auto physical_device = pickPhysicalDevice( vk_instance, surface.get() );
+    auto swapchain_requirements = getSwapchainRequirements( surface.get() );
+    auto physical_device = pickPhysicalDevice( vk_instance, surface.get(), swapchain_requirements );
 
     auto [ logical_device, graphics_queue, present_queue ] =
         createLogicalDeviceQueues( physical_device.get(), surface.get() );
@@ -343,7 +332,7 @@ runApplication( std::span<const char*> command_line_args )
         surface.get(),
         graphics_queue,
         present_queue,
-        getSwapchainRequirements() );
+        swapchain_requirements );
 
     auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
     auto render_pass =

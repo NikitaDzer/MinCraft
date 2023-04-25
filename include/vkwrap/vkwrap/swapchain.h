@@ -95,7 +95,7 @@ class SwapchainReqs
             return suitable_weight_property->weight;
         }
 
-        return Weight::k_bad_weight;
+        return k_bad_weight;
     } // calculateWeightProperty
 
     static auto findSuitableWeightProperty(
@@ -164,12 +164,12 @@ class SwapchainReqs
     {
         if ( !isDeviceSupportsSurface( physical_device ) )
         {
-            return Weight::k_bad_weight;
+            return k_bad_weight;
         }
 
         if ( !isSuitableMinImageCount( physical_device ) )
         {
-            return Weight::k_bad_weight;
+            return k_bad_weight;
         }
 
         Weight format_weight = calculateWeightFormat( physical_device );

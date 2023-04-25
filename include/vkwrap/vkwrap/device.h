@@ -127,52 +127,6 @@ template <> struct hash<vkwrap::PhysicalDeviceInfo>
 namespace vkwrap
 {
 
-class Weight
-{
-
-  private:
-    int m_value;
-
-  public:
-    Weight( int value )
-        : m_value{ value }
-    {
-    } // Weight( int )
-
-    static constexpr int k_bad_weight = -1;
-
-    int value() const { return m_value; }
-
-    // clang-format off
-    operator bool() const { return m_value > k_bad_weight; }
-    operator int()  const { return m_value; }
-    // clang-format on
-
-    constexpr auto operator<=>( const Weight& ) const = default;
-    Weight& operator+=( const Weight& additional )
-    {
-        if ( *this && additional )
-        {
-            int new_value = m_value + additional.m_value;
-
-            assert( new_value >= 0 );
-            m_value = new_value;
-        } else
-        {
-            m_value = Weight::k_bad_weight;
-        }
-
-        return *this;
-    } // operator+=( const Weight& )
-
-    friend Weight operator+( const Weight& lhs, const Weight& rhs )
-    {
-        Weight tmp{ lhs };
-        return tmp += rhs;
-    } // friend operator+( const Weight&, const Weight& )
-
-}; // class Weight
-
 class PhysicalDeviceSelector
 {
   public:
@@ -184,15 +138,6 @@ class PhysicalDeviceSelector
         PhysicalDeviceInfo info;
         Weight weight;
     }; // struct WeightPhysicalDeviceInfo
-
-  private:
-    StringVector m_extensions;                                  // Extensions that the device needs to support
-    std::unordered_map<vk::PhysicalDeviceType, Weight> m_types; // A range of device types to prefer
-
-    VulkanVersion m_version = VulkanVersion::e_version_1_0; // Version the physical device has to support
-    WeightFunction m_weight_function = []( auto&& ) -> Weight {
-        return 0;
-    };
 
   public:
     template <ranges::range Range> PhysicalDeviceSelector& withExtensions( Range&& extensions ) &
@@ -222,7 +167,7 @@ class PhysicalDeviceSelector
     {
         // clang-format off
         auto zipped_view = ranges::views::zip_with( 
-            []( auto&& a, auto&& b ) { return std::pair{ a, b }; }, 
+            []( auto&& a, auto&& b ) { return std::pair{ a, Weight{b} }; }, 
             types, ranges::views::iota( 0 )
         ); // clang-format on
 
@@ -242,16 +187,16 @@ class PhysicalDeviceSelector
         // Check basic requirements.
         if ( !device.supportsExtensions( m_extensions ).supports )
         {
-            weight = Weight::k_bad_weight;
+            weight = k_bad_weight;
         }
 
         if ( !m_types.contains( properties.deviceType ) )
         {
-            weight = Weight::k_bad_weight;
+            weight = k_bad_weight;
         }
 
         weight += m_types.at( properties.deviceType );
-        return { elem, weight };
+        return WeightPhysicalDeviceInfo{ elem, weight };
     } // calculateWeight
 
     std::vector<WeightPhysicalDeviceInfo> makeWeighted( vk::Instance instance ) const
@@ -288,17 +233,29 @@ class PhysicalDeviceSelector
 
         return suitable;
     } // make
-};    // PhysicalDeviceSelector
+
+  private:
+    StringVector m_extensions;                                  // Extensions that the device needs to support
+    std::unordered_map<vk::PhysicalDeviceType, Weight> m_types; // A range of device types to prefer
+    VulkanVersion m_version = VulkanVersion::e_version_1_0;     // Version the physical device has to support
+    WeightFunction m_weight_function = []( auto&& ) -> Weight {
+        return Weight{};
+    };
+
+}; // PhysicalDeviceSelector
 
 class LogicalDevice : private vk::UniqueDevice
 {
+  private:
+    using Base = vk::UniqueDevice;
+
   public:
-    using vk::UniqueDevice::operator bool;
-    using vk::UniqueDevice::operator->;
-    using vk::UniqueDevice::get;
+    using Base::operator bool;
+    using Base::operator->;
+    using Base::get;
 
     LogicalDevice( vk::UniqueDevice logical_device )
-        : vk::UniqueDevice{ std::move( logical_device ) }
+        : Base{ std::move( logical_device ) }
     {
     }
 
@@ -318,13 +275,6 @@ class LogicalDeviceBuilder
         Queue* queue = nullptr;
         vk::SurfaceKHR surface = nullptr; // Surface to present to.
     };                                    // PresentQueueCreateData
-
-  private:
-    PresentQueueCreateData m_present_queue_data;
-    GraphicsQueueCreateData m_graphics_queue_data;
-
-    StringVector m_extensions;
-    vk::PhysicalDeviceFeatures m_features;
 
   public:
     LogicalDeviceBuilder& withFeatures( const vk::PhysicalDeviceFeatures& features ) &
@@ -444,6 +394,12 @@ class LogicalDeviceBuilder
 
         return device;
     } // make
-};    // LogicalDeviceBuilder
+
+  private:
+    PresentQueueCreateData m_present_queue_data;
+    GraphicsQueueCreateData m_graphics_queue_data;
+    StringVector m_extensions;
+    vk::PhysicalDeviceFeatures m_features;
+}; // LogicalDeviceBuilder
 
 } // namespace vkwrap
