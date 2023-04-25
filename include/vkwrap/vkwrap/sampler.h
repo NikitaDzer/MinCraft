@@ -158,27 +158,27 @@ class SamplerBuilder
         return *this;
     } // withUnnormalizedCoordinates
 
-    Sampler make( vk::PhysicalDevice physical_device, vk::Device logical_device ) const&
+    Sampler make( vk::Device device, vk::PhysicalDevice physical_device ) const&
     {
         SamplerPartialInfo partial{ makePartialInfo() };
         partial.assertCheckMembers();
 
         vk::SamplerCreateInfo create_info{ k_sampler_initial_create_info };
 
-        create_info.setMagFilter( *partial.mag_filter );
-        create_info.setMinFilter( *partial.min_filter );
+        create_info.magFilter = *partial.mag_filter;
+        create_info.minFilter = *partial.min_filter;
 
-        create_info.setAddressModeU( *partial.address_mode_u );
-        create_info.setAddressModeV( *partial.address_mode_v );
-        create_info.setAddressModeW( *partial.address_mode_w );
+        create_info.addressModeU = *partial.address_mode_u;
+        create_info.addressModeV = *partial.address_mode_v;
+        create_info.addressModeW = *partial.address_mode_w;
 
-        create_info.setAnisotropyEnable( *partial.anisotropy_enable );
-        create_info.setMaxAnisotropy( getMaxAnisotropy( physical_device ) );
+        create_info.anisotropyEnable = *partial.anisotropy_enable;
+        create_info.maxAnisotropy = getMaxAnisotropy( physical_device );
 
-        create_info.setCompareOp( *partial.compare_op );
-        create_info.setUnnormalizedCoordinates( *partial.unnormalized_coordinates );
+        create_info.compareOp = *partial.compare_op;
+        create_info.unnormalizedCoordinates = *partial.unnormalized_coordinates;
 
-        return { logical_device.createSamplerUnique( create_info ) };
+        return { device.createSamplerUnique( create_info ) };
     } // make
 
 }; // class SamplerBuilder

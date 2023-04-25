@@ -4,18 +4,16 @@
 #include <vk_mem_alloc.h>
 
 #include "utils/misc.h"
+#include "utils/patchable.h"
 
 #include "vkwrap/core.h"
 #include "vkwrap/error.h"
 #include "vkwrap/utils.h"
 
-#include <range/v3/algorithm/any_of.hpp>
-
-#include <range/v3/range/conversion.hpp>
-
 #include <array>
 #include <bit>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -57,23 +55,6 @@ struct PipelineStages
     vk::PipelineStageFlags dst;
 }; // struct PipelineStages
 
-inline bool
-hasStencil( vk::Format format )
-{
-    using vk::Format;
-
-    constexpr auto k_formats_with_stencil = std::array{
-        Format::eS8Uint,
-        Format::eD16UnormS8Uint,
-        Format::eD24UnormS8Uint,
-        Format::eD32SfloatS8Uint,
-    };
-
-    return ranges::any_of( k_formats_with_stencil, [ format ]( Format format_with_stencil ) {
-        return format == format_with_stencil;
-    } );
-} // hasStencil
-
 inline AccessMasks
 chooseAccessMasks( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 {
@@ -105,7 +86,12 @@ chooseAccessMasks( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
 } // chooseAccessMasks
 
 inline vk::ImageMemoryBarrier
-createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout )
+createImageBarrierInfo(
+    vk::Image& image,
+    vk::Format format,
+    uint32_t layers,
+    vk::ImageLayout old_layout,
+    vk::ImageLayout new_layout )
 {
     using vk::AccessFlagBits;
     using vk::ImageMemoryBarrier;
@@ -131,11 +117,12 @@ createImageBarrierInfo( vk::Image& image, vk::Format format, vk::ImageLayout old
         .subresourceRange = {
             .aspectMask = chooseAspectMask( format ),
 
-            // We use images with one layer and one mipmap.
+            // We use images with one mipmap.
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
-            .layerCount = 1,
+
+            .layerCount = layers
         }
     };
     // clang-format on
@@ -189,6 +176,7 @@ class Mman
         vk::Format format;
         vk::ImageLayout layout;
         vk::Extent3D extent;
+        uint32_t layers;
     }; // struct ImageInfo
 
     class OneTimeCommand : private vk::UniqueCommandBuffer
@@ -239,6 +227,20 @@ class Mman
 
         using Base::operator->;
     }; // class OneTimeCommand
+
+  public:
+    // clang-format off
+    PATCHABLE_DEFINE_STRUCT(
+        Region,
+        ( std::optional<vk::DeviceSize>,       buffer_offset       ),
+        ( std::optional<uint32_t>,             buffer_row_length   ),
+        ( std::optional<uint32_t>,             buffer_image_height ),
+        ( std::optional<vk::ImageAspectFlags>, aspect_mask         ),
+        ( std::optional<vk::Offset3D>,         image_offset        )
+    );
+    // clang-format on
+
+    using RegionMaker = std::function<Region( uint32_t layer )>;
 
   private:
     VmaAllocator m_vma;
@@ -383,7 +385,12 @@ class Mman
 
         vk::resultCheck( vk::Result{ result }, "Mman: image allocation error." );
 
-        ImageInfo image_info{ allocation, create_info.format, create_info.initialLayout, create_info.extent };
+        ImageInfo image_info{
+            allocation,
+            create_info.format,
+            create_info.initialLayout,
+            create_info.extent,
+            create_info.arrayLayers };
         addInfo( image, image_info );
 
         return image;
@@ -440,39 +447,72 @@ class Mman
         copy( src_buffer, dst_buffer, 0, 0, findInfo( src_buffer )->size );
     } // copy
 
+    void copy( vk::Buffer src_buffer, vk::Image dst_image, RegionMaker maker )
+    {
+        ImageInfo* image_info = findInfo( dst_image );
+        uint32_t layers = image_info->layers;
+
+        std::vector<vk::BufferImageCopy> regions{};
+
+        // clang-format off
+        for ( uint32_t layer = 0; layer < layers; layer++ )
+        {
+            Region partial{ maker( layer ) };
+            partial.assertCheckMembers();
+
+            regions.push_back({
+                .bufferOffset = *partial.buffer_offset,
+                .bufferRowLength = *partial.buffer_row_length,
+                .bufferImageHeight = *partial.buffer_image_height,
+                
+                .imageSubresource = {
+                    .aspectMask = *partial.aspect_mask,
+
+                    // We use images with only one mipmap.
+                    .mipLevel = 0,
+
+                    .baseArrayLayer = layer,
+                    .layerCount = 1 },
+
+                .imageOffset = *partial.image_offset,
+                .imageExtent = image_info->extent
+            });
+        }
+
+        getCommand().submitAndWait( [ & ]( auto& cmd ) { 
+            cmd.copyBufferToImage( src_buffer, dst_image, image_info->layout, regions ); 
+        });
+        // clang-format on
+    } // copy
+
     void copy( vk::Buffer src_buffer, vk::Image dst_image )
     {
-        // TODO: add interface to configure image and buffer params.
+        const auto* image_info = findInfo( dst_image );
 
-        ImageInfo* image_info = findInfo( dst_image );
-        vk::BufferImageCopy region{
-            .bufferOffset = 0,
-            .bufferRowLength = 0,
-            .bufferImageHeight = 0,
+        auto format = image_info->format;
+        auto extent = image_info->extent;
 
-            .imageSubresource =
-                { .aspectMask = vk::ImageAspectFlagBits::eColor,
+        auto aspect_mask = chooseAspectMask( format );
+        auto image_size = extent.width * extent.height * extent.width;
 
-                  // We use images with one layer and one mipmap.
-                  .mipLevel = 0,
-                  .baseArrayLayer = 0,
-                  .layerCount = 1 },
-
-            .imageOffset = vk::Offset3D{ 0, 0, 0 },
-            .imageExtent = image_info->extent };
-
-        getCommand().submitAndWait( [ & ]( auto& cmd ) {
-            cmd.copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
+        copy( src_buffer, dst_image, [ & ]( uint32_t layer ) {
+            return Region{
+                .buffer_offset = layer * image_size,
+                .buffer_row_length = 0,
+                .buffer_image_height = 0,
+                .aspect_mask = aspect_mask,
+                .image_offset = vk::Offset3D{ 0, 0, 0 } };
         } );
     } // copy
 
     void transit( vk::Image image, vk::ImageLayout new_layout )
     {
         ImageInfo* image_info = findInfo( image );
+        vk::ImageLayout old_layout = image_info->layout;
 
-        auto [ src_stage, dst_stage ] = choosePipelineStages( image_info->layout, new_layout );
+        auto [ src_stage, dst_stage ] = choosePipelineStages( old_layout, new_layout );
         vk::ImageMemoryBarrier barrier{
-            createImageBarrierInfo( image, image_info->format, image_info->layout, new_layout ) };
+            createImageBarrierInfo( image, image_info->format, image_info->layers, old_layout, new_layout ) };
 
         getCommand().submitAndWait( [ src_stage = src_stage, dst_stage = dst_stage, &barrier ]( auto& cmd ) {
             cmd.pipelineBarrier(

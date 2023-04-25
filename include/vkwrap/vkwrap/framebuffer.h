@@ -46,7 +46,8 @@ class FramebufferBuilder
         ( std::optional<vk::RenderPass>,               render_pass ),
         ( std::optional< std::vector<vk::ImageView> >, attachments ),
         ( std::optional<uint32_t>,                     width       ),
-        ( std::optional<uint32_t>,                     height      )
+        ( std::optional<uint32_t>,                     height      ),
+        ( std::optional<uint32_t>,                     layers      )
     );
     // clang-format on
 
@@ -75,9 +76,6 @@ class FramebufferBuilder
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
-
-        // We use images with only one layer.
-        .layers = 1 
     };
     // clang-format on
 
@@ -118,19 +116,26 @@ class FramebufferBuilder
         return *this;
     } // withHeight
 
+    FramebufferBuilder& withLayers( uint32_t layers ) &
+    {
+        m_partial.layers = layers;
+        return *this;
+    } // withLayers
+
     Framebuffer make( vk::Device device ) const&
     {
         FramebufferPartialInfo partial = makePartialInfo();
         partial.assertCheckMembers();
 
         vk::FramebufferCreateInfo create_info{ k_framebuffer_initial_create_info };
-        create_info.setRenderPass( *partial.render_pass );
+        create_info.renderPass = *partial.render_pass;
 
         auto unique_attachments = utils::getUniqueElements( m_partial.attachments.value() );
         create_info.setAttachments( *m_partial.attachments );
 
-        create_info.setWidth( *partial.width );
-        create_info.setHeight( *partial.height );
+        create_info.width = *partial.width;
+        create_info.height = *partial.height;
+        create_info.layers = *partial.layers;
 
         return { device.createFramebufferUnique( create_info ) };
     } // make

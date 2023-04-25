@@ -4,6 +4,7 @@
 
 #include "vkwrap/core.h"
 #include "vkwrap/mman.h"
+#include "vkwrap/queues.h"
 #include "vkwrap/utils.h"
 
 #include "utils/patchable.h"
@@ -84,21 +85,15 @@ class Buffer : private vk::Buffer
     Buffer( const Buffer& ) = delete;
     Buffer& operator=( const Buffer& ) = delete;
 
-    // TODO: make it more type-safe.
-    void update( auto* raw_data, size_t n_bytes )
+    void update( const auto& raw_data, size_t n_bytes )
     {
-        assert( raw_data );
+        uint8_t* src = reinterpret_cast<uint8_t*>( &raw_data );
+        uint8_t* dst = m_mman->map( *this );
 
-        if ( raw_data != nullptr )
-        {
-            uint8_t* src = reinterpret_cast<uint8_t*>( raw_data );
-            uint8_t* dst = m_mman->map( *this );
+        std::copy( src, src + n_bytes, dst );
+        m_mman->flush( *this );
 
-            std::copy( src, src + n_bytes, dst );
-            m_mman->flush( *this );
-
-            m_mman->unmap( *this );
-        }
+        m_mman->unmap( *this );
     } // update
 
     void update( ranges::contiguous_range auto&& range ) { update( range.data(), range.size() ); }
@@ -116,14 +111,14 @@ class BufferBuilder
 {
 
   public:
-    using QueueFamilyIndices = std::vector<QueueFamilyIndex>;
+    using Queues = std::vector<Queue>;
 
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         BufferPartialInfo,
-        ( std::optional<vk::DeviceSize>,       size    ),
-        ( std::optional<vk::BufferUsageFlags>, usage   ),
-        ( std::optional<QueueFamilyIndices>,   indices )
+        ( std::optional<vk::DeviceSize>,       size   ),
+        ( std::optional<vk::BufferUsageFlags>, usage  ),
+        ( std::optional<Queues>,               queues )
     );
     // clang-format on
 
@@ -178,23 +173,24 @@ class BufferBuilder
         return *this;
     } // withUsage
 
-    BufferBuilder& withQueueFamilyIndices( ranges::range auto&& indices ) &
+    BufferBuilder& withQueues( ranges::range auto&& queues ) &
     {
-        m_partial.indices = ranges::to_vector( indices );
+        assert( !queues.empty() );
+
+        m_partial.queues = ranges::to_vector( queues );
         return *this;
-    } // withQueueFamilyIndices
+    } // withQueues
 
     Buffer make( Mman& mman ) const&
     {
         BufferPartialInfo partial = makePartialInfo();
         partial.assertCheckMembers();
-        assert( !partial.indices->empty() );
 
         vk::BufferCreateInfo create_info{ k_initial_create_info };
         create_info.size = *partial.size;
         create_info.usage = *partial.usage;
 
-        SharingInfoSetter setter{ partial.indices.value() };
+        SharingInfoSetter setter{ *partial.queues };
         setter.setTo( create_info );
 
         return { create_info, mman };
