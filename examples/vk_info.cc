@@ -187,7 +187,7 @@ try
     vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
-    auto logical_device = device_builder.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    auto logical_device = device_builder.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
                               .withGraphicsQueue( graphics )
                               .withPresentQueue( surface.get(), present )
                               .make( physical_device.get() );
@@ -200,13 +200,13 @@ try
         auto&& [ device, props, id ] = info;
 
         fmt::print(
-            "[{}]. weight = {}, name = {}, type = {}, id = {}, uuid = {}\n",
+            "[{}]. name = {}, type = {}, id = {}, uuid = {}, weight = {}\n",
             i++,
-            weight.value(),
             props.deviceName.data(),
             vk::to_string( props.deviceType ),
             props.deviceID,
-            fmt::join( id.driverUUID, "" ) );
+            fmt::join( id.driverUUID, "" ),
+            weight.value() );
     }
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
