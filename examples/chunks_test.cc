@@ -18,14 +18,17 @@ main()
     auto start_time = std::chrono::high_resolution_clock::now();
 
     chunk::ChunkMesher mesher{};
-    mesher.startMesh();
+    mesher.meshRenderArea();
 
     auto finish_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time =
         std::chrono::duration<float, std::chrono::milliseconds::period>( finish_time - start_time ).count();
 
-    std::cout << "[Meshing] vertices count: " << mesher.m_vertices.size() << " "
-              << "indices count: " << mesher.m_indices.size() << "\n";
+    std::cout << "[Meshing] vertices count: " << mesher.getVerticesCount() << "\n"
+              << "indices count: " << mesher.getIndicesCount() << "\n";
+
+    std::cout << "[Meshing] allocated memory ( in MegaBytes ): " << mesher.getAllocatedBytesCount() / ( 1024 * 1024 )
+              << "\n";
 
     std::cout << "[Meshing] elapsed time: " << elapsed_time << " millis\n";
 

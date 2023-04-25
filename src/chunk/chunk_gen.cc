@@ -13,10 +13,17 @@ simpleChunkGen( Chunk& chunk_to_gen )
         {
             for ( int z = 0; z < Chunk::k_max_height; z++ )
             {
-                chunk_to_gen.at( x, y, z ) = static_cast<BlockID>( rand() % 3 );
+                if ( z > 128 )
+                {
+                    chunk_to_gen.at( x, y, z ) = BlockID::k_none;
+                } else
+                {
+                    chunk_to_gen.at( x, y, z ) = BlockID::k_stone;
+                }
             }
         }
     }
+
 } // simpleChunkGen
 
 }; // namespace chunk
