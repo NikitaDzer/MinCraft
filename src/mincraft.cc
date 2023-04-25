@@ -8,7 +8,7 @@
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
 
-#include "vkwrap/temporary/swapchain.hpp"
+#include "vkwrap/swapchain.h"
 
 #include "glfw/window.h"
 #include "gui/gui.hpp"
@@ -20,6 +20,7 @@
 #include <popl/popl.hpp>
 
 #include <range/v3/algorithm/any_of.hpp>
+#include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/view/iota.hpp>
 #include <range/v3/view/single.hpp>
 
@@ -197,16 +198,20 @@ struct SwapchainRecreateResult
 Framebuffers
 recreateFramebuffers( vkwrap::Swapchain& swapchain, vk::Device logical_device, vk::RenderPass render_pass )
 {
-    auto extent = swapchain.extent();
+    auto extent = swapchain.getExtent();
     Framebuffers framebuffers;
 
-    for ( auto& view : swapchain.views() )
+    auto image_views = ranges::views::iota( uint32_t{ 0 }, swapchain.getImagesCount() ) |
+        ranges::views::transform( [ &swapchain ]( uint32_t index ) { return swapchain.getView( index ); } );
+
+    for ( auto view : image_views )
     {
         auto framebuffer_builder = vkwrap::FramebufferBuilder{};
-        framebuffer_builder.withAttachments( ranges::views::single( view.get() ) )
+        framebuffer_builder.withAttachments( ranges::views::single( view ) )
             .withWidth( extent.width )
             .withHeight( extent.height )
-            .withRenderPass( render_pass );
+            .withRenderPass( render_pass )
+            .withLayers( 1 );
 
         framebuffers.push_back( framebuffer_builder.make( logical_device ) );
     }
@@ -214,35 +219,56 @@ recreateFramebuffers( vkwrap::Swapchain& swapchain, vk::Device logical_device, v
     return framebuffers;
 }
 
+static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
+
 vkwrap::Swapchain
-recreateSwapchain(
-    const glfw::wnd::Window& window,
+createSwapchain(
     vk::PhysicalDevice physical_device,
     vk::Device logical_device,
     vk::SurfaceKHR surface,
     vkwrap::Queue graphics_queue,
-    vkwrap::Queue present_queue,
-    vkwrap::Swapchain old_swapchain = {} )
+    vkwrap::Queue present_queue )
 {
-    auto extent = getFramebufferExtent( window );
+    auto min_image_count =
+        std::max( physical_device.getSurfaceCapabilitiesKHR( surface ).minImageCount, k_max_frames_in_flight );
 
-    while ( extent.width == 0 || extent.height == 0 )
-    {
-        // Busy waiting loop. Should work for now
-        extent = getFramebufferExtent( window );
-    }
+    auto find_fallback_format = [ physical_device, surface ]() {
+        auto surface_formats = physical_device.getSurfaceFormatsKHR( surface );
+        auto found = ranges::find_if( surface_formats, []( vk::SurfaceFormatKHR format ) {
+            return format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
+        } );
 
-    auto new_swapchain = vkwrap::Swapchain{
-        physical_device,
-        logical_device,
-        surface,
-        extent,
-        graphics_queue,
-        present_queue,
-        old_swapchain.get() };
+        if ( found == surface_formats.end() )
+        {
+            throw std::runtime_error{ "No compatible surface format found" };
+        }
 
-    logical_device.waitIdle();
-    old_swapchain.reset();
+        return *found;
+    };
+
+    auto requirement_builder = vkwrap::SwapchainReqsBuilder{};
+    requirement_builder.withMinImageCount( min_image_count );
+
+    requirement_builder.withFormats( std::to_array<vkwrap::SwapchainReqsBuilder::WeightFormat>(
+        { { .format = { .format = vk::Format::eB8G8R8A8Unorm, .colorSpace = vk::ColorSpaceKHR::eSrgbNonlinear },
+            .weight = 1000 } } ) );
+
+    requirement_builder.withModes( std::to_array<vkwrap::SwapchainReqsBuilder::WeightMode>(
+        { { .mode = vk::PresentModeKHR::eFifo, .weight = 0 },
+          { .mode = vk::PresentModeKHR::eMailbox, .weight = 1 } } ) );
+
+    auto swapchain_builder = vkwrap::SwapchainBuilder{};
+    swapchain_builder.withQueues( std::array{ graphics_queue, present_queue } )
+        .withImageExtent( vkwrap::getSurfaceExtent( physical_device, surface ) )
+        .withSurface( surface )
+        .withMinImageCount( min_image_count )
+        .withImageUsage( vk::ImageUsageFlagBits::eColorAttachment )
+        .withPreTransform( vk::SurfaceTransformFlagBitsKHR::eIdentity )
+        .withCompositeAlpha( vk::CompositeAlphaFlagBitsKHR::eInherit )
+        .withClipped( false )
+        .withOldSwapchain( {} );
+
+    auto new_swapchain = swapchain_builder.make( logical_device, physical_device, requirement_builder.make() );
 
     return new_swapchain;
 }
@@ -259,8 +285,6 @@ struct FrameRenderingInfos
     std::vector<FrameSyncPrimitives> sync_primitives;
     std::vector<vk::UniqueCommandBuffer> imgui_command_buffers;
 };
-
-static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
 
 FrameRenderingInfos
 createRenderInfos( vk::Device logical_device, vkwrap::CommandPool& command_pool )
@@ -317,18 +341,12 @@ runApplication( std::span<const char*> command_line_args )
 
     auto one_time_cmd = vkwrap::OneTimeCommand{ command_pool, graphics_queue.get() };
 
-    auto swapchain = recreateSwapchain(
-        window,
-        physical_device.get(),
-        logical_device,
-        surface.get(),
-        graphics_queue,
-        present_queue );
+    auto swapchain =
+        createSwapchain( physical_device.get(), logical_device, surface.get(), graphics_queue, present_queue );
 
     auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
-    auto render_pass = pipeline_builder.withColorAttachment( swapchain.format().format )
-                           .withRenderPass( logical_device )
-                           .getRenderPass();
+    auto render_pass =
+        pipeline_builder.withColorAttachment( swapchain.getFormat() ).withRenderPass( logical_device ).getRenderPass();
 
     auto imgui_resources = imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
         .instance = vk_instance,
@@ -343,19 +361,10 @@ runApplication( std::span<const char*> command_line_args )
     auto framebuffers = recreateFramebuffers( swapchain, logical_device, render_pass );
     auto render_infos = createRenderInfos( logical_device, command_pool );
 
-    auto recreate_swapchain_wrapped =
-        [ &, &logical_device = logical_device, &graphics_queue = graphics_queue, &present_queue = present_queue ]() {
-            swapchain = recreateSwapchain(
-                window,
-                physical_device.get(),
-                logical_device,
-                surface.get(),
-                graphics_queue,
-                present_queue,
-                std::move( swapchain ) );
-
-            framebuffers = recreateFramebuffers( swapchain, logical_device, render_pass );
-        };
+    auto recreate_swapchain_wrapped = [ &, &logical_device = logical_device ]() {
+        swapchain.recreate();
+        framebuffers = recreateFramebuffers( swapchain, logical_device, render_pass );
+    };
 
     uint32_t current_frame = 0;
 
@@ -404,7 +413,7 @@ runApplication( std::span<const char*> command_line_args )
                 return;
             }
 
-            fill_command_buffer( command_buffer.get(), image_index, swapchain.extent() );
+            fill_command_buffer( command_buffer.get(), image_index, swapchain.getExtent() );
 
             const auto cmds = std::array{ *command_buffer };
 

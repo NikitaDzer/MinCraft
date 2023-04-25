@@ -8,7 +8,7 @@
 #include "vkwrap/descriptors.h"
 #include "vkwrap/queues.h"
 
-#include "vkwrap/temporary/swapchain.hpp"
+#include "vkwrap/swapchain.h"
 
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
@@ -126,8 +126,8 @@ class ImGuiResources
             .PipelineCache = VK_NULL_HANDLE,
             .DescriptorPool = *m_descriptor_pool,
             .Subpass = 0,
-            .MinImageCount = swapchain.minImageCount(),
-            .ImageCount = static_cast<uint32_t>( swapchain.images().size() ),
+            .MinImageCount = swapchain.getImagesCount(),
+            .ImageCount = swapchain.getImagesCount(),
             .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
             .Allocator = nullptr,
             .CheckVkResultFn = checkVkResult };
