@@ -12,6 +12,7 @@
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 
+#include <concepts>
 #include <exception>
 #include <functional>
 #include <optional>
@@ -177,9 +178,10 @@ class Image : private vk::Image
 class ImageBuilder
 {
 
-  public:
+  private:
     using Queues = std::vector<Queue>;
 
+  public:
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         ImagePartialInfo,
@@ -285,7 +287,9 @@ class ImageBuilder
         return *this;
     } // withUsage
 
-    ImageBuilder& withQueues( ranges::range auto&& queues ) &
+    template <ranges::range Range>
+        requires std::same_as<ranges::range_value_t<Range>, Queue>
+    ImageBuilder& withQueues( Range&& queues ) &
     {
         assert( !queues.empty() );
 
