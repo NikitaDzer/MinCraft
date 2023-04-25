@@ -305,7 +305,7 @@ class ImageBuilder
         create_info.tiling = *partial.tiling;
         create_info.usage = *partial.usage;
 
-        SharingInfoSetter setter{ partial.queues.value() };
+        SharingInfoSetter setter{ *partial.queues };
         setter.setTo( create_info );
 
         return { create_info, mman };

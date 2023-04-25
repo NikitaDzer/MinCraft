@@ -130,7 +130,7 @@ class FramebufferBuilder
         vk::FramebufferCreateInfo create_info{ k_framebuffer_initial_create_info };
         create_info.renderPass = *partial.render_pass;
 
-        auto unique_attachments = utils::getUniqueElements( m_partial.attachments.value() );
+        auto unique_attachments = utils::getUniqueElements( *m_partial.attachments );
         create_info.setAttachments( *m_partial.attachments );
 
         create_info.width = *partial.width;
