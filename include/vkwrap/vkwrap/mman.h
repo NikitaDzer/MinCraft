@@ -4,14 +4,11 @@
 #include <vk_mem_alloc.h>
 
 #include "utils/misc.h"
+#include "utils/patchable.h"
 
 #include "vkwrap/core.h"
 #include "vkwrap/error.h"
 #include "vkwrap/utils.h"
-
-#include <range/v3/algorithm/any_of.hpp>
-
-#include <range/v3/range/conversion.hpp>
 
 #include <array>
 #include <bit>
@@ -57,23 +54,6 @@ struct PipelineStages
     vk::PipelineStageFlags src;
     vk::PipelineStageFlags dst;
 }; // struct PipelineStages
-
-inline bool
-hasStencil( vk::Format format )
-{
-    using vk::Format;
-
-    constexpr auto k_formats_with_stencil = std::array{
-        Format::eS8Uint,
-        Format::eD16UnormS8Uint,
-        Format::eD24UnormS8Uint,
-        Format::eD32SfloatS8Uint,
-    };
-
-    return ranges::any_of( k_formats_with_stencil, [ format ]( Format format_with_stencil ) {
-        return format == format_with_stencil;
-    } );
-} // hasStencil
 
 inline AccessMasks
 chooseAccessMasks( vk::ImageLayout old_layout, vk::ImageLayout new_layout )
@@ -515,16 +495,13 @@ class Mman
         auto aspect_mask = chooseAspectMask( format );
         auto image_size = extent.width * extent.height * extent.width;
 
-                  // We use images with one layer and one mipmap.
-                  .mipLevel = 0,
-                  .baseArrayLayer = 0,
-                  .layerCount = 1 },
-
-            .imageOffset = vk::Offset3D{ 0, 0, 0 },
-            .imageExtent = image_info->extent };
-
-        getCommand().submitAndWait( [ & ]( auto& cmd ) {
-            cmd.copyBufferToImage( src_buffer, dst_image, image_info->layout, std::array{ region } );
+        copy( src_buffer, dst_image, [ & ]( uint32_t layer ) {
+            return Region{
+                .buffer_offset = layer * image_size,
+                .buffer_row_length = 0,
+                .buffer_image_height = 0,
+                .aspect_mask = aspect_mask,
+                .image_offset = vk::Offset3D{ 0, 0, 0 } };
         } );
     } // copy
 

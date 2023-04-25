@@ -34,10 +34,10 @@ chooseImageViewType( vk::ImageType type )
     switch ( type )
     {
     case ImageType::e1D:
-        return ImageViewType::e1D;
+        return ImageViewType::e1DArray;
 
     case ImageType::e2D:
-        return ImageViewType::e2D;
+        return ImageViewType::e2DArray;
 
     case ImageType::e3D:
         return ImageViewType::e3D;
@@ -74,8 +74,7 @@ class Image : private vk::Image
         .subresourceRange = { 
             .baseMipLevel = 0, 
             .levelCount = 1, 
-            .baseArrayLayer = 0, 
-            .layerCount = 1 } 
+            .baseArrayLayer = 0 }
     };
     // clang-format on
 
@@ -95,6 +94,7 @@ class Image : private vk::Image
         view_create_info.setFormat( image_create_info.format );
 
         view_create_info.subresourceRange.setAspectMask( chooseAspectMask( image_create_info.format ) );
+        view_create_info.subresourceRange.setLayerCount( image_create_info.arrayLayers );
 
         return view_create_info;
     } // makeImageViewCreateInfo
@@ -151,12 +151,16 @@ class Image : private vk::Image
         swap( *this, tmp );
 
         return *this;
-    } // operator = ( Image&& )
+    } // operator=( Image&& )
 
     Image( const Image& ) = delete;
     Image& operator=( const Image& ) = delete;
 
     void update( vk::Buffer src_buffer ) { m_mman->copy( src_buffer, *this ); }
+    void update( vk::Buffer src_buffer, Mman::RegionMaker maker )
+    {
+        m_mman->copy( src_buffer, *this, maker );
+    } // update
 
     void transit( vk::ImageLayout new_layout ) { m_mman->transit( *this, new_layout ); }
 
@@ -179,13 +183,14 @@ class ImageBuilder
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         ImagePartialInfo,
-        ( std::optional<vk::ImageType>,           image_type ),
-        ( std::optional<vk::Format>,              format    ),
-        ( std::optional<vk::Extent3D>,            extent    ),
-        ( std::optional<vk::SampleCountFlagBits>, samples   ),
-        ( std::optional<vk::ImageTiling>,         tiling    ),
-        ( std::optional<vk::ImageUsageFlags>,     usage     ),
-        ( std::optional<Queues>,                  queues    )
+        ( std::optional<vk::ImageType>,           image_type   ),
+        ( std::optional<vk::Format>,              format       ),
+        ( std::optional<vk::Extent3D>,            extent       ),
+        ( std::optional<uint32_t>,                array_layers ),
+        ( std::optional<vk::SampleCountFlagBits>, samples      ),
+        ( std::optional<vk::ImageTiling>,         tiling       ),
+        ( std::optional<vk::ImageUsageFlags>,     usage        ),
+        ( std::optional<Queues>,                  queues       )
     );
     // clang-format on
 
@@ -216,9 +221,6 @@ class ImageBuilder
 
         // We don't use compressed images.
         .mipLevels = 1,
-
-        // One layer in an image.
-        .arrayLayers = 1,
 
         // Initial layout is unknown.
         .initialLayout = vk::ImageLayout::eUndefined };
@@ -254,6 +256,14 @@ class ImageBuilder
         return *this;
     } // withExtent
 
+    ImageBuilder& withArrayLayers( uint32_t array_layers )
+    {
+        assert( array_layers >= 1 );
+
+        m_partial.array_layers = array_layers;
+        return *this;
+    } // withArrayLayers
+
     ImageBuilder& withSampleCount( vk::SampleCountFlagBits samples ) &
     {
         m_partial.samples = samples;
@@ -274,6 +284,8 @@ class ImageBuilder
 
     ImageBuilder& withQueues( ranges::range auto&& queues ) &
     {
+        assert( !queues.empty() );
+
         m_partial.queues = ranges::to_vector( queues );
         return *this;
     } // withQueues
@@ -285,11 +297,13 @@ class ImageBuilder
         assert( !partial.queues->empty() );
 
         vk::ImageCreateInfo create_info{ k_initial_create_info };
-        create_info.setImageType( *partial.image_type );
-        create_info.setFormat( *partial.format );
-        create_info.setExtent( *partial.extent );
-        create_info.setTiling( *partial.tiling );
-        create_info.setUsage( *partial.usage );
+        create_info.imageType = *partial.image_type;
+        create_info.format = *partial.format;
+        create_info.extent = *partial.extent;
+        create_info.arrayLayers = *partial.array_layers;
+        create_info.samples = *partial.samples;
+        create_info.tiling = *partial.tiling;
+        create_info.usage = *partial.usage;
 
         SharingInfoSetter setter{ partial.queues.value() };
         setter.setTo( create_info );

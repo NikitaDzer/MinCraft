@@ -130,7 +130,7 @@ add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
-find_package ( Boost REQUIRED )
+find_package ( Boost 1.61.0 REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
 
 # -v- VulkanMemoryAllocator configuration -v-
