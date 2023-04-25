@@ -166,7 +166,7 @@ try
                               .make();
 
     vkwrap::PhysicalDeviceSelector physical_selector;
-    physical_selector.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
         .withTypes( { vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
         .withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withWeight(

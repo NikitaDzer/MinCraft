@@ -357,12 +357,17 @@ class Swapchain : private vk::UniqueSwapchainKHR
      * - k_zero_extent:    signals that window is minimized
      * - k_special_extent: signals that Swapchain user must choose extent
      *                     between surface minImageExtent and maxImageExent
+     *
+     * - k_required_extensions: strings of required extensions for swapchain
      */
     static constexpr vk::ImageType k_image_type{ vk::ImageType::e2D };
     static constexpr vk::ComponentMapping k_components{};
 
     static constexpr vk::Extent2D k_zero_extent{ 0, 0 };
     static constexpr vk::Extent2D k_special_extent{ UINT32_MAX, UINT32_MAX };
+
+    static constexpr auto k_required_extensions = 
+        std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
   public:
     Swapchain(
@@ -454,6 +459,8 @@ class Swapchain : private vk::UniqueSwapchainKHR
     vk::Format   getFormat()      const { return m_create_info.imageFormat;               }
     vk::Extent2D getExtent()      const { return m_create_info.imageExtent;               }
     // clang-format on
+
+    static std::span<const char* const> getRequiredExtentions() { return k_required_extensions; }
 
     using Base::operator bool;
     using Base::operator->;
