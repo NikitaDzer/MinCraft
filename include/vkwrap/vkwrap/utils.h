@@ -44,28 +44,21 @@ class SharingInfoSetter
     {
         using InfoType = decltype( create_info );
 
-        constexpr bool has_setSharingMode = requires( InfoType t ) {
-            t.setSharingMode( m_mode );
-        };
+        constexpr bool has_setSharingMode = requires ( InfoType t ) { t.setSharingMode( m_mode ); };
 
-        constexpr bool has_setImageSharingMode = requires( InfoType t ) {
-            t.setImageSharingMode( m_mode );
-        };
+        constexpr bool has_setImageSharingMode = requires ( InfoType t ) { t.setImageSharingMode( m_mode ); };
 
         if constexpr ( has_setSharingMode )
         {
             create_info.setSharingMode( m_mode );
-        }
-        else if constexpr ( has_setImageSharingMode )
+        } else if constexpr ( has_setImageSharingMode )
         {
             create_info.setImageSharingMode( m_mode );
-        }
-        else
+        } else
         {
-            static_assert( 
-                has_setSharingMode || has_setImageSharingMode, 
-                "setTo: Unimplemented vk::SharingInfo setter." 
-            );
+            static_assert(
+                has_setSharingMode || has_setImageSharingMode,
+                "setTo: Unimplemented vk::SharingInfo setter." );
         }
 
         create_info.setQueueFamilyIndexCount( static_cast<uint32_t>( m_unique_indices.size() ) );

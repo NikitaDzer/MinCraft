@@ -5,29 +5,23 @@
 #include "utils/patchable.h"
 
 #include "vkwrap/core.h"
-#include "vkwrap/utils.h"
+#include "vkwrap/device.h"
+#include "vkwrap/image_view.h"
 #include "vkwrap/queues.h"
 #include "vkwrap/surface.h"
-#include "vkwrap/image_view.h"
+#include "vkwrap/utils.h"
 
-#include <cstdint>
-#include <iostream>
-#include <optional>
-#include <set>
-
-#include "range/v3/algorithm/contains.hpp"
-#include "range/v3/algorithm/sort.hpp"
-#include <range/v3/iterator.hpp>
+#include <range/v3/algorithm/sort.hpp>
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
-#include <range/v3/view.hpp>
-#include <range/v3/view/concat.hpp>
+#include <range/v3/range/traits.hpp>
 
-#include <type_traits>
+#include <functional>
+#include <optional>
+#include <utility>
 #include <variant>
 
-#include <algorithm>
-#include <vulkan/vulkan_enums.hpp>
+#include <cassert>
 
 namespace vkwrap
 {
@@ -38,35 +32,151 @@ class SwapchainReqs
   public:
     struct WeightFormat
     {
-        vk::SurfaceFormatKHR format;
-        uint32_t weight;
+        vk::SurfaceFormatKHR property;
+        Weight weight;
     }; // WeightFormat
 
     struct WeightMode
     {
-        vk::PresentModeKHR mode;
-        uint32_t weight;
+        vk::PresentModeKHR property;
+        Weight weight;
     }; // WeightMode
 
     using WeightFormatVector = std::vector<WeightFormat>;
     using WeightModeVector = std::vector<WeightMode>;
 
   private:
+    vk::SurfaceKHR m_surface;
     WeightFormatVector m_formats;
     WeightModeVector m_modes;
     uint32_t m_min_image_count;
 
+    bool isDeviceSupportsSurface( vk::PhysicalDevice physical_device ) const
+    {
+        return physicalDeviceSupportsPresent( physical_device, m_surface );
+    } // isDeviceSupportsSurface
+
+    bool isSuitableMinImageCount( vk::PhysicalDevice physical_device ) const
+    {
+        auto available_image_count = physical_device.getSurfaceCapabilitiesKHR( m_surface ).minImageCount;
+        return available_image_count >= m_min_image_count;
+    } // isSuitableMinImageCount
+
+    auto getAvailableFormats( vk::PhysicalDevice physical_device ) const
+    {
+        return physical_device.getSurfaceFormatsKHR( m_surface );
+    } // getAvaiableFormats
+
+    auto getAvailableModes( vk::PhysicalDevice physical_device ) const
+    {
+        return physical_device.getSurfacePresentModesKHR( m_surface );
+    } // getAvailableModes
+
+    Weight calculateWeightFormat( vk::PhysicalDevice physical_device ) const
+    {
+        auto available_formats = getAvailableFormats( physical_device );
+        return calculateWeightProperty( available_formats, m_formats );
+    } // calculateWeightFormat
+
+    Weight calculateWeightMode( vk::PhysicalDevice physical_device ) const
+    {
+        auto available_modes = getAvailableModes( physical_device );
+        return calculateWeightProperty( available_modes, m_modes );
+    } // calculateWeightMode
+
+    static Weight calculateWeightProperty(
+        ranges::range auto&& available_properties,
+        ranges::range auto&& req_weight_properties )
+    {
+        auto suitable_weight_property = findSuitableWeightProperty( available_properties, req_weight_properties );
+
+        if ( suitable_weight_property.has_value() )
+        {
+            return suitable_weight_property->weight;
+        }
+
+        return Weight::k_bad_weight;
+    } // calculateWeightProperty
+
+    static auto findSuitableWeightProperty(
+        ranges::range auto&& available_properties,
+        ranges::range auto&& req_weight_properties )
+        -> std::optional<ranges::range_value_t<decltype( req_weight_properties )>>
+    {
+        for ( auto&& req_weight_property : req_weight_properties )
+        {
+            if ( ranges::contains( available_properties, req_weight_property.property ) )
+            {
+                return std::optional{ req_weight_property };
+            }
+        }
+
+        return std::nullopt;
+    } // findSuitableWeightProperty
+
   public:
-    SwapchainReqs( WeightFormatVector&& formats, WeightModeVector&& modes, uint32_t min_image_count )
-        : m_formats{ std::move( formats ) },
+    SwapchainReqs(
+        vk::SurfaceKHR surface,
+        WeightFormatVector&& formats,
+        WeightModeVector&& modes,
+        uint32_t min_image_count )
+        : m_surface{ surface },
+          m_formats{ std::move( formats ) },
           m_modes{ std::move( modes ) },
           m_min_image_count{ min_image_count }
     {
     } // SwapchainReqs
 
-    const WeightFormatVector& getFormats() const& { return m_formats; }
-    const WeightModeVector& getModes() const& { return m_modes; }
-    uint32_t getMinImageCount() const { return m_min_image_count; }
+    // clang-format off
+    vk::SurfaceKHR            getSurface()       const  { return m_surface;         }
+    const WeightFormatVector& getFormats()       const& { return m_formats;         }
+    const WeightModeVector&   getModes()         const& { return m_modes;           }
+    uint32_t                  getMinImageCount() const  { return m_min_image_count; }
+    // clang-format on
+
+    std::optional<vk::SurfaceFormatKHR> findSuitableFormat( vk::PhysicalDevice physical_device ) const
+    {
+        auto available_formats = getAvailableFormats( physical_device );
+        auto weight_format = findSuitableWeightProperty( available_formats, m_formats );
+
+        if ( weight_format.has_value() )
+        {
+            return std::optional{ weight_format->property };
+        }
+
+        return std::nullopt;
+    } // findSuitableFormat
+
+    std::optional<vk::PresentModeKHR> findSuitableMode( vk::PhysicalDevice physical_device ) const
+    {
+        auto available_modes = getAvailableModes( physical_device );
+        auto weight_mode = findSuitableWeightProperty( available_modes, m_modes );
+
+        if ( weight_mode.has_value() )
+        {
+            return std::optional{ weight_mode->property };
+        }
+
+        return std::nullopt;
+    } // findSuitableMode
+
+    Weight calculateWeight( vk::PhysicalDevice physical_device ) const
+    {
+        if ( !isDeviceSupportsSurface( physical_device ) )
+        {
+            return Weight::k_bad_weight;
+        }
+
+        if ( !isSuitableMinImageCount( physical_device ) )
+        {
+            return Weight::k_bad_weight;
+        }
+
+        Weight format_weight = calculateWeightFormat( physical_device );
+        Weight mode_weight = calculateWeightMode( physical_device );
+
+        return format_weight + mode_weight;
+    } // calculateWeight
 
 }; // class SwapchainReqs
 
@@ -83,22 +193,55 @@ class SwapchainReqsBuilder
     // clang-format off
     PATCHABLE_DEFINE_STRUCT(
         SwapchainReqsCreateInfo,
+        ( std::optional<vk::SurfaceKHR>,     surface         ),
         ( std::optional<WeightFormatVector>, formats         ),
         ( std::optional<WeightModeVector>,   modes           ),
         ( std::optional<uint32_t>,           min_image_count ) 
     );
     // clang-format on
 
+    using Setter = std::function<void( SwapchainReqsCreateInfo& )>;
+
   private:
+    // clang-format off
+    Setter m_setter = []( auto& ){};
     SwapchainReqsCreateInfo m_info;
 
-    static void sortByAscendingWeight( ranges::range auto& weight_properties )
+    SwapchainReqsCreateInfo makeCreateInfo() const
     {
-        ranges::sort( weight_properties, []( auto&& a, auto&& b ) { return a.weight > b.weight; } );
+        SwapchainReqsCreateInfo info{};
+
+        m_presetter( info );
+        m_setter( info );
+        info.patchWith( m_info );
+
+        return info;
+    } // makeCreateInfo
+
+    static inline Setter m_presetter = []( auto& ){};
+    // clang-format on    
+
+    static void sortByAscendingWeight( ranges::range auto&& weight_properties )
+    {
+        ranges::sort( weight_properties, []( auto&& first, auto&& second ) { return first.weight < second.weight; } );
     } // sortByAscendingWeight
 
   public:
     SwapchainReqsBuilder() = default;
+
+    SwapchainReqsBuilder& withSetter( Setter setter ) &
+    {
+        assert( setter );
+
+        m_setter = setter;
+        return *this;
+    } // withSetter
+
+    SwapchainReqsBuilder& withSurface( vk::SurfaceKHR surface ) &
+    {
+        m_info.surface = surface;
+        return *this;
+    } // withSurface
 
     SwapchainReqsBuilder& withFormats( ranges::range auto&& formats ) &
     {
@@ -126,16 +269,23 @@ class SwapchainReqsBuilder
 
     SwapchainReqs make() const&
     {
-        SwapchainReqsCreateInfo create_info{ m_info };
+        SwapchainReqsCreateInfo create_info{ makeCreateInfo() };
         create_info.assertCheckMembers();
 
         sortByAscendingWeight( *create_info.formats );
         sortByAscendingWeight( *create_info.modes );
 
-        return { std::move( *create_info.formats ), 
+        return { *create_info.surface,
+                 std::move( *create_info.formats ), 
                  std::move( *create_info.modes ), 
                  *create_info.min_image_count }; //
     } // make
+
+    static void setPresetter( Setter presetter )
+    {
+        assert( presetter );
+        m_presetter = presetter;
+    } // setPresetter
 
 }; // class SwapchainReqsBuilder
 
@@ -160,12 +310,12 @@ class Swapchain : private vk::UniqueSwapchainKHR
     }; // enum class RecreateResult
 
   private:
+    vk::SwapchainCreateInfoKHR m_create_info;
     vk::PhysicalDevice m_physical_device;
     vk::Device m_device;
     vk::SurfaceKHR m_surface;
 
     std::vector<uint32_t> m_indices;
-    vk::SwapchainCreateInfoKHR m_create_info;
     std::vector<ImageView> m_views;
 
     void updateSwapchain()
@@ -220,10 +370,10 @@ class Swapchain : private vk::UniqueSwapchainKHR
         vk::PhysicalDevice physical_device,
         vk::Device logical_device,
         vk::SurfaceKHR surface )
-        : m_physical_device{ physical_device },
+        : m_create_info{ create_info },
+          m_physical_device{ physical_device },
           m_device{ logical_device },
-          m_surface{ surface },
-          m_create_info{ create_info }
+          m_surface{ surface }
     {
         /**
          * There could be a dangling pointer,
@@ -299,10 +449,11 @@ class Swapchain : private vk::UniqueSwapchainKHR
         return m_views[ index ].get(); 
     } // getView
 
-    uint32_t getImagesCount() const { return static_cast<uint32_t>( m_views.size() ); }
-
-    vk::Format getFormat() const { return m_create_info.imageFormat; }
-    vk::Extent2D getExtent() const { return m_create_info.imageExtent; }
+    // clang-format off
+    uint32_t     getImagesCount() const { return static_cast<uint32_t>( m_views.size() ); }
+    vk::Format   getFormat()      const { return m_create_info.imageFormat;               }
+    vk::Extent2D getExtent()      const { return m_create_info.imageExtent;               }
+    // clang-format on
 
     using Base::operator bool;
     using Base::operator->;
@@ -359,52 +510,28 @@ class SwapchainBuilder
         return partial;
     } // makePartialInfo
 
-    /**
-     * This function expects req_properties to be sorted by ascending weight.
-     */
-    template <ranges::range Range>
-    static auto chooseSuitableProperty( 
-        const Range& available_properties, 
-        const Range& req_properties ) //
+    static vk::SurfaceFormatKHR chooseSuitableFormat( const SwapchainReqs& reqs, vk::PhysicalDevice physical_device )
     {
-        for ( auto&& property : req_properties )
+        auto format = reqs.findSuitableFormat( physical_device );
+        if ( format.has_value() )
         {
-            if ( ranges::contains( available_properties, property ) )
-            {
-                return property;
-            }
+            return *format;
         }
 
-        assert( 0 && "chooseSuitableProperty: required properties are not available." );
+        assert( 0 && "chooseSuitableFormat: Couldn't find any suitable format." );
         std::terminate();
-    } // chooseSuitableProperty
-
-    static vk::SurfaceFormatKHR chooseSuitableFormat(
-        const SwapchainReqs& reqs,
-        vk::PhysicalDevice physical_device,
-        vk::SurfaceKHR surface )
-    {
-        auto available_formats = physical_device.getSurfaceFormatsKHR( surface );
-
-        auto req_formats =
-            ranges::views::transform( reqs.getFormats(), []( auto&& format ) { return format.format; } ) |
-            ranges::to_vector;
-
-        return chooseSuitableProperty( available_formats, req_formats );
     } // chooseSuitableFormat
 
-    static vk::PresentModeKHR chooseSuitableMode(
-        const SwapchainReqs& reqs,
-        vk::PhysicalDevice physical_device,
-        vk::SurfaceKHR surface )
+    static vk::PresentModeKHR chooseSuitableMode( const SwapchainReqs& reqs, vk::PhysicalDevice physical_device )
     {
-        auto available_modes = physical_device.getSurfacePresentModesKHR( surface );
+        auto mode = reqs.findSuitableMode( physical_device );
+        if ( mode.has_value() )
+        {
+            return *mode;
+        }
 
-        auto req_modes =
-            ranges::views::transform( reqs.getModes(), []( auto&& mode ) { return mode.mode; } ) | 
-            ranges::to_vector; //
-
-        return chooseSuitableProperty( available_modes, req_modes );
+        assert( 0 && "chooseSuitableMode: Couldn't find any suitable present mode." );
+        std::terminate();
     } // chooseSuitableMode
 
     static void writePreTransform(
@@ -517,8 +644,8 @@ class SwapchainBuilder
         partial.assertCheckMembers();
 
         auto surface = *m_partial.surface;
-        auto format = chooseSuitableFormat( reqs, physical_device, surface );
-        auto mode = chooseSuitableMode( reqs, physical_device, surface );
+        auto format = chooseSuitableFormat( reqs, physical_device );
+        auto mode = chooseSuitableMode( reqs, physical_device );
 
         vk::SwapchainCreateInfoKHR create_info{ k_initial_create_info };
 
@@ -547,7 +674,11 @@ class SwapchainBuilder
         };
     } // make
 
-    static void setPresetter( Setter presetter ) { m_presetter = presetter; }
+    static void setPresetter( Setter presetter )
+    {
+        assert( presetter );
+        m_presetter = presetter;
+    } // setPresetter
 
 }; // class SwapchainBuilder
 

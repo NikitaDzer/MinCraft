@@ -7,23 +7,9 @@
 #include "vkwrap/core.h"
 #include "vkwrap/utils.h"
 
-#include <cstdint>
-#include <iostream>
 #include <optional>
-#include <set>
 
-#include "range/v3/algorithm/contains.hpp"
-#include "range/v3/algorithm/sort.hpp"
-#include <range/v3/iterator.hpp>
-#include <range/v3/range/concepts.hpp>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view.hpp>
-#include <range/v3/view/concat.hpp>
-
-#include <type_traits>
-#include <variant>
-
-#include <algorithm>
+#include <cassert>
 
 namespace vkwrap
 {
@@ -31,19 +17,19 @@ namespace vkwrap
 class ImageView : private vk::UniqueImageView
 {
 
-private:
+  private:
     using Base = vk::UniqueImageView;
 
-public:
+  public:
     ImageView() = default;
 
-    ImageView( vk::UniqueImageView image_view ):
-        Base{ std::move( image_view ) }
+    ImageView( vk::UniqueImageView image_view )
+        : Base{ std::move( image_view ) }
     {
     } // ImageView
 
     using Base::operator bool;
-    using Base::operator ->;
+    using Base::operator->;
     using Base::get;
 
 }; // class ImageView
@@ -51,7 +37,7 @@ public:
 class ImageViewBuilder
 {
 
-public:
+  public:
     // clang-format off
     PATCHABLE_DEFINE_STRUCT(
         ImageViewPartialInfo,
@@ -65,7 +51,7 @@ public:
 
     using Setter = std::function<void( ImageViewPartialInfo& )>;
 
-private:
+  private:
     // clang-format off
     Setter m_setter = []( auto& ){};
     // clang-format on
@@ -100,7 +86,7 @@ private:
     };
     // clang-format on
 
-public:
+  public:
     ImageViewBuilder() = default;
 
     ImageViewBuilder& withSetter( Setter setter ) &

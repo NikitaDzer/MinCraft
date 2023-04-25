@@ -2,13 +2,13 @@
 
 #include "common/vulkan_include.h"
 
+#include "utils/patchable.h"
+
 #include "vkwrap/core.h"
+#include "vkwrap/image_view.h"
 #include "vkwrap/mman.h"
 #include "vkwrap/queues.h"
 #include "vkwrap/utils.h"
-#include "vkwrap/image_view.h"
-
-#include "utils/patchable.h"
 
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -91,10 +91,7 @@ class Image : private vk::Image
         }
     } // ~Image
 
-    Image( Image&& image )
-    {
-        swap( *this, image );
-    } // Image( Image&& )
+    Image( Image&& image ) { swap( *this, image ); }
 
     Image& operator=( Image&& image )
     {
