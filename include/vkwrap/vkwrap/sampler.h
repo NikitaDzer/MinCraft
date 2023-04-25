@@ -68,7 +68,7 @@ class SamplerBuilder
     {
         SamplerPartialInfo partial{};
 
-        presetter( partial );
+        m_presetter( partial );
         m_setter( partial );
         partial.patchWith( m_partial );
 
@@ -80,7 +80,10 @@ class SamplerBuilder
         return physical_device.getProperties().limits.maxSamplerAnisotropy;
     } // getMaxAnisotropy
 
-    static constexpr vk::SamplerCreateInfo k_sampler_initial_create_info{
+    // clang-format off
+    static inline Setter m_presetter = []( auto& ){};
+
+    static constexpr vk::SamplerCreateInfo k_initial_create_info{
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
@@ -96,16 +99,15 @@ class SamplerBuilder
         .minLod = 0.0f,
         .maxLod = 0.0f,
     };
-
-  public:
-    // clang-format off
-    static inline Setter presetter = []( auto& ){};
     // clang-format on
 
+  public:
     SamplerBuilder() = default;
 
     SamplerBuilder& withSetter( Setter setter ) &
     {
+        assert( setter );
+
         m_setter = setter;
         return *this;
     } // withSetter
@@ -163,7 +165,7 @@ class SamplerBuilder
         SamplerPartialInfo partial{ makePartialInfo() };
         partial.assertCheckMembers();
 
-        vk::SamplerCreateInfo create_info{ k_sampler_initial_create_info };
+        vk::SamplerCreateInfo create_info{ k_initial_create_info };
 
         create_info.magFilter = *partial.mag_filter;
         create_info.minFilter = *partial.min_filter;
@@ -180,6 +182,12 @@ class SamplerBuilder
 
         return { device.createSamplerUnique( create_info ) };
     } // make
+
+    static void setPresetter( Setter presetter )
+    {
+        assert( presetter );
+        m_presetter = presetter;
+    } // setPresetter
 
 }; // class SamplerBuilder
 
