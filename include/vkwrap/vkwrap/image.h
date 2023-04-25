@@ -207,14 +207,17 @@ class ImageBuilder
     {
         ImagePartialInfo partial{};
 
-        presetter( partial );
+        m_presetter( partial );
         m_setter( partial );
         partial.patchWith( m_partial );
 
         return partial;
     } // makePartialInfo
 
-    static constexpr vk::ImageCreateInfo k_initial_create_info = {
+    // clang-format off
+    static inline Setter m_presetter = []( auto& ){};
+
+    static constexpr vk::ImageCreateInfo k_initial_create_info{
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
@@ -223,17 +226,17 @@ class ImageBuilder
         .mipLevels = 1,
 
         // Initial layout is unknown.
-        .initialLayout = vk::ImageLayout::eUndefined };
-
-  public:
-    // clang-format off
-    static inline Setter presetter = []( auto& ){};
+        .initialLayout = vk::ImageLayout::eUndefined
+    };
     // clang-format on
 
+  public:
     ImageBuilder() = default;
 
     ImageBuilder& withSetter( Setter setter ) &
     {
+        assert( setter );
+
         m_setter = setter;
         return *this;
     } // withSetter
@@ -310,6 +313,12 @@ class ImageBuilder
 
         return { create_info, mman };
     } // make
+
+    static void setPresetter( Setter presetter )
+    {
+        assert( presetter );
+        m_presetter = presetter;
+    } // setPresetter
 
 }; // class ImageBuilder
 

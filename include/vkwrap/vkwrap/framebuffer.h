@@ -64,7 +64,7 @@ class FramebufferBuilder
     {
         FramebufferPartialInfo partial{};
 
-        presetter( partial );
+        m_presetter( partial );
         m_setter( partial );
         partial.patchWith( m_partial );
 
@@ -72,7 +72,9 @@ class FramebufferBuilder
     } // makePartialInfo
 
     // clang-format off
-    static constexpr vk::FramebufferCreateInfo k_framebuffer_initial_create_info{ 
+    static inline Setter m_presetter = []( auto& ){};
+
+    static constexpr vk::FramebufferCreateInfo k_initial_create_info{ 
         // We don't use these specific fields.
         .pNext = {},
         .flags = {},
@@ -80,14 +82,12 @@ class FramebufferBuilder
     // clang-format on
 
   public:
-    // clang-format off
-    static inline Setter presetter = []( auto& ){};
-    // clang-format on
-
     FramebufferBuilder() = default;
 
     FramebufferBuilder& withSetter( Setter setter ) &
     {
+        assert( setter );
+
         m_setter = setter;
         return *this;
     } // withSetter
@@ -127,7 +127,7 @@ class FramebufferBuilder
         FramebufferPartialInfo partial = makePartialInfo();
         partial.assertCheckMembers();
 
-        vk::FramebufferCreateInfo create_info{ k_framebuffer_initial_create_info };
+        vk::FramebufferCreateInfo create_info{ k_initial_create_info };
         create_info.renderPass = *partial.render_pass;
 
         auto unique_attachments = utils::getUniqueElements( *m_partial.attachments );
@@ -139,6 +139,12 @@ class FramebufferBuilder
 
         return { device.createFramebufferUnique( create_info ) };
     } // make
+
+    static void setPresetter( Setter presetter )
+    {
+        assert( presetter );
+        m_presetter = presetter;
+    } // setPresetter
 
 }; // class FramebufferBuilder
 
