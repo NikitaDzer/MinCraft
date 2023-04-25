@@ -27,10 +27,12 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <numeric>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace
 {
@@ -179,7 +181,7 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
 }
 
 vk::Extent2D
-getFramebufferExtent( const glfw::wnd::Window& window )
+getWindowExtent( const glfw::wnd::Window& window )
 {
     auto framebuffer_size = window.getFramebufferSize();
     return vk::Extent2D{
@@ -221,41 +223,35 @@ recreateFramebuffers( vkwrap::Swapchain& swapchain, vk::Device logical_device, v
 
 static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
 
+vkwrap::SwapchainReqs
+getSwapchainRequirements()
+{
+    auto formats = std::to_array<vkwrap::SwapchainReqsBuilder::WeightFormat>(
+        { { .format = { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 },
+          { .format = { vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 } } );
+
+    auto modes = std::to_array<vkwrap::SwapchainReqsBuilder::WeightMode>(
+        { { .mode = vk::PresentModeKHR::eFifo, .weight = 1000 }, //
+          { .mode = vk::PresentModeKHR::eMailbox, .weight = 0 } } );
+
+    auto requirement_builder = vkwrap::SwapchainReqsBuilder{};
+    requirement_builder.withMinImageCount( k_max_frames_in_flight ).withFormats( formats ).withModes( modes );
+
+    return requirement_builder.make();
+}
+
 vkwrap::Swapchain
 createSwapchain(
     vk::PhysicalDevice physical_device,
     vk::Device logical_device,
     vk::SurfaceKHR surface,
     vkwrap::Queue graphics_queue,
-    vkwrap::Queue present_queue )
+    vkwrap::Queue present_queue,
+    vkwrap::SwapchainReqs swapchain_requirements )
 {
-    auto min_image_count =
-        std::max( physical_device.getSurfaceCapabilitiesKHR( surface ).minImageCount, k_max_frames_in_flight );
-
-    auto find_fallback_format = [ physical_device, surface ]() {
-        auto surface_formats = physical_device.getSurfaceFormatsKHR( surface );
-        auto found = ranges::find_if( surface_formats, []( vk::SurfaceFormatKHR format ) {
-            return format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
-        } );
-
-        if ( found == surface_formats.end() )
-        {
-            throw std::runtime_error{ "No compatible surface format found" };
-        }
-
-        return *found;
-    };
-
-    auto requirement_builder = vkwrap::SwapchainReqsBuilder{};
-    requirement_builder.withMinImageCount( min_image_count );
-
-    requirement_builder.withFormats( std::to_array<vkwrap::SwapchainReqsBuilder::WeightFormat>(
-        { { .format = { .format = vk::Format::eB8G8R8A8Unorm, .colorSpace = vk::ColorSpaceKHR::eSrgbNonlinear },
-            .weight = 1000 } } ) );
-
-    requirement_builder.withModes( std::to_array<vkwrap::SwapchainReqsBuilder::WeightMode>(
-        { { .mode = vk::PresentModeKHR::eFifo, .weight = 0 },
-          { .mode = vk::PresentModeKHR::eMailbox, .weight = 1 } } ) );
+    auto min_image_count = std::max(
+        swapchain_requirements.getMinImageCount(),
+        physical_device.getSurfaceCapabilitiesKHR( surface ).minImageCount );
 
     auto swapchain_builder = vkwrap::SwapchainBuilder{};
     swapchain_builder.withQueues( std::array{ graphics_queue, present_queue } )
@@ -264,11 +260,11 @@ createSwapchain(
         .withMinImageCount( min_image_count )
         .withImageUsage( vk::ImageUsageFlagBits::eColorAttachment )
         .withPreTransform( vk::SurfaceTransformFlagBitsKHR::eIdentity )
-        .withCompositeAlpha( vk::CompositeAlphaFlagBitsKHR::eInherit )
+        .withCompositeAlpha( vk::CompositeAlphaFlagBitsKHR::eOpaque )
         .withClipped( false )
         .withOldSwapchain( {} );
 
-    auto new_swapchain = swapchain_builder.make( logical_device, physical_device, requirement_builder.make() );
+    auto new_swapchain = swapchain_builder.make( logical_device, physical_device, swapchain_requirements );
 
     return new_swapchain;
 }
@@ -341,8 +337,13 @@ runApplication( std::span<const char*> command_line_args )
 
     auto one_time_cmd = vkwrap::OneTimeCommand{ command_pool, graphics_queue.get() };
 
-    auto swapchain =
-        createSwapchain( physical_device.get(), logical_device, surface.get(), graphics_queue, present_queue );
+    auto swapchain = createSwapchain(
+        physical_device.get(),
+        logical_device,
+        surface.get(),
+        graphics_queue,
+        present_queue,
+        getSwapchainRequirements() );
 
     auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
     auto render_pass =
