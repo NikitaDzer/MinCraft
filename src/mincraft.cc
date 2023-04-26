@@ -437,10 +437,6 @@ runApplication( std::span<const char*> command_line_args )
             current_frame = ( current_frame + 1 ) % k_max_frames_in_flight;
         };
 
-    auto terminate = [ &logical_device = logical_device ]() {
-        logical_device->waitIdle();
-    };
-
     auto draw_gui = []() {
         ImGui::ShowDemoWindow();
     };
@@ -452,13 +448,20 @@ runApplication( std::span<const char*> command_line_args )
         render_frame();
     };
 
+    auto renderer_thread = std::jthread{ [ &, &logical_device = logical_device ]( std::stop_token stop ) {
+        while ( !stop.stop_requested() )
+        {
+            loop();
+        }
+        logical_device->waitIdle(); // To shut down nicely
+    } };
+
     while ( window.running() )
     {
         glfwPollEvents();
-        loop();
     }
 
-    terminate();
+    renderer_thread.request_stop();
 }
 
 } // namespace
