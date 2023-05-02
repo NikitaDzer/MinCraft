@@ -89,15 +89,6 @@ if ( THREAD_SANITIZE AND SANITIZE )
     message(FATAL_ERROR "Thread and address sanitizer can't be used together")
 endif ()
 
-# Quality of life external libs
-set(RANGES_CXX_STD 20)
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
-
-if ( THREAD_SANITIZE AND SANITIZE )
-    message(FATAL_ERROR "Thread and address sanitizer can't be used together")
-endif ()
-
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
