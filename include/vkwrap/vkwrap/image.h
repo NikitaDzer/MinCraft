@@ -2,17 +2,17 @@
 
 #include "common/vulkan_include.h"
 
-#include "utils/patchable.h"
-
 #include "vkwrap/core.h"
-#include "vkwrap/image_view.h"
 #include "vkwrap/mman.h"
 #include "vkwrap/queues.h"
 #include "vkwrap/utils.h"
 
+#include "utils/patchable.h"
+
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 
+#include <concepts>
 #include <exception>
 #include <functional>
 #include <optional>
@@ -23,6 +23,35 @@
 namespace vkwrap
 {
 
+namespace detail
+{
+
+inline vk::ImageViewType
+chooseImageViewType( vk::ImageType type )
+{
+    using vk::ImageType;
+    using vk::ImageViewType;
+
+    switch ( type )
+    {
+    case ImageType::e1D:
+        return ImageViewType::e1DArray;
+
+    case ImageType::e2D:
+        return ImageViewType::e2DArray;
+
+    case ImageType::e3D:
+        return ImageViewType::e3D;
+
+    default:
+        // Assert addresses to possible additions in VkImageType.
+        assert( 0 && "chooseImageViewType: image type is not supported." );
+        std::terminate();
+    }
+} // choosesImageViewType
+
+} // namespace detail
+
 class Image : private vk::Image
 {
 
@@ -31,30 +60,50 @@ class Image : private vk::Image
 
   private:
     Mman* m_mman{ nullptr };
-    ImageView m_view;
+    vk::UniqueImageView m_view;
 
-    ImageView createView( const vk::ImageCreateInfo& create_info ) const
-    {
-        ImageViewBuilder builder{};
+    // clang-format off
+    static constexpr vk::ImageViewCreateInfo k_view_initial_create_info{
+        // We don't use these specific fields.
+        .pNext = {},
+        .flags = {},
 
-        builder.withImage( *this )
-            .withImageType( create_info.imageType )
-            .withFormat( create_info.format )
-            .withComponents( k_components )
-            .withLayerCount( create_info.arrayLayers );
+        // Don't remap color components.
+        .components = {},
 
-        return builder.make( m_mman->getDevice() );
-    } // createView
-
-    /**
-     * Don't remap color components.
-     */
-    static constexpr vk::ComponentMapping k_components{};
+        // We use images with only one mipmap and one layer.
+        .subresourceRange = { 
+            .baseMipLevel = 0, 
+            .levelCount = 1, 
+            .baseArrayLayer = 0 }
+    };
+    // clang-format on
 
     static vk::Image createImage( const vk::ImageCreateInfo& create_info, Mman& mman )
     {
         return mman.create( create_info );
     } // createImage
+
+    static vk::ImageViewCreateInfo makeImageViewCreateInfo(
+        const vk::ImageCreateInfo& image_create_info,
+        vk::Image image )
+    {
+        vk::ImageViewCreateInfo view_create_info{ k_view_initial_create_info };
+
+        view_create_info.setImage( image );
+        view_create_info.setViewType( detail::chooseImageViewType( image_create_info.imageType ) );
+        view_create_info.setFormat( image_create_info.format );
+
+        view_create_info.subresourceRange.setAspectMask( chooseAspectMask( image_create_info.format ) );
+        view_create_info.subresourceRange.setLayerCount( image_create_info.arrayLayers );
+
+        return view_create_info;
+    } // makeImageViewCreateInfo
+
+    static vk::UniqueImageView createImageView( const vk::ImageViewCreateInfo& create_info, vk::Device device )
+    {
+        return device.createImageViewUnique( create_info );
+    } // createImageView
 
     friend void swap( Image& lhs, Image& rhs )
     {
@@ -67,7 +116,7 @@ class Image : private vk::Image
     Image( const vk::ImageCreateInfo& create_info, Mman& mman )
         : Base{ createImage( create_info, mman ) },
           m_mman{ &mman },
-          m_view{ createView( create_info ) }
+          m_view{ createImageView( makeImageViewCreateInfo( create_info, *this ), mman.getDevice() ) } //
     {
     } // Image
 
@@ -90,7 +139,12 @@ class Image : private vk::Image
         }
     } // ~Image
 
-    Image( Image&& image ) { swap( *this, image ); }
+    Image( Image&& image )
+        : Base{ nullptr },
+          m_mman{ nullptr }
+    {
+        swap( *this, image );
+    } // Image( Image&& )
 
     Image& operator=( Image&& image )
     {
@@ -124,9 +178,10 @@ class Image : private vk::Image
 class ImageBuilder
 {
 
-  public:
+  private:
     using Queues = std::vector<Queue>;
 
+  public:
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         ImagePartialInfo,
@@ -232,7 +287,9 @@ class ImageBuilder
         return *this;
     } // withUsage
 
-    ImageBuilder& withQueues( ranges::range auto&& queues ) &
+    template <ranges::range Range>
+        requires std::same_as<ranges::range_value_t<Range>, Queue>
+    ImageBuilder& withQueues( Range&& queues ) &
     {
         assert( !queues.empty() );
 

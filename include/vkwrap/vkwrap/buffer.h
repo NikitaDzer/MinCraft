@@ -12,6 +12,7 @@
 #include <range/v3/range/concepts.hpp>
 #include <range/v3/range/conversion.hpp>
 
+#include <concepts>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -110,9 +111,10 @@ class Buffer : private vk::Buffer
 class BufferBuilder
 {
 
-  public:
+  private:
     using Queues = std::vector<Queue>;
 
+  public:
     // clang-format off
     PATCHABLE_DEFINE_STRUCT( 
         BufferPartialInfo,
@@ -175,7 +177,9 @@ class BufferBuilder
         return *this;
     } // withUsage
 
-    BufferBuilder& withQueues( ranges::range auto&& queues ) &
+    template <ranges::range Range>
+        requires std::same_as<ranges::range_value_t<Range>, Queue>
+    BufferBuilder& withQueues( Range&& queues ) &
     {
         assert( !queues.empty() );
 
