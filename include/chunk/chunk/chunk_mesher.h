@@ -1,6 +1,5 @@
 #include "chunk/chunk.h"
 #include "chunk/chunk_man.h"
-#include "common/glm_include.h"
 #include "common/vulkan_include.h"
 #include <cstdlib>
 #include <iostream>

@@ -3,8 +3,6 @@
 #include <compare>
 #include <cstdint>
 
-#include "common/glm_include.h"
-
 namespace pos
 {
 
