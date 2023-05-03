@@ -34,10 +34,10 @@ class ChunkMesher
 
         static_assert( k_max_block_id >= utils::toUnderlying( BlockID::k_max ), "Cannot represent all block ides" );
 
-        constexpr VertexTextureDescr( BlockID block_id, uint16_t u_par, uint16_t v_par )
+        constexpr VertexTextureDescr( BlockID block_id_par, uint16_t u_par, uint16_t v_par )
             : u( u_par ),
               v( v_par ),
-              block_id( utils::toUnderlying( block_id ) )
+              block_id( utils::toUnderlying( block_id_par ) )
         {
         }
 

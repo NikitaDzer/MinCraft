@@ -6,7 +6,7 @@ namespace chunk
 void
 ChunkMesher::addFace( const auto& face_info )
 {
-    size_t vertex_count = m_vertices.size();
+    uint32_t vertex_count = static_cast<uint32_t>( m_vertices.size() );
 
     m_vertices.emplace_back( face_info.v1, face_info.block_id, 0, 0 );
     m_vertices.emplace_back( face_info.v2, face_info.block_id, face_info.width, 0 );
@@ -67,7 +67,7 @@ void
 ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
 {
     // Sweep over each Axis ( X, Y, Z )
-    for ( int dim = 0; dim < 3; dim++ )
+    for ( size_t dim = 0; dim < 3; dim++ )
     {
         constexpr int x = 0;
         constexpr int y = 1;
@@ -79,8 +79,8 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
         int height = 0;
 
         // work with plane OUV ( U = { Y, Z, X }, V = { Z, X, Y } )
-        int u = ( dim + 1 ) % dim_count;
-        int v = ( dim + 2 ) % dim_count;
+        size_t u = ( dim + 1 ) % dim_count;
+        size_t v = ( dim + 2 ) % dim_count;
 
         // axis array
         std::array<int, 3> axis{};
@@ -106,7 +106,7 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
         // slice chunk with plane OUV
         for ( axis[ dim ] = -1; axis[ dim ] < dir_limits; )
         {
-            int block_index = 0;
+            size_t block_index = 0;
 
             for ( axis[ v ] = 0; axis[ v ] < v_limits; axis[ v ]++ )
             {
