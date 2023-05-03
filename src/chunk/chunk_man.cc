@@ -1,15 +1,15 @@
-#include "chunk/region.h"
+#include "chunk/chunk_man.h"
 #include "chunk/chunk_gen.h"
 
 namespace chunk
 {
 
-Region::Region( const pos::ChunkPos& origin_pos )
-    : m_block_ides( std::make_unique_for_overwrite<BlockID[]>( k_blocks_count ) ),
-      m_origin_pos( origin_pos )
+ChunkMan::ChunkMan( const pos::ChunkPos& origin_pos )
+    : m_origin_pos( origin_pos ),
+      m_block_ides( std::make_unique<std::array<BlockID, k_blocks_count>>() )
 {
     m_chunks.reserve( k_chunks_count );
-    auto raw_block_ides_ptr = m_block_ides.get();
+    auto* raw_block_ides_ptr = m_block_ides->data();
 
     auto min_x = origin_pos.x - k_render_distance;
     auto max_x = origin_pos.x + k_render_distance;
@@ -22,13 +22,15 @@ Region::Region( const pos::ChunkPos& origin_pos )
         for ( auto y = min_y; y <= max_y; y++ )
         {
             m_chunks.emplace( pos::ChunkPos{ x, y }, raw_block_ides_ptr );
+            Chunk tmp_chunk{ raw_block_ides_ptr };
+            simpleChunkGen( tmp_chunk );
             raw_block_ides_ptr += Chunk::k_block_count;
         }
     }
-}; // Region::Region
+}; // ChunkMan::ChunkMan
 
 Chunk&
-Region::getChunk( const pos::ChunkPos& pos )
+ChunkMan::getChunk( const pos::ChunkPos& pos )
 {
     assert(
         std::abs( pos.x - m_origin_pos.x ) <= k_render_distance &&
@@ -40,14 +42,13 @@ Region::getChunk( const pos::ChunkPos& pos )
     assert( res != m_chunks.end() );
 
     return res->second;
-} // Region::getChunk
+} // ChunkMan::getChunk
 
 void
-Region::changeOriginPos( const pos::ChunkPos& new_origin )
+ChunkMan::changeOriginPos( const pos::ChunkPos& new_origin )
 {
     constexpr auto chunk_distance_diff = 1;
 
-    auto raw_block_ides_ptr = m_block_ides.get();
     pos::ChunkPos player_direction{ new_origin.x - m_origin_pos.x, new_origin.y - m_origin_pos.y };
 
     // At once the player position should be changed only by 1 chunk
@@ -81,10 +82,9 @@ Region::changeOriginPos( const pos::ChunkPos& new_origin )
         for ( auto x = min_x; x <= max_x; x++ )
         {
             auto extracted_node = m_chunks.extract( pos::ChunkPos{ x, old_chunks_y } );
+            auto extracted_chunk = extracted_node.mapped();
             extracted_node.key() = pos::ChunkPos{ x, new_chunks_y };
             m_chunks.insert( std::move( extracted_node ) );
-
-            auto extracted_chunk = extracted_node.mapped();
 
             simpleChunkGen( extracted_chunk );
         }
@@ -113,16 +113,15 @@ Region::changeOriginPos( const pos::ChunkPos& new_origin )
         for ( auto y = min_y; y <= max_y; y++ )
         {
             auto extracted_node = m_chunks.extract( pos::ChunkPos{ old_chunks_x, y } );
+            auto extracted_chunk = extracted_node.mapped();
             extracted_node.key() = pos::ChunkPos{ new_chunks_x, y };
             m_chunks.insert( std::move( extracted_node ) );
-
-            auto extracted_chunk = extracted_node.mapped();
 
             simpleChunkGen( extracted_chunk );
         }
     }
 
     m_origin_pos = new_origin;
-} // Region::changeOriginPos
+} // ChunkMan::changeOriginPos
 
 }; // namespace chunk

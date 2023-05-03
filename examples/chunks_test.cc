@@ -1,26 +1,45 @@
-#include "chunk/region.h"
+#include "chunk/chunk_man.h"
+#include "chunk/chunk_mesher.h"
+#include <chrono>
 #include <iostream>
 
 int
 main()
 {
     // or decltype( auto )
-    auto& region = chunk::Region::getRef();
+    auto& chunk_man = chunk::ChunkMan::getRef();
 
-    std::cout << "Render distance: " << chunk::Region::k_render_distance << std::endl;
-    std::cout << "Chunks in Region: " << chunk::Region::k_chunks_count << std::endl;
+    std::cout << "Render distance: " << chunk::ChunkMan::k_render_distance << std::endl;
+    std::cout << "Chunks in ChunkMan: " << chunk::ChunkMan::k_chunks_count << std::endl;
 
-    std::cout << "Allocated region size (in MegaBytes ): "
-              << ( chunk::Region::k_blocks_count * sizeof( chunk::BlockID ) ) / ( 1024 * 1024 ) << std::endl;
+    std::cout << "Allocated chunk_man size (in MegaBytes ): "
+              << ( chunk::ChunkMan::k_blocks_count * sizeof( chunk::BlockID ) ) / ( 1024 * 1024 ) << std::endl;
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    chunk::ChunkMesher mesher{};
+    mesher.meshRenderArea();
+
+    auto finish_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_time =
+        std::chrono::duration<float, std::chrono::milliseconds::period>( finish_time - start_time ).count();
+
+    std::cout << "[Meshing] vertices count: " << mesher.getVerticesCount() << "\n"
+              << "indices count: " << mesher.getIndicesCount() << "\n";
+
+    std::cout << "[Meshing] allocated memory ( in MegaBytes ): " << mesher.getAllocatedBytesCount() / ( 1024 * 1024 )
+              << "\n";
+
+    std::cout << "[Meshing] elapsed time: " << elapsed_time << " millis\n";
 
     // Move "forward" ( along the Y axis )
     for ( int i = 0; i <= 100; i++ )
     {
-        region.changeOriginPos( { 0, i } );
+        chunk_man.changeOriginPos( { 0, i } );
     }
 
-    auto get_chunk = region.getChunk( { -12, 100 } );
-    auto block_id = get_chunk[ { 5, 5, 3 } ];
+    auto get_chunk = chunk_man.getChunk( { -12, 100 } );
+    auto block_id = get_chunk.at( 5, 5, 3 );
 
     return 0;
 }
