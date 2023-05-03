@@ -28,4 +28,28 @@ class Surface : private vk::UniqueSurfaceKHR
 
 bool physicalDeviceSupportsPresent( vk::PhysicalDevice, vk::SurfaceKHR );
 
+inline vk::Extent2D
+getSurfaceExtent( vk::PhysicalDevice physical_device, vk::SurfaceKHR surface )
+{
+    return physical_device.getSurfaceCapabilitiesKHR( surface ).currentExtent;
+} // getSurfaceExtent
+
+inline vk::Extent2D
+getSurfaceMinExtent( vk::PhysicalDevice physical_device, vk::SurfaceKHR surface )
+{
+    return physical_device.getSurfaceCapabilitiesKHR( surface ).minImageExtent;
+} // getSurfaceExtent
+
+inline vk::Extent2D
+getSurfaceMaxExtent( vk::PhysicalDevice physical_device, vk::SurfaceKHR surface )
+{
+    return physical_device.getSurfaceCapabilitiesKHR( surface ).maxImageExtent;
+} // getSurfaceExtent
+
+inline vk::SurfaceTransformFlagBitsKHR
+getSurfaceCurrentTransform( vk::PhysicalDevice physical_device, vk::SurfaceKHR surface )
+{
+    return physical_device.getSurfaceCapabilitiesKHR( surface ).currentTransform;
+} // getSurfaceCurrentTransform
+
 } // namespace vkwrap

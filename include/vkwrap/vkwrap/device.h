@@ -123,18 +123,70 @@ template <> struct hash<vkwrap::PhysicalDeviceInfo>
 namespace vkwrap
 {
 
+class Weight
+{
+
+  private:
+    int m_value;
+
+  public:
+    Weight( int value )
+        : m_value{ value }
+    {
+    } // Weight( int )
+
+    static constexpr int k_bad_weight = -1;
+
+    int value() const { return m_value; }
+
+    // clang-format off
+    operator bool() const { return m_value > k_bad_weight; }
+    operator int()  const { return m_value; }
+    // clang-format on
+
+    constexpr auto operator<=>( const Weight& ) const = default;
+    Weight& operator+=( const Weight& additional )
+    {
+        if ( *this && additional )
+        {
+            int new_value = m_value + additional.m_value;
+
+            assert( new_value >= 0 );
+            m_value = new_value;
+        } else
+        {
+            m_value = Weight::k_bad_weight;
+        }
+
+        return *this;
+    } // operator+=( const Weight& )
+
+    friend Weight operator+( const Weight& lhs, const Weight& rhs )
+    {
+        Weight tmp{ lhs };
+        return tmp += rhs;
+    } // friend operator+( const Weight&, const Weight& )
+
+}; // class Weight
+
 class PhysicalDeviceSelector
 {
   public:
-    using WeightFunction = std::function<int( PhysicalDeviceInfo )>;
+    using WeightFunction = std::function<Weight( PhysicalDeviceInfo )>;
 
   private:
-    StringVector m_extensions;                               // Extensions that the device needs to support
-    std::unordered_map<vk::PhysicalDeviceType, int> m_types; // A range of device types to prefer
-    vk::SurfaceKHR m_surface;                                // Surface to present to
+    struct WeightPhysicalDeviceInfo
+    {
+        PhysicalDeviceInfo info;
+        Weight weight;
+    }; // struct WeightPhysicalDeviceInfo
+
+  private:
+    StringVector m_extensions;                                  // Extensions that the device needs to support
+    std::unordered_map<vk::PhysicalDeviceType, Weight> m_types; // A range of device types to prefer
 
     VulkanVersion m_version = VulkanVersion::e_version_1_0; // Version the physical device has to support
-    WeightFunction m_weight_function = []( auto&& ) -> int {
+    WeightFunction m_weight_function = []( auto&& ) -> Weight {
         return 0;
     };
 
@@ -144,13 +196,6 @@ class PhysicalDeviceSelector
         ranges::copy( std::forward<Range>( extensions ), ranges::back_inserter( m_extensions ) );
         return *this;
     }
-
-    PhysicalDeviceSelector& withPresent( vk::SurfaceKHR surface ) &
-    {
-        assert( surface && "Empty surface handle" );
-        m_surface = surface;
-        return *this;
-    } // withPresent
 
     PhysicalDeviceSelector& withVersion( VulkanVersion version ) &
     {
@@ -183,37 +228,35 @@ class PhysicalDeviceSelector
     } // withTypes
 
   private:
-    std::pair<PhysicalDeviceInfo, int> calculateWeight( const PhysicalDeviceInfo& elem ) const
+    WeightPhysicalDeviceInfo calculateWeight( const PhysicalDeviceInfo& elem ) const
     {
         auto [ device, properties, id ] = elem;
-        constexpr int invalid = -1;
 
         // Call custom function to skip doing unnecessary work if possible.
         auto weight = m_weight_function( elem );
 
         // Check basic requirements.
-        bool valid = ( weight >= 0 ) && device.supportsExtensions( m_extensions ).supports &&
-            m_types.contains( properties.deviceType );
-
-        if ( m_surface )
+        if ( !device.supportsExtensions( m_extensions ).supports )
         {
-            valid = valid && physicalDeviceSupportsPresent( device.get(), m_surface );
+            weight = Weight::k_bad_weight;
         }
 
-        int cost = valid ? weight + m_types.at( properties.deviceType ) : invalid;
-        return std::pair{ elem, cost };
+        if ( !m_types.contains( properties.deviceType ) )
+        {
+            weight = Weight::k_bad_weight;
+        }
+
+        weight += m_types.at( properties.deviceType );
+        return { elem, weight };
     } // calculateWeight
 
-    using WeightMap = std::unordered_map<PhysicalDeviceInfo, int>;
-
-    WeightMap makeWeighted( const vk::Instance& instance ) const
+    std::vector<WeightPhysicalDeviceInfo> makeWeighted( vk::Instance instance ) const
     {
         const auto weight_calculation = [ & ]( auto&& elem ) {
             return calculateWeight( elem );
         };
 
         auto all_devices = instance.enumeratePhysicalDevices();
-        WeightMap weight_map;
 
         const auto get_properites = []( const vk::PhysicalDevice& device ) {
             auto chain = device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceIDProperties>();
@@ -226,24 +269,18 @@ class PhysicalDeviceSelector
 
         auto views = ranges::views::all( all_devices ) | ranges::views::transform( get_properites ) |
             ranges::views::transform( weight_calculation ) |
-            ranges::views::filter( []( auto&& elem ) { return elem.second >= 0; } );
+            ranges::views::filter( []( auto&& elem ) { return elem.weight; } );
 
-        ranges::copy( views, ranges::inserter( weight_map, weight_map.end() ) );
-
-        return weight_map;
+        return ranges::to_vector( views );
     } // makeWeighted
 
   public:
-    auto make( const vk::Instance& instance ) const
+    auto make( vk::Instance instance ) const
     {
-        auto weight_map = makeWeighted( instance );
+        auto suitable = makeWeighted( instance );
 
-        auto suitable =
-            ranges::views::transform( weight_map, []( auto&& elem ) { return elem.first; } ) | ranges::to_vector;
-
-        ranges::sort( suitable, std::less{}, [ &weights = std::as_const( weight_map ) ]( auto&& pair ) {
-            return weights.at( pair );
-        } );
+        // Sort by ascending weight.
+        ranges::sort( suitable, []( auto&& first, auto&& second ) { return first.weight < second.weight; } );
 
         return suitable;
     } // make

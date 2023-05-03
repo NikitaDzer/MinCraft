@@ -4,10 +4,15 @@
 
 #include "common/vulkan_include.h"
 
+#include "vkwrap/buffer.h"
 #include "vkwrap/device.h"
+#include "vkwrap/framebuffer.h"
+#include "vkwrap/image.h"
 #include "vkwrap/instance.h"
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
+#include "vkwrap/sampler.h"
+#include "vkwrap/swapchain.h"
 
 #include "glfw/window.h"
 
@@ -144,21 +149,45 @@ try
     auto window = Window{ { .title = "Test window" } };
     auto surface = window.createSurface( instance.get() );
 
+    vkwrap::SwapchainReqsBuilder reqs_builder{};
+
+    vkwrap::SwapchainReqs::WeightFormatVector formats{};
+    formats.push_back( { { vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear }, 10 } );
+    formats.push_back( { { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, 20 } );
+
+    vkwrap::SwapchainReqs::WeightModeVector modes{};
+    modes.push_back( { vk::PresentModeKHR::eMailbox, 1 } );
+    modes.push_back( { vk::PresentModeKHR::eImmediate, 2 } );
+
+    auto swapchain_reqs = reqs_builder.withFormats( formats )
+                              .withModes( modes )
+                              .withSurface( surface.get() )
+                              .withMinImageCount( 2 )
+                              .make();
+
     vkwrap::PhysicalDeviceSelector physical_selector;
-    physical_selector.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
         .withTypes( { vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
-        .withPresent( surface.get() )
-        .withVersion( vkwrap::VulkanVersion::e_version_1_3 );
+        .withVersion( vkwrap::VulkanVersion::e_version_1_3 )
+        .withWeight(
+            [ &swapchain_reqs ]( auto&& info ) { return swapchain_reqs.calculateWeight( info.device.get() ); } );
 
     // Sorted vector of
     auto suitable_devices = physical_selector.make( instance );
-    auto physical_device = suitable_devices.at( 0 ).device;
+    auto physical_device = suitable_devices.at( 0 ).info.device;
+
+    fmt::print(
+        "Suitable swapchain properties:\n"
+        "format: {}, colorSpace: {}, mode = {}\n",
+        vk::to_string( swapchain_reqs.findSuitableFormat( physical_device.get() )->format ),
+        vk::to_string( swapchain_reqs.findSuitableFormat( physical_device.get() )->colorSpace ),
+        vk::to_string( *swapchain_reqs.findSuitableMode( physical_device.get() ) ) );
 
     vkwrap::Queue graphics;
     vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
-    auto logical_device = device_builder.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    auto logical_device = device_builder.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
                               .withGraphicsQueue( graphics )
                               .withPresentQueue( surface.get(), present )
                               .make( physical_device.get() );
@@ -166,17 +195,18 @@ try
     fmt::print( "Graphics == Present: {}\n", graphics == present );
     fmt::print( "Found physical devices:\n" );
 
-    for ( unsigned i = 0; auto&& pair : suitable_devices )
+    for ( unsigned i = 0; auto&& [ info, weight ] : suitable_devices )
     {
-        auto&& [ device, info, id ] = pair;
+        auto&& [ device, props, id ] = info;
 
         fmt::print(
-            "[{}]. name = {}, type = {}, id = {}, uuid = {}\n",
+            "[{}]. name = {}, type = {}, id = {}, uuid = {}, weight = {}\n",
             i++,
-            info.deviceName.data(),
-            vk::to_string( info.deviceType ),
-            info.deviceID,
-            fmt::join( id.driverUUID, "" ) );
+            props.deviceName.data(),
+            vk::to_string( props.deviceType ),
+            props.deviceID,
+            fmt::join( id.driverUUID, "" ),
+            weight.value() );
     }
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
