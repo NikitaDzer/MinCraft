@@ -42,7 +42,25 @@ class SharingInfoSetter
 
     void setTo( auto& create_info ) const&
     {
-        create_info.setSharingMode( m_mode );
+        using InfoType = decltype( create_info );
+
+        constexpr bool has_setSharingMode = requires ( InfoType t ) { t.setSharingMode( m_mode ); };
+
+        constexpr bool has_setImageSharingMode = requires ( InfoType t ) { t.setImageSharingMode( m_mode ); };
+
+        if constexpr ( has_setSharingMode )
+        {
+            create_info.setSharingMode( m_mode );
+        } else if constexpr ( has_setImageSharingMode )
+        {
+            create_info.setImageSharingMode( m_mode );
+        } else
+        {
+            static_assert(
+                has_setSharingMode || has_setImageSharingMode,
+                "setTo: Unimplemented vk::SharingInfo setter." );
+        }
+
         create_info.setQueueFamilyIndexCount( static_cast<uint32_t>( m_unique_indices.size() ) );
         create_info.setPQueueFamilyIndices( m_unique_indices.data() );
     } // setTo
@@ -108,5 +126,29 @@ chooseAspectMask( vk::Format format )
 
     return ImageAspectFlagBits::eColor;
 } // chooseAspectMask
+
+inline vk::ImageViewType
+chooseImageViewType( vk::ImageType type )
+{
+    using vk::ImageType;
+    using vk::ImageViewType;
+
+    switch ( type )
+    {
+    case ImageType::e1D:
+        return ImageViewType::e1DArray;
+
+    case ImageType::e2D:
+        return ImageViewType::e2DArray;
+
+    case ImageType::e3D:
+        return ImageViewType::e3D;
+
+    default:
+        // Assert addresses to possible additions in VkImageType.
+        assert( 0 && "chooseImageViewType: image type is not supported." );
+        std::terminate();
+    }
+} // chooseImageViewType
 
 } // namespace vkwrap
