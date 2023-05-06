@@ -118,6 +118,7 @@ endfunction ()
 set( RANGES_CXX_STD 20 )
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/popl EXCLUDE_FROM_ALL )
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
@@ -197,3 +198,31 @@ if ( ${CHUNKS_TEST} )
     add_example_executable( chunks_test examples/chunks_test.cc )
     target_link_libraries( chunks_test PRIVATE chunk )
 endif ()
+
+set ( GUI_SOURCES 
+    3rd-party/imgui/imgui.cpp
+    3rd-party/imgui/imgui_demo.cpp
+    3rd-party/imgui/imgui_draw.cpp
+    3rd-party/imgui/imgui_tables.cpp
+    3rd-party/imgui/imgui_widgets.cpp
+    3rd-party/imgui/backends/imgui_impl_glfw.cpp
+    3rd-party/imgui/backends/imgui_impl_vulkan.cpp
+)
+
+add_library ( gui_impl ${GUI_SOURCES} )
+target_include_directories ( gui_impl PUBLIC 
+    3rd-party/imgui 
+    3rd-party/imgui/backends
+)
+suppress_warnings ( gui_impl )
+
+# Main app target
+set ( MINCRAFT_SOURCES
+    src/mincraft.cc
+)
+
+add_executable ( mincraft ${MINCRAFT_SOURCES} )
+target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl )
+target_enable_linter ( mincraft )
+target_compile_features ( mincraft PUBLIC cxx_std_20 )
+target_include_directories( mincraft PRIVATE include/imgui )

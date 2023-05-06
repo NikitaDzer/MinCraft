@@ -47,6 +47,22 @@ class Queue : private vk::Queue
     using vk::Queue::waitIdle;
 
     bool operator==( const Queue& rhs ) const = default;
+
+    template <typename Dispatch = VULKAN_HPP_DEFAULT_DISPATCHER_TYPE>
+    vk::Result presentKHRWithOutOfDate(
+        const vk::PresentInfoKHR& present_info,
+        const Dispatch& d = VULKAN_HPP_DEFAULT_DISPATCHER ) const
+    {
+        vk::Result result_present;
+        try
+        {
+            result_present = presentKHR( present_info, d );
+        } catch ( vk::OutOfDateKHRError& )
+        {
+            result_present = vk::Result::eErrorOutOfDateKHR;
+        }
+        return result_present;
+    }
 }; // Queue
 
 } // namespace vkwrap

@@ -288,15 +288,20 @@ class PhysicalDeviceSelector
 
 class LogicalDevice : private vk::UniqueDevice
 {
+  private:
+    using Base = vk::UniqueDevice;
+
   public:
-    using vk::UniqueDevice::operator bool;
-    using vk::UniqueDevice::operator->;
-    using vk::UniqueDevice::get;
+    using Base::operator bool;
+    using Base::operator->;
+    using Base::get;
 
     LogicalDevice( vk::UniqueDevice logical_device )
-        : vk::UniqueDevice{ std::move( logical_device ) }
+        : Base{ std::move( logical_device ) }
     {
     }
+
+    operator vk::Device() const { return get(); }
 }; // LogicalDevice
 
 class LogicalDeviceBuilder
