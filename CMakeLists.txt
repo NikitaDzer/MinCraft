@@ -124,7 +124,20 @@ add_subdirectory ( 3rd-party/popl EXCLUDE_FROM_ALL )
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_package ( Boost 1.61.0 REQUIRED )
+find_package ( Threads REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
+
+include ( FetchContent )
+
+FetchContent_Declare (
+   ktxlib       
+   URL https://github.com/KhronosGroup/KTX-Software/releases/download/v4.1.0/KTX-Software-4.1.0-Linux-x86_64.tar.bz2
+   URL_HASH SHA1=20494aa8e62749a6daabab583b03c4d8e8aed535
+)
+
+FetchContent_MakeAvailable ( ktxlib )
+message ( STATUS ${ktxlib_SOURCE_DIR})
+find_package ( Ktx 4.1.0 EXACT REQUIRED PATHS ${ktxlib_SOURCE_DIR}/lib/cmake/ktx/)
 
 # -v- VulkanMemoryAllocator configuration -v-
 set( VMA_STATIC_VULKAN_FUNCTIONS OFF )
@@ -222,7 +235,7 @@ set ( MINCRAFT_SOURCES
 )
 
 add_executable ( mincraft ${MINCRAFT_SOURCES} )
-target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl )
+target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl KTX::ktx)
 target_enable_linter ( mincraft )
 target_compile_features ( mincraft PUBLIC cxx_std_20 )
 target_include_directories( mincraft PRIVATE include/imgui )
