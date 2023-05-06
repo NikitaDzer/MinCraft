@@ -40,13 +40,10 @@ class SharingInfoSetter
         }
     } // SharingInfoSetter
 
-    void setTo( auto& create_info ) const&
+    template <typename T> void setTo( T& create_info ) const&
     {
-        using InfoType = decltype( create_info );
-
-        constexpr bool has_setSharingMode = requires ( InfoType t ) { t.setSharingMode( m_mode ); };
-
-        constexpr bool has_setImageSharingMode = requires ( InfoType t ) { t.setImageSharingMode( m_mode ); };
+        constexpr bool has_setSharingMode = requires ( T t ) { t.setSharingMode( m_mode ); };
+        constexpr bool has_setImageSharingMode = requires ( T t ) { t.setImageSharingMode( m_mode ); };
 
         if constexpr ( has_setSharingMode )
         {

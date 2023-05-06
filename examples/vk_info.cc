@@ -166,7 +166,7 @@ try
                               .make();
 
     vkwrap::PhysicalDeviceSelector physical_selector;
-    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
+    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtensions() )
         .withTypes( { vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
         .withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withWeight(
@@ -187,7 +187,7 @@ try
     vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
-    auto logical_device = device_builder.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    auto logical_device = device_builder.withExtensions( vkwrap::Swapchain::getRequiredExtensions() )
                               .withGraphicsQueue( graphics )
                               .withPresentQueue( surface.get(), present )
                               .make( physical_device.get() );
