@@ -460,7 +460,7 @@ class Swapchain : private vk::UniqueSwapchainKHR
     vk::Extent2D getExtent()      const { return m_create_info.imageExtent;               }
     // clang-format on
 
-    static std::span<const char* const> getRequiredExtentions() { return k_required_extensions; }
+    static std::span<const char* const> getRequiredExtensions() { return k_required_extensions; }
 
     using Base::operator bool;
     using Base::operator->;

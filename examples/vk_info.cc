@@ -166,7 +166,7 @@ try
                               .make();
 
     vkwrap::PhysicalDeviceSelector physical_selector;
-    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
+    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtensions() )
         .withTypes( { vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
         .withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withWeight(
@@ -187,7 +187,7 @@ try
     vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
-    auto logical_device = device_builder.withExtensions( vkwrap::Swapchain::getRequiredExtentions() )
+    auto logical_device = device_builder.withExtensions( vkwrap::Swapchain::getRequiredExtensions() )
                               .withGraphicsQueue( graphics )
                               .withPresentQueue( surface.get(), present )
                               .make( physical_device.get() );
@@ -200,13 +200,13 @@ try
         auto&& [ device, props, id ] = info;
 
         fmt::print(
-            "[{}]. name = {}, type = {}, id = {}, uuid = {}, weight = {}\n",
+            "[{}]. weight = {}, name = {}, type = {}, id = {}, uuid = {}\n",
             i++,
+            weight.value(),
             props.deviceName.data(),
             vk::to_string( props.deviceType ),
             props.deviceID,
-            fmt::join( id.driverUUID, "" ),
-            weight.value() );
+            fmt::join( id.driverUUID, "" ) );
     }
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
