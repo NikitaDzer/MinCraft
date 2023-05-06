@@ -136,7 +136,6 @@ FetchContent_Declare (
 )
 
 FetchContent_MakeAvailable ( ktxlib )
-message ( STATUS ${ktxlib_SOURCE_DIR})
 find_package ( Ktx 4.1.0 EXACT REQUIRED PATHS ${ktxlib_SOURCE_DIR}/lib/cmake/ktx/)
 
 # -v- VulkanMemoryAllocator configuration -v-
