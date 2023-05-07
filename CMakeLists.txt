@@ -71,13 +71,25 @@ set( RANGES_CXX_STD 20 )
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/popl EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/ktx EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/glm EXCLUDE_FROM_ALL )
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
 find_package ( Vulkan 1.3 REQUIRED )
 find_package ( Boost 1.61.0 REQUIRED )
+find_package ( Threads REQUIRED )
 find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
+
+include ( FetchContent )
+
+FetchContent_Declare (
+   ktxlib       
+   URL https://github.com/KhronosGroup/KTX-Software/releases/download/v4.1.0/KTX-Software-4.1.0-Linux-x86_64.tar.bz2
+   URL_HASH SHA1=20494aa8e62749a6daabab583b03c4d8e8aed535
+)
+
+FetchContent_MakeAvailable ( ktxlib )
+find_package ( Ktx 4.1.0 EXACT REQUIRED PATHS ${ktxlib_SOURCE_DIR}/lib/cmake/ktx/)
 
 # -v- VulkanMemoryAllocator configuration -v-
 set( VMA_STATIC_VULKAN_FUNCTIONS OFF )
@@ -112,7 +124,7 @@ set ( VKWRAP_SOURCES
 
 add_library ( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories ( vkwrap PUBLIC include/vkwrap include/common include/glfw )
-target_link_libraries ( vkwrap PUBLIC range-v3 Boost::boost spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan ktx )
+target_link_libraries ( vkwrap PUBLIC range-v3 Boost::boost spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan )
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
@@ -134,11 +146,13 @@ function( add_example_executable TARGET_NAME SOURCE )
     target_compile_features ( ${TARGET_NAME} PUBLIC cxx_std_20 )
 endfunction()
 
+add_spirv_shader( vertex_shader shaders/vertex_shader.vert )
+add_spirv_shader( fragment_shader shaders/fragment_shader.frag )
+
 option ( VK_INFO OFF )
 if ( ${VK_INFO} )
     add_example_executable( vk_info examples/vk_info.cc )
-    add_spirv_shader( vertex_shader shaders/vertex_shader.vert )
-    add_spirv_shader( fragment_shader shaders/fragment_shader.frag )
+    add_dependencies ( vk_info vertex_shader fragment_shader )
 endif ()
 
 option ( GLFW_INFO OFF )
@@ -171,18 +185,19 @@ suppress_warnings ( gui_impl )
 
 # Main app target
 set ( MINCRAFT_SOURCES
-    src/mincraft.cc
+    src/mincraft/mincraft.cc
 )
 
 add_executable ( mincraft ${MINCRAFT_SOURCES} )
-target_link_libraries ( mincraft PRIVATE vkwrap chunk popl gui_impl )
+target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl KTX::ktx chunk glm )
 target_enable_linter ( mincraft )
 target_compile_features ( mincraft PUBLIC cxx_std_20 )
-target_include_directories( mincraft PRIVATE include/imgui )
+target_include_directories ( mincraft PRIVATE include/imgui )
+add_dependencies ( mincraft vertex_shader fragment_shader )
 
 # Copy texture directory
-add_custom_command(TARGET mincraft  POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy_directory
-                       ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:mincraft>)
+add_custom_command( TARGET mincraft POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:mincraft> )
 
 

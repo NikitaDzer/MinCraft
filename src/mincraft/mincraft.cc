@@ -25,12 +25,7 @@
 
 #include <popl/popl.hpp>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/vec4.hpp>
+#include "glm_include.hpp"
 
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/algorithm/find_if.hpp>
@@ -208,7 +203,7 @@ struct SwapchainRecreateResult
 };
 
 Framebuffers
-recreateFramebuffers(
+createFramebuffers(
     vkwrap::Swapchain& swapchain,
     vk::ImageView depth_image_view,
     vk::Device logical_device,
@@ -323,10 +318,188 @@ createRenderInfos( vk::Device logical_device, vkwrap::CommandPool& command_pool 
     return frame_render_info;
 }
 
+vkwrap::Image
+createDepthBuffer( const vkwrap::Swapchain& swapchain, ranges::range auto&& queues, vkwrap::Mman& manager )
+{
+    auto [ width, height ] = swapchain.getExtent();
+    auto builder = vkwrap::ImageBuilder{};
+
+    auto depth_image = builder.withExtent( { .width = width, .height = height, .depth = 1 } )
+                           .withFormat( vk::Format::eD32Sfloat )
+                           .withTiling( vk::ImageTiling::eOptimal )
+                           .withImageType( vk::ImageType::e2D )
+                           .withQueues( queues )
+                           .withSampleCount( vk::SampleCountFlagBits::e1 )
+                           .withArrayLayers( 1 )
+                           .withUsage( vk::ImageUsageFlagBits::eDepthStencilAttachment )
+                           .make( manager );
+
+    return depth_image;
+}
+
 bool
 shouldRecreateSwapchain( vk::Result result )
 {
     return ( result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR );
+}
+
+class KtxError : public std::runtime_error
+{
+  public:
+    KtxError( ktx_error_code_e ec )
+        : std::runtime_error{ ktxErrorString( ec ) },
+          m_ec{ ec }
+    {
+    }
+
+    auto getErrorCode() { return m_ec; }
+
+  private:
+    ktx_error_code_e m_ec;
+};
+
+void
+checkKtxResult( ktx_error_code_e ec )
+{
+    if ( ec != KTX_SUCCESS )
+    {
+        throw KtxError{ ec };
+    }
+}
+
+class UniqueKtxTexture
+{
+    static ktxTexture* createHandle( const std::filesystem::path& filepath, ktxTextureCreateFlags flags )
+    {
+        ktxTexture* handle = nullptr;
+        auto res = ktxTexture_CreateFromNamedFile( filepath.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &handle );
+        checkKtxResult( res );
+        return handle;
+    }
+
+  public:
+    UniqueKtxTexture( const std::filesystem::path& filepath, ktxTextureCreateFlags flags )
+        : m_handle{ createHandle( filepath, flags ) }
+    {
+    }
+
+    ktxTexture* get() const { return m_handle.get(); }
+    ktxTexture* operator->() { return get(); }
+
+    ktx_uint8_t* getData() { return ktxTexture_GetData( m_handle.get() ); }
+    ktx_size_t getSize() { return ktxTexture_GetDataSize( m_handle.get() ); }
+
+    ktx_size_t getImageOffset( ktx_size_t level, ktx_size_t layer, ktx_size_t /* maybe */ slice )
+    {
+        ktx_size_t offset = 0;
+        auto res = ktxTexture_GetImageOffset( m_handle.get(), level, layer, slice, &offset );
+        checkKtxResult( res );
+        return offset;
+    }
+
+  private:
+    static constexpr auto k_deleter = []( ktxTexture* ptr ) {
+        if ( ptr )
+        {
+            ktxTexture_Destroy( ptr );
+        }
+    };
+
+    std::unique_ptr<ktxTexture, decltype( k_deleter )> m_handle = nullptr;
+};
+
+vkwrap::Image
+createTextureImage(
+    ranges::range auto&& queues,
+    vkwrap::Mman& manager,
+    const std::filesystem::path& filepath = "texture.ktx" )
+{
+    auto ktx_texture = UniqueKtxTexture{ filepath, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT };
+
+    auto image_builder = vkwrap::ImageBuilder{};
+    auto texture_image =
+        image_builder.withExtent( { .width = ktx_texture->baseWidth, .height = ktx_texture->baseHeight, .depth = 1 } )
+            .withFormat( vk::Format::eR8G8B8A8Srgb )
+            .withArrayLayers( ktx_texture->numLayers )
+            .withTiling( vk::ImageTiling::eOptimal )
+            .withSampleCount( vk::SampleCountFlagBits::e1 )
+            .withUsage( vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled )
+            .withImageType( vk::ImageType::e2D )
+            .withQueues( queues )
+            .make( manager );
+
+    auto buffer_builder = vkwrap::BufferBuilder{};
+    auto ktx_texture_size = ktx_texture.getSize();
+
+    auto staging_buffer = buffer_builder.withSize( ktx_texture_size )
+                              .withQueues( queues )
+                              .withUsage( vk::BufferUsageFlagBits::eTransferSrc )
+                              .make( manager );
+
+    staging_buffer.update( *ktx_texture.getData(), ktx_texture_size );
+    texture_image.transit( vk::ImageLayout::eTransferDstOptimal );
+
+    auto layer_offset_counter = [ &ktx_texture ]( uint32_t layer ) {
+        ktx_size_t offset = ktx_texture.getImageOffset( 0, layer, 0 );
+
+        return vkwrap::Mman::Region{
+            .buffer_offset = offset,
+            .buffer_row_length = 0,
+            .buffer_image_height = 0,
+            .aspect_mask = vk::ImageAspectFlagBits::eColor,
+            .image_offset = vk::Offset3D{ 0, 0, 0 },
+        };
+    };
+
+    texture_image.update( staging_buffer.get(), layer_offset_counter );
+    texture_image.transit( vk::ImageLayout::eShaderReadOnlyOptimal );
+
+    return texture_image;
+}
+
+template <ranges::contiguous_range Memory>
+vkwrap::Buffer
+createDeviceLocalBuffer(
+    ranges::range auto&& queues,
+    Memory&& memory,
+    vkwrap::Mman& manager,
+    vk::BufferUsageFlags usage_flags )
+{
+    auto buffer_builder = vkwrap::BufferBuilder{};
+    buffer_builder.withQueues( queues );
+
+    auto size = memory.size() * sizeof( ranges::range_value_t<Memory> );
+    auto buffer = buffer_builder.withSize( size ).withUsage( usage_flags ).make( manager );
+
+    auto staging_buffer =
+        buffer_builder.withSize( size ).withUsage( vk::BufferUsageFlagBits::eTransferSrc ).make( manager );
+
+    staging_buffer.update( *memory.data(), size );
+    buffer.update( staging_buffer.get() );
+
+    return buffer;
+}
+
+vkwrap::Buffer
+createVertexBuffer( ranges::range auto&& queues, const chunk::ChunkMesher& mesher, vkwrap::Mman& manager )
+{
+    auto memory = std::span{ mesher.getVerticesData(), mesher.getVerticesCount() };
+    return createDeviceLocalBuffer(
+        queues,
+        memory,
+        manager,
+        vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst );
+}
+
+vkwrap::Buffer
+createIndexBuffer( ranges::range auto&& queues, const chunk::ChunkMesher& mesher, vkwrap::Mman& manager )
+{
+    auto memory = std::span{ mesher.getIndicesData(), mesher.getIndicesCount() };
+    return createDeviceLocalBuffer(
+        queues,
+        memory,
+        manager,
+        vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst );
 }
 
 void
@@ -358,6 +531,8 @@ runApplication( std::span<const char*> command_line_args )
     auto [ logical_device, graphics_queue, present_queue ] =
         createLogicalDeviceQueues( physical_device.get(), surface.get() );
 
+    auto queues = std::array{ graphics_queue, present_queue };
+
     auto command_pool =
         vkwrap::CommandPool{ logical_device, graphics_queue, vk::CommandPoolCreateFlagBits::eResetCommandBuffer };
 
@@ -382,18 +557,7 @@ runApplication( std::span<const char*> command_line_args )
         graphics_queue.get(),
         command_pool.get() };
 
-    // create depth resources
-    vkwrap::ImageBuilder depth_image_builder{};
-    auto depth_image =
-        depth_image_builder.withExtent( { swapchain.getExtent().width, swapchain.getExtent().height, 1 } )
-            .withFormat( vk::Format::eD32Sfloat )
-            .withTiling( vk::ImageTiling::eOptimal )
-            .withImageType( vk::ImageType::e2D )
-            .withQueues( std::array{ graphics_queue } )
-            .withSampleCount( vk::SampleCountFlagBits::e1 )
-            .withArrayLayers( 1 )
-            .withUsage( vk::ImageUsageFlagBits::eDepthStencilAttachment )
-            .make( manager );
+    auto depth_image = createDepthBuffer( swapchain, queues, manager );
 
     // create descriptor set layout
     vk::DescriptorSetLayoutBinding ubo_layout_binding{
@@ -450,6 +614,9 @@ runApplication( std::span<const char*> command_line_args )
     auto render_pass = pipeline_builder.getRenderPass();
     auto pipeline_layout = pipeline_builder.getPipelineLayout();
 
+    auto framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
+    auto render_infos = createRenderInfos( logical_device, command_pool );
+
     auto imgui_resources = imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
         .instance = vk_instance,
         .window = window.get(),
@@ -459,64 +626,6 @@ runApplication( std::span<const char*> command_line_args )
         .swapchain = swapchain,
         .upload_context = one_time_cmd,
         .render_pass = render_pass } };
-
-    auto framebuffers = recreateFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
-    auto render_infos = createRenderInfos( logical_device, command_pool );
-
-    // create texture image
-    ktxTexture* ktx_texture = nullptr;
-
-    auto res = ktxTexture_CreateFromNamedFile( "texture.ktx", KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &ktx_texture );
-    assert( res == KTX_SUCCESS );
-
-    auto* ktx_texture_data = ktxTexture_GetData( ktx_texture );
-    auto ktx_texture_size = ktxTexture_GetDataSize( ktx_texture );
-
-    vkwrap::ImageBuilder texture_image_builder{};
-    auto texture_image =
-        texture_image_builder
-            .withExtent( { .width = ktx_texture->baseWidth, .height = ktx_texture->baseHeight, .depth = 1 } )
-            .withFormat( vk::Format::eR8G8B8A8Srgb )
-            .withArrayLayers( ktx_texture->numLayers )
-            .withTiling( vk::ImageTiling::eOptimal )
-            .withSampleCount( vk::SampleCountFlagBits::e1 )
-            .withUsage( vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled )
-            .withImageType( vk::ImageType::e2D )
-            .withQueues( std::array{ graphics_queue } )
-            .make( manager );
-
-    vkwrap::BufferBuilder buffer_builder{};
-
-    /* delete temporary staging buffer */
-    {
-        auto staging_buffer = buffer_builder.withSize( ktx_texture_size )
-                                  .withQueues( std::array{ graphics_queue } )
-                                  .withUsage( vk::BufferUsageFlagBits::eTransferSrc )
-                                  .make( manager );
-
-        staging_buffer.update( *ktx_texture_data, ktx_texture_size );
-
-        texture_image.transit( vk::ImageLayout::eTransferDstOptimal );
-
-        auto layer_offset_counter = [ &ktx_tex = ktx_texture ]( uint32_t layer ) {
-            ktx_size_t offset = 0;
-            auto res = ktxTexture_GetImageOffset( ktx_tex, 0, layer, 0, &offset );
-            assert( res == KTX_SUCCESS );
-
-            return vkwrap::Mman::Region{
-                .buffer_offset = offset,
-                .buffer_row_length = 0,
-                .buffer_image_height = 0,
-                .aspect_mask = vk::ImageAspectFlagBits::eColor,
-                .image_offset = vk::Offset3D{ 0, 0, 0 },
-            };
-        };
-
-        texture_image.update( staging_buffer.get(), layer_offset_counter );
-        texture_image.transit( vk::ImageLayout::eShaderReadOnlyOptimal );
-    }
-
-    ktxTexture_Destroy( ktx_texture );
 
     // create sampler
     vkwrap::SamplerBuilder sampler_builder{};
@@ -529,43 +638,13 @@ runApplication( std::span<const char*> command_line_args )
                        .withBorderColor( vk::BorderColor::eFloatOpaqueBlack )
                        .withUnnormalizedCoordinates( VK_FALSE )
                        .withCompareOp( vk::CompareOp::eAlways )
-                       .make( logical_device.get(), physical_device.get() );
+                       .make( logical_device, physical_device.get() );
 
-    vk::DeviceSize v_buffer_size = mesher.getVertexBufferSize();
-    // create vertex buffer
-    auto vertex_buffer =
-        buffer_builder.withSize( v_buffer_size )
-            .withQueues( std::array{ graphics_queue } )
-            .withUsage( vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst )
-            .make( manager );
+    auto texture_image = createTextureImage( queues, manager );
+    auto buffer_builder = vkwrap::BufferBuilder{};
 
-    {
-        auto staging_buffer = buffer_builder.withSize( v_buffer_size )
-                                  .withQueues( std::array{ graphics_queue } )
-                                  .withUsage( vk::BufferUsageFlagBits::eTransferSrc )
-                                  .make( manager );
-
-        staging_buffer.update( *mesher.getVerticesData(), v_buffer_size );
-        vertex_buffer.update( staging_buffer.get() );
-    }
-
-    // creat index buffer
-
-    vk::DeviceSize i_buffer_size = mesher.getIndexBufferSize();
-    auto index_buffer = buffer_builder.withSize( i_buffer_size )
-                            .withQueues( std::array{ graphics_queue } )
-                            .withUsage( vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst )
-                            .make( manager );
-
-    {
-        auto staging_buffer = buffer_builder.withSize( i_buffer_size )
-                                  .withQueues( std::array{ graphics_queue } )
-                                  .withUsage( vk::BufferUsageFlagBits::eTransferSrc )
-                                  .make( manager );
-
-        staging_buffer.update( *mesher.getIndicesData(), i_buffer_size );
-        index_buffer.update( staging_buffer.get() );
-    }
+    auto vertex_buffer = createVertexBuffer( queues, mesher, manager );
+    auto index_buffer = createIndexBuffer( queues, mesher, manager );
 
     std::array<vkwrap::Buffer, k_max_frames_in_flight> uniform_buffers{
         buffer_builder.withSize( sizeof( UniformBufferObject ) )
@@ -641,31 +720,20 @@ runApplication( std::span<const char*> command_line_args )
 
     auto recreate_swapchain_wrapped = [ &, &logical_device = logical_device ]() {
         swapchain.recreate();
-        framebuffers = recreateFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
+        depth_image = createDepthBuffer( swapchain, queues, manager );
+        framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
     };
 
     uint32_t current_frame = 0;
 
-    auto fill_command_buffer = [ &descriptor_sets,
-                                 &current_frame,
-                                 &pipeline_layout,
-                                 &vertex_buffer,
-                                 &swapchain,
-                                 &index_buffer,
-                                 &pipeline,
-                                 &mesher,
-                                 &imgui_resources,
-                                 &render_pass,
-                                 &framebuffers ]( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent ) {
-        static constexpr auto k_clear_color = vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } };
-
-        std::array<vk::ClearValue, 2> clear_values{};
-        clear_values[ 0 ].setColor( vk::ClearColorValue{} );
-        clear_values[ 1 ].setDepthStencil( vk::ClearDepthStencilValue{ 1.0f, 0 } );
+    auto fill_command_buffer = [ & ]( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent ) {
+        const auto clear_values = std::array{
+            vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
+            vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
 
         const auto render_pass_info = vk::RenderPassBeginInfo{
             .renderPass = render_pass,
-            .framebuffer = framebuffers[ image_index ].get(),
+            .framebuffer = framebuffers.at( image_index ).get(),
             .renderArea = { vk::Offset2D{ 0, 0 }, extent },
             .clearValueCount = static_cast<uint32_t>( clear_values.size() ),
             .pClearValues = clear_values.data() };
@@ -674,36 +742,36 @@ runApplication( std::span<const char*> command_line_args )
         cmd.begin( vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse } );
         cmd.beginRenderPass( render_pass_info, vk::SubpassContents::eInline );
 
-        imgui_resources.fillCommandBuffer( cmd );
-
         cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
-
-        vk::DeviceSize offsets[]{ 0 };
-        cmd.bindVertexBuffers( 0, 1, &vertex_buffer.get(), offsets );
+        cmd.bindVertexBuffers( 0, vertex_buffer.get(), vk::DeviceSize{ 0 } );
         cmd.bindIndexBuffer( index_buffer.get(), 0, chunk::ChunkMesher::k_index_type );
 
+        const auto [ width, height ] = extent;
         vk::Viewport viewport{
             .x = 0.0f,
             .y = 0.0f,
-            .width = static_cast<float>( swapchain.getExtent().width ),
-            .height = static_cast<float>( swapchain.getExtent().height ),
+            .width = static_cast<float>( width ),
+            .height = static_cast<float>( height ),
             .minDepth = 0.0f,
             .maxDepth = 1.0f };
 
-        vk::Rect2D scissor{ .offset = { 0, 0 }, .extent = swapchain.getExtent() };
+        const auto scissor = vk::Rect2D{ .offset = { 0, 0 }, .extent = extent };
 
-        cmd.setViewport( 0, 1, &viewport );
-        cmd.setScissor( 0, 1, &scissor );
+        cmd.setViewport( 0, viewport );
+        cmd.setScissor( 0, scissor );
+
         cmd.bindDescriptorSets(
             vk::PipelineBindPoint::eGraphics,
             pipeline_layout,
             0,
             1,
-            &descriptor_sets[ current_frame ],
+            &descriptor_sets.at( current_frame ),
             0,
             nullptr );
 
         cmd.drawIndexed( static_cast<uint32_t>( mesher.getIndicesCount() ), 1, 0, 0, 0 );
+
+        imgui_resources.fillCommandBuffer( cmd );
 
         cmd.endRenderPass();
         cmd.end();
@@ -756,13 +824,6 @@ runApplication( std::span<const char*> command_line_args )
             ubo.origin_pos = glm::vec2{ mesher.getRenderAreaRight().x, mesher.getRenderAreaRight().y };
 
             uniform_buffers[ current_frame ].update( ubo, sizeof( ubo ) );
-
-            const auto acquire_info = vk::AcquireNextImageInfoKHR{
-                .swapchain = swapchain.get(),
-                .timeout = UINT64_MAX,
-                .semaphore = current_frame_data.image_availible_semaphore.get(),
-                .fence = nullptr,
-                .deviceMask = 1 };
 
             auto [ acquire_result, image_index ] =
                 swapchain.acquireNextImage( current_frame_data.image_availible_semaphore.get() );
