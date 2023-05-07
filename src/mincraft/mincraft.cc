@@ -50,11 +50,10 @@ namespace
 
 struct UniformBufferObject
 {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-
-    glm::vec2 origin_pos;
+    glm::mat4 model = {};
+    glm::mat4 view = {};
+    glm::mat4 proj = {};
+    glm::vec2 origin_pos = {};
 };
 
 struct DebugCallback
@@ -754,11 +753,15 @@ runApplication( std::span<const char*> command_line_args )
         cmd.bindIndexBuffer( index_buffer.get(), 0, chunk::ChunkMesher::k_index_type );
 
         const auto [ width, height ] = extent;
-        vk::Viewport viewport{
+
+        // Negative viewport coordinates. This is quite legal and well-formed. See
+        // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_maintenance1.html
+        // This is used to flip the coordinate system without modifying the transformation matrices
+        const auto viewport = vk::Viewport{
             .x = 0.0f,
-            .y = 0.0f,
+            .y = static_cast<float>( height ),
             .width = static_cast<float>( width ),
-            .height = static_cast<float>( height ),
+            .height = -static_cast<float>( height ),
             .minDepth = 0.0f,
             .maxDepth = 1.0f };
 
@@ -784,52 +787,54 @@ runApplication( std::span<const char*> command_line_args )
         cmd.end();
     };
 
+    auto physics_loop = [ &swapchain, &mesher ]() {
+        UniformBufferObject ubo;
+
+        static float yaw = 0;
+        static float pitch = 0;
+
+        pitch -= 0.5;
+
+        if ( pitch > 89.0f )
+        {
+            pitch = 89.0f;
+        }
+
+        if ( pitch < -89.0f )
+        {
+            pitch = -89.0f;
+        }
+
+        glm::vec3 front;
+        front.y = cos( glm::radians( yaw ) ) * cos( glm::radians( pitch ) );
+        front.z = sin( glm::radians( pitch ) );
+        front.x = sin( glm::radians( yaw ) ) * cos( glm::radians( pitch ) );
+        front = glm::normalize( front );
+
+        ubo.model = glm::mat4( 1.0f );
+        ubo.view = glm::lookAt(
+            glm::vec3{ 0.0f, 0.0f, 10.0f },
+            glm::vec3{ 0.0f, 0.0f, 10.0f } + front,
+            glm::vec3{ 0.0f, 0.0f, 1.0f } );
+
+        ubo.proj = glm::perspective(
+            glm::radians( 45.0f ),
+            swapchain.getExtent().width / (float)swapchain.getExtent().height,
+            0.1f,
+            1000.0f );
+
+        ubo.origin_pos = glm::vec2{ mesher.getRenderAreaRight().x, mesher.getRenderAreaRight().y };
+
+        return ubo;
+    };
+
     auto render_frame =
         [ &, &logical_device = logical_device, &graphics_queue = graphics_queue, &present_queue = present_queue ]() {
             auto& current_frame_data = render_infos.sync_primitives.at( current_frame );
             auto& command_buffer = render_infos.imgui_command_buffers.at( current_frame );
             logical_device->waitForFences( current_frame_data.in_flight_fence.get(), VK_TRUE, UINT64_MAX );
 
-            // update framebuffer
-            UniformBufferObject ubo{};
-
-            static float yaw = 0;
-            static float pitch = 0;
-
-            pitch -= 0.5;
-
-            if ( pitch > 89.0f )
-            {
-                pitch = 89.0f;
-            }
-
-            if ( pitch < -89.0f )
-            {
-                pitch = -89.0f;
-            }
-
-            glm::vec3 front;
-            front.y = cos( glm::radians( yaw ) ) * cos( glm::radians( pitch ) );
-            front.z = sin( glm::radians( pitch ) );
-            front.x = sin( glm::radians( yaw ) ) * cos( glm::radians( pitch ) );
-            front = glm::normalize( front );
-
-            ubo.model = glm::mat4( 1.0f );
-            ubo.view = glm::lookAt(
-                glm::vec3{ 0.0f, 0.0f, 10.0f },
-                glm::vec3{ 0.0f, 0.0f, 10.0f } + front,
-                glm::vec3{ 0.0f, 0.0f, 1.0f } );
-
-            ubo.proj = glm::perspective(
-                glm::radians( 45.0f ),
-                swapchain.getExtent().width / (float)swapchain.getExtent().height,
-                0.1f,
-                1000.0f );
-
-            ubo.proj[ 1 ][ 1 ] *= -1;
-
-            ubo.origin_pos = glm::vec2{ mesher.getRenderAreaRight().x, mesher.getRenderAreaRight().y };
-
+            auto ubo = physics_loop();
             auto& uniform_buffer = render_infos.uniform_buffers.at( current_frame );
             uniform_buffer.update( ubo, sizeof( ubo ) );
 
@@ -859,14 +864,11 @@ runApplication( std::span<const char*> command_line_args )
             logical_device->resetFences( *current_frame_data.in_flight_fence );
             graphics_queue.submit( submit_info, *current_frame_data.in_flight_fence );
 
-            vk::PresentInfoKHR present_info = {
-                .waitSemaphoreCount = 1,
-                .pWaitSemaphores = std::addressof( *current_frame_data.render_finished_semaphore ),
-                .swapchainCount = 1,
-                .pSwapchains = &swapchain.get(),
-                .pImageIndices = &image_index };
+            vk::Result result_present = present_queue.presentKHRWithOutOfDate(
+                swapchain.get(),
+                current_frame_data.render_finished_semaphore.get(),
+                image_index );
 
-            vk::Result result_present = present_queue.presentKHRWithOutOfDate( present_info );
             if ( shouldRecreateSwapchain( result_present ) )
             {
                 recreate_swapchain_wrapped();

@@ -63,6 +63,23 @@ class Queue : private vk::Queue
         }
         return result_present;
     }
+
+    template <typename Dispatch = VULKAN_HPP_DEFAULT_DISPATCHER_TYPE>
+    vk::Result presentKHRWithOutOfDate(
+        vk::SwapchainKHR swapchain,
+        vk::Semaphore wait_semaphore,
+        uint32_t image_index,
+        const Dispatch& d = VULKAN_HPP_DEFAULT_DISPATCHER ) const
+    {
+        auto present_info = vk::PresentInfoKHR{
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &wait_semaphore,
+            .swapchainCount = 1,
+            .pSwapchains = &swapchain,
+            .pImageIndices = &image_index };
+
+        return presentKHRWithOutOfDate( present_info, d );
+    }
 }; // Queue
 
 } // namespace vkwrap
