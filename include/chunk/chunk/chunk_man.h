@@ -37,7 +37,7 @@ class ChunkMan
 
   public:
     // Max chunks that can be viewed by the player
-    static constexpr auto k_render_distance = 63;
+    static constexpr auto k_render_distance = 10;
     // the region is a square with the side equal to 2 * k_render_distance + 1
     static constexpr auto k_chunks_count = ( 2 * k_render_distance + 1 ) * ( 2 * k_render_distance + 1 );
     static constexpr auto k_blocks_count = k_chunks_count * Chunk::k_block_count;

@@ -13,7 +13,7 @@ simpleChunkGen( Chunk& chunk_to_gen )
         {
             for ( int z = 0; z < Chunk::k_max_height; z++ )
             {
-                if ( z > 128 )
+                if ( z > 0 )
                 {
                     chunk_to_gen.at( x, y, z ) = BlockID::k_none;
                 } else
