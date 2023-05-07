@@ -717,8 +717,8 @@ physicsLoop(
     }
 
     constexpr auto angular_per_delta_mouse = glm::radians( 0.1f );
-    constexpr auto angular_per_delta_time = glm::radians( 0.2f );
-    constexpr auto linear_per_delta_time = 1.0f;
+    constexpr auto angular_per_delta_time = glm::radians( 25.0f );
+    constexpr auto linear_per_delta_time = 5.0f;
 
     const auto calculate_movement = [ &keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
         return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
@@ -748,7 +748,8 @@ physicsLoop(
         pitch_rotation = glm::angleAxis<float>( dy * angular_per_delta_mouse, camera.getSideways() );
     }
 
-    const auto roll_rotation = glm::angleAxis<float>( roll_movement * angular_per_delta_time, camera.getDir() );
+    const auto roll_rotation =
+        glm::angleAxis<float>( roll_movement * angular_per_delta_time * delta_t, camera.getDir() );
     const auto resulting_rotation = yaw_rotation * pitch_rotation * roll_rotation;
     camera.rotate( resulting_rotation );
 
@@ -974,6 +975,7 @@ runApplication( std::span<const char*> command_line_args )
         texture_image.getView() );
 
     auto recreate_swapchain_wrapped = [ &, &logical_device = logical_device ]() {
+        logical_device->waitIdle();
         swapchain.recreate();
         depth_image = createDepthBuffer( swapchain, queues, manager );
         framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
@@ -1072,9 +1074,10 @@ runApplication( std::span<const char*> command_line_args )
         auto [ acquire_result, image_index ] =
             swapchain.acquireNextImage( current_frame_data.image_availible_semaphore.get() );
 
-        if ( shouldRecreateSwapchain( acquire_result ) )
+        if ( acquire_result == vk::Result::eErrorOutOfDateKHR )
         {
             recreate_swapchain_wrapped();
+            return;
         }
 
         fill_command_buffer( command_buffer.get(), image_index, extent );
