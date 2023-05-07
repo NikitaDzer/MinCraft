@@ -223,7 +223,7 @@ try
     // the createPipeline() is last function of list
     auto pipeline = pipeline_builder.withVertexShader( vertex_shader )
                         .withFragmentShader( fragment_shader )
-                        .withPipelineLayout( logical_device.get() )
+                        .withPipelineLayout( logical_device.get(), std::array<vk::DescriptorSetLayout, 1>{} )
                         .withColorAttachment( swap_chain_format )
                         .withRenderPass( logical_device.get() )
                         .createPipeline( logical_device.get() );

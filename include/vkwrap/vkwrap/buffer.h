@@ -88,7 +88,7 @@ class Buffer : private vk::Buffer
 
     void update( const auto& raw_data, size_t n_bytes )
     {
-        uint8_t* src = reinterpret_cast<uint8_t*>( &raw_data );
+        const uint8_t* src = reinterpret_cast<const uint8_t*>( &raw_data );
         uint8_t* dst = m_mman->map( *this );
 
         std::copy( src, src + n_bytes, dst );

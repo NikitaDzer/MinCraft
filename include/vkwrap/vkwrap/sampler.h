@@ -148,6 +148,12 @@ class SamplerBuilder
         return *this;
     } // withAnisotropyEnable
 
+    SamplerBuilder& withCompareOp( vk::CompareOp cmp_op ) &
+    {
+        m_partial.compare_op = cmp_op;
+        return *this;
+    } // withCompareOp
+
     SamplerBuilder& withBorderColor( vk::BorderColor color ) &
     {
         m_partial.border_color = color;
