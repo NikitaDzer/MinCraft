@@ -41,6 +41,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <iterator>
 #include <numeric>
 #include <sstream>
@@ -179,9 +180,12 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
     vkwrap::Queue present;
     vkwrap::LogicalDeviceBuilder device_builder;
 
+    auto supported_features = physical_device.getFeatures();
+
     device_builder.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
         .withGraphicsQueue( graphics )
-        .withPresentQueue( surface, present );
+        .withPresentQueue( surface, present )
+        .withFeatures( supported_features );
 
     auto logical_device = device_builder.make( physical_device );
     VULKAN_HPP_DEFAULT_DISPATCHER.init( logical_device );
@@ -514,6 +518,98 @@ createIndexBuffer( ranges::range auto&& queues, const chunk::ChunkMesher& mesher
         vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst );
 }
 
+class KeyboardStateTracker
+{
+  public:
+    KeyboardStateTracker( GLFWwindow* window )
+        : m_handler_ptr{ &glfw::input::KeyboardHandler::instance( window ) }
+    {
+        assert( window );
+    }
+
+    KeyboardStateTracker( glfw::input::KeyboardHandler& handler )
+        : m_handler_ptr{ &handler }
+    {
+    }
+
+  public:
+    template <ranges::range Range>
+        requires std::same_as<ranges::range_value_t<Range>, glfw::input::KeyIndex>
+    void monitor( Range&& keys )
+    {
+        m_state_map.clear();
+        for ( auto&& key : keys )
+        {
+            m_state_map.insert( std::pair{ key, glfw::input::ButtonState::k_released } );
+        }
+
+        m_handler_ptr->monitor( keys );
+    }
+
+    auto loggingPoll() const
+    {
+        std::stringstream ss;
+
+        auto print = [ &ss ]( std::string key, auto info ) {
+            ss << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
+            if ( info.hasBeenPressed() )
+            {
+                for ( auto i = 0; auto&& press : info.presses() )
+                {
+                    auto action_string = glfw::input::buttonActionToString( press.action );
+                    ss << fmt::format( "Event [{}], State: {}\n", i++, action_string );
+                }
+            }
+        };
+
+        auto poll_result = m_handler_ptr->poll();
+
+        for ( auto&& [ key, info ] : poll_result )
+        {
+            auto* name_cstr = glfwGetKeyName( key, 0 );
+
+            if ( !name_cstr )
+            {
+                continue;
+            }
+
+            std::string_view key_name = name_cstr;
+            print( std::string{ key_name }, info );
+        }
+
+        if ( auto msg = ss.str(); !msg.empty() )
+        {
+            spdlog::debug( msg );
+        }
+
+        return poll_result;
+    }
+
+    void update()
+    {
+        for ( auto&& [ key, info ] : loggingPoll() )
+        {
+            m_state_map[ key ] = info.current;
+        }
+    }
+
+    glfw::input::ButtonState getState( glfw::input::KeyIndex key ) const
+    {
+        if ( auto found = m_state_map.find( key ); found != m_state_map.end() )
+        {
+            return found->second;
+        }
+
+        throw std::out_of_range{ "KeyboardStateTracker::getState(key): key not found" };
+    }
+
+    bool isPressed( glfw::input::KeyIndex key ) { return getState( key ) == glfw::input::ButtonState::k_pressed; }
+
+  private:
+    glfw::input::KeyboardHandler* m_handler_ptr;
+    std::unordered_map<glfw::input::KeyIndex, glfw::input::ButtonState> m_state_map;
+};
+
 auto
 pollMouseWithLog( glfw::input::MouseHandler& mouse )
 {
@@ -553,22 +649,18 @@ pollMouseWithLog( glfw::input::MouseHandler& mouse )
     return mouse_poll;
 }
 
-vkwrap::Pipeline
-createFilledPipeline()
-{
-}
-
 vkwrap::Sampler
 createTextureSampler( vk::PhysicalDevice physical_device, vk::Device logical_device )
 {
     auto sampler_builder = vkwrap::SamplerBuilder{};
+    auto anisotropy_supported = physical_device.getFeatures().samplerAnisotropy;
 
     sampler_builder.withMagFilter( vk::Filter::eNearest )
         .withMinFilter( vk::Filter::eLinear )
         .withAddressModeU( vk::SamplerAddressMode::eRepeat )
         .withAddressModeV( vk::SamplerAddressMode::eRepeat )
         .withAddressModeW( vk::SamplerAddressMode::eRepeat )
-        .withAnisotropyEnable( VK_FALSE )
+        .withAnisotropyEnable( anisotropy_supported )
         .withBorderColor( vk::BorderColor::eFloatOpaqueBlack )
         .withUnnormalizedCoordinates( VK_FALSE )
         .withCompareOp( vk::CompareOp::eAlways );
@@ -579,32 +671,89 @@ createTextureSampler( vk::PhysicalDevice physical_device, vk::Device logical_dev
 void
 initializeIo( GLFWwindow* window )
 {
-    glfw::input::MouseHandler::instance( window ).setHidden();
+    glfw::input::MouseHandler::instance( window ).setNormal();
     auto& keyboard = glfw::input::KeyboardHandler::instance( window );
-    keyboard.monitor( std::array{ GLFW_KEY_LEFT_ALT } );
 }
 
 auto
-physicsLoop( vk::Extent2D extent, GLFWwindow* window, utils3d::Camera& camera )
+createKeyboardReader( GLFWwindow* window )
 {
+    auto keyboard = KeyboardStateTracker{ window };
+    keyboard.monitor( std::array{
+        GLFW_KEY_W,
+        GLFW_KEY_A,
+        GLFW_KEY_S,
+        GLFW_KEY_D,
+        GLFW_KEY_SPACE,
+        GLFW_KEY_C,
+        GLFW_KEY_Q,
+        GLFW_KEY_E,
+        GLFW_KEY_LEFT_ALT } );
+    return keyboard;
+}
+
+auto
+physicsLoop(
+    vk::Extent2D extent,
+    GLFWwindow* window,
+    utils3d::Camera& camera,
+    KeyboardStateTracker& keyboard,
+    float delta_t // Time taken to render previous frame
+)
+{
+    keyboard.update();
     auto& mouse = glfw::input::MouseHandler::instance( window );
-    auto& keyboard = glfw::input::KeyboardHandler::instance( window );
 
-    ImGui::SetMouseCursor( ImGuiMouseCursor_None );
-    mouse.setHidden();
+    auto show_cursor = keyboard.isPressed( GLFW_KEY_LEFT_ALT );
 
-    const auto angular_per_delta = glm::radians( 0.1f );
+    if ( !show_cursor && !ImGui::GetIO().WantCaptureMouse )
+    {
+        ImGui::SetMouseCursor( ImGuiMouseCursor_None );
+        mouse.setHidden();
+    } else
+    {
+        mouse.setNormal();
+        mouse.poll();
+    }
 
-    auto mouse_events = pollMouseWithLog( mouse );
-    auto [ dx, dy ] = mouse_events.movement;
+    constexpr auto angular_per_delta_mouse = glm::radians( 0.1f );
+    constexpr auto angular_per_delta_time = glm::radians( 0.2f );
+    constexpr auto linear_per_delta_time = 1.0f;
 
-    const auto yaw_rotation = glm::angleAxis<float>( dx * angular_per_delta, camera.getUp() );
-    const auto pitch_rotation = glm::angleAxis<float>( dy * angular_per_delta, camera.getSideways() );
-    const auto resulting_rotation = yaw_rotation * pitch_rotation;
+    const auto calculate_movement = [ &keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
+        return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
+            1.0f * static_cast<int>( keyboard.isPressed( minus ) );
+    };
+
+    const auto fwd_movement = calculate_movement( GLFW_KEY_W, GLFW_KEY_S );
+    const auto side_movement = calculate_movement( GLFW_KEY_D, GLFW_KEY_A );
+    const auto up_movement = calculate_movement( GLFW_KEY_SPACE, GLFW_KEY_C );
+
+    const auto dir_movement =
+        fwd_movement * camera.getDir() + side_movement * camera.getSideways() + up_movement * camera.getUp();
+
+    const auto roll_movement = calculate_movement( GLFW_KEY_Q, GLFW_KEY_E );
+    if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0f, 0.05f ) )
+    {
+        spdlog::debug( "{} {} {}", dir_movement.x, dir_movement.y, dir_movement.z );
+        camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
+    }
+
+    glm::quat yaw_rotation = glm::identity<glm::quat>(), pitch_rotation = glm::identity<glm::quat>();
+    if ( !show_cursor )
+    {
+        auto mouse_events = pollMouseWithLog( mouse );
+        auto [ dx, dy ] = mouse_events.movement;
+
+        yaw_rotation = glm::angleAxis<float>( dx * angular_per_delta_mouse, camera.getUp() );
+        pitch_rotation = glm::angleAxis<float>( dy * angular_per_delta_mouse, camera.getSideways() );
+    }
+
+    const auto roll_rotation = glm::angleAxis<float>( roll_movement * angular_per_delta_time, camera.getDir() );
+    const auto resulting_rotation = yaw_rotation * pitch_rotation * roll_rotation;
     camera.rotate( resulting_rotation );
 
     auto [ view, proj ] = camera.getMatrices( extent.width, extent.height );
-
     auto ubo = UniformBufferObject{ .model = glm::mat4x4{ 1.0f }, .view = view, .proj = proj, .origin_pos = {} };
 
     return ubo;
@@ -662,18 +811,18 @@ createAndUpdateDescriptorSets(
     for ( auto i = uint32_t{ 0 }; i < k_max_frames_in_flight; ++i )
     {
         const auto buffer_info = vk::DescriptorBufferInfo{
-            .buffer = uniform_buffers[ i ].get(),
+            .buffer = uniform_buffers.at( i ).get(),
             .offset = 0,
             .range = sizeof( UniformBufferObject ) };
 
         const auto write_descriptor_sets = std::to_array<vk::WriteDescriptorSet>(
-            { { .dstSet = descriptor_sets[ i ].get(),
+            { { .dstSet = descriptor_sets.at( i ).get(),
                 .dstBinding = 0,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = vk::DescriptorType::eUniformBuffer,
                 .pBufferInfo = &buffer_info },
-              { .dstSet = descriptor_sets[ i ].get(),
+              { .dstSet = descriptor_sets.at( i ).get(),
                 .dstBinding = 1,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
@@ -709,6 +858,18 @@ constexpr auto k_pool_sizes = std::array{
         .type = vk::DescriptorType::eCombinedImageSampler,
         .descriptorCount = static_cast<uint32_t>( k_max_frames_in_flight ) } };
 
+auto
+meshChunks()
+{
+    auto mesher_future = std::async( std::launch::async, []() {
+        chunk::ChunkMesher mesher;
+        mesher.meshRenderArea();
+        return mesher;
+    } );
+
+    return mesher_future;
+}
+
 void
 runApplication( std::span<const char*> command_line_args )
 {
@@ -726,6 +887,8 @@ runApplication( std::span<const char*> command_line_args )
     // Use `export SPDLOG_LEVEL=debug` to set maximum logging level
     // Or `export SPDLOG_LEVEL=warn` to print only warnings and errors
     vkwrap::initializeLoader(); // Load basic functions that are instance independent
+
+    auto mesher_future = meshChunks();
 
     auto glfw_instance = glfw::Instance{};
     auto window = glfw::wnd::Window{ glfw::wnd::WindowConfig{ .width = 1280, .height = 720, .title = "MinCraft" } };
@@ -756,9 +919,6 @@ runApplication( std::span<const char*> command_line_args )
     vkwrap::ShaderModule vert_shader_module{ "vertex_shader.spv", logical_device };
     vkwrap::ShaderModule frag_shader_module{ "fragment_shader.spv", logical_device };
 
-    chunk::ChunkMesher mesher;
-    mesher.meshRenderArea();
-
     auto manager = vkwrap::Mman{
         k_vulkan_version,
         vk_instance,
@@ -769,7 +929,7 @@ runApplication( std::span<const char*> command_line_args )
 
     auto depth_image = createDepthBuffer( swapchain, queues, manager );
     auto set_layout = createDescriptorSetLayout( logical_device );
-    auto vertex_info = mesher.getVertexInfo();
+    auto vertex_info = chunk::ChunkMesher::getVertexInfo();
 
     auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
     auto pipeline = pipeline_builder.withVertexShader( vert_shader_module )
@@ -789,7 +949,8 @@ runApplication( std::span<const char*> command_line_args )
     auto framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
     auto render_infos = createRenderInfos( logical_device, command_pool, queues, manager );
 
-    initializeIo( window );
+    initializeIo( window ); // Initialize GLFW IO before creating ImGui to keep the callbacks, because the backend ImGui
+                            // has for GLFW overrides the callbacks and saves those that were previously set.
 
     auto imgui_resources = imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
         .instance = vk_instance,
@@ -802,13 +963,7 @@ runApplication( std::span<const char*> command_line_args )
         .render_pass = render_pass } };
 
     auto sampler = createTextureSampler( physical_device.get(), logical_device );
-
     auto texture_image = createTextureImage( queues, manager );
-    auto buffer_builder = vkwrap::BufferBuilder{};
-
-    auto vertex_buffer = createVertexBuffer( queues, mesher, manager );
-    auto index_buffer = createIndexBuffer( queues, mesher, manager );
-
     auto descriptor_pool = vkwrap::createDescriptorPool( logical_device, k_pool_sizes );
 
     auto descriptor_sets = createAndUpdateDescriptorSets(
@@ -824,6 +979,10 @@ runApplication( std::span<const char*> command_line_args )
         depth_image = createDepthBuffer( swapchain, queues, manager );
         framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
     };
+
+    auto mesher = mesher_future.get();
+    auto vertex_buffer = createVertexBuffer( queues, mesher, manager );
+    auto index_buffer = createIndexBuffer( queues, mesher, manager );
 
     uint32_t current_frame = 0;
 
@@ -880,12 +1039,19 @@ runApplication( std::span<const char*> command_line_args )
         cmd.end();
     };
 
-    auto camera = utils3d::Camera{ glm::vec3{ 0, 0, 15.0f } };
+    auto camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 15.0f } };
+    auto keyboard = createKeyboardReader( window );
+    auto prev_timepoint = std::chrono::high_resolution_clock::now();
 
-    auto application_loop = [ &mesher, &camera, &window ]( vk::Extent2D extent ) {
+    auto application_loop = [ &mesher, &camera, &window, &keyboard, &prev_timepoint ]( vk::Extent2D extent ) {
+        auto curr_timepoint = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
+        prev_timepoint = curr_timepoint;
+
         drawGui(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
 
-        auto ubo = physicsLoop( extent, window, camera );
+        auto ubo = physicsLoop( extent, window, camera, keyboard, delta_time.count() );
+
         auto [ x, y ] = mesher.getRenderAreaRight();
         ubo.origin_pos = glm::vec2{ x, y };
 

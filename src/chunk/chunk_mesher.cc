@@ -236,7 +236,7 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
 } /* ChunkMesher::greedyMesh */
 
 ChunkMesher::VertexInfo
-ChunkMesher::getVertexInfo() const
+ChunkMesher::getVertexInfo()
 {
     return VertexInfo{
         .binding_descr =
