@@ -6,55 +6,7 @@ if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBU
     message ( FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it." )
 endif ()
 
-if ( MSVC )
-    add_compile_options( /W4 )
-elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
-    add_compile_options (
-        -Wall
-        -Wextra
-        -pedantic
-        -Wshadow
-        -Wnon-virtual-dtor
-        -Wcast-align
-        -Wunused
-        -Woverloaded-virtual
-        -Wpedantic
-        -Wconversion
-        -Wsign-conversion
-        -Wmisleading-indentation
-        -Wnull-dereference
-        -Wdouble-promotion
-        -Wformat=2
-        -Wimplicit-fallthrough
-        -Wno-missing-field-initializers
-    )
-elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
-    add_compile_options (
-        -Wall
-        -Wextra
-        -pedantic
-        -Wshadow
-        -Wnon-virtual-dtor
-        -Wcast-align
-        -Wunused
-        -Woverloaded-virtual
-        -Wpedantic
-        -Wconversion
-        -Wsign-conversion
-        -Wmisleading-indentation
-        -Wduplicated-cond
-        -Wduplicated-branches
-        -Wlogical-op
-        -Wnull-dereference
-        -Wdouble-promotion
-        -Wformat=2
-        -Wimplicit-fallthrough
-        -Wno-missing-field-initializers
-    )
-else ()
-    message(FATAL_ERROR "Unsupported compiler: [${CMAKE_CXX_COMPILER_ID}]")
-endif ()
-
+add_compile_options( -pedantic )
 option ( LINT OFF )
 
 if ( ${LINT} )
@@ -119,6 +71,7 @@ set( RANGES_CXX_STD 20 )
 add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
 add_subdirectory ( 3rd-party/popl EXCLUDE_FROM_ALL )
+add_subdirectory ( 3rd-party/ktx EXCLUDE_FROM_ALL )
 
 # External dependecies
 find_package ( glfw3 REQUIRED )
@@ -159,7 +112,7 @@ set ( VKWRAP_SOURCES
 
 add_library ( vkwrap ${VKWRAP_SOURCES} )
 target_include_directories ( vkwrap PUBLIC include/vkwrap include/common include/glfw )
-target_link_libraries ( vkwrap PUBLIC range-v3 Boost::boost spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan )
+target_link_libraries ( vkwrap PUBLIC range-v3 Boost::boost spdlog glfw VulkanMemoryAllocator Vulkan::Vulkan ktx )
 target_enable_linter ( vkwrap )
 target_compile_features ( vkwrap PUBLIC cxx_std_20 )
 
@@ -222,7 +175,14 @@ set ( MINCRAFT_SOURCES
 )
 
 add_executable ( mincraft ${MINCRAFT_SOURCES} )
-target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl )
+target_link_libraries ( mincraft PRIVATE vkwrap chunk popl gui_impl )
 target_enable_linter ( mincraft )
 target_compile_features ( mincraft PUBLIC cxx_std_20 )
 target_include_directories( mincraft PRIVATE include/imgui )
+
+# Copy texture directory
+add_custom_command(TARGET mincraft  POST_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy_directory
+                       ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:mincraft>)
+
+
