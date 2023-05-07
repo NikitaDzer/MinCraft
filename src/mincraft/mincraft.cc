@@ -735,7 +735,6 @@ physicsLoop(
     const auto roll_movement = calculate_movement( GLFW_KEY_Q, GLFW_KEY_E );
     if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0f, 0.05f ) )
     {
-        spdlog::debug( "{} {} {}", dir_movement.x, dir_movement.y, dir_movement.z );
         camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
     }
 
