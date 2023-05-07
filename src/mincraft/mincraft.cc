@@ -1,16 +1,16 @@
 #include "common/vulkan_include.h"
 #include "utils/color.h"
 
+#include "vkwrap/buffer.h"
 #include "vkwrap/command.h"
+#include "vkwrap/descriptors.h"
 #include "vkwrap/device.h"
 #include "vkwrap/framebuffer.h"
+#include "vkwrap/image.h"
+#include "vkwrap/image_view.h"
 #include "vkwrap/instance.h"
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
-
-#include "vkwrap/buffer.h"
-#include "vkwrap/image.h"
-#include "vkwrap/image_view.h"
 #include "vkwrap/sampler.h"
 #include "vkwrap/swapchain.h"
 
@@ -180,7 +180,7 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
         .withPresentQueue( surface, present );
 
     auto logical_device = device_builder.make( physical_device );
-    VULKAN_HPP_DEFAULT_DISPATCHER.init( logical_device.get() );
+    VULKAN_HPP_DEFAULT_DISPATCHER.init( logical_device );
 
     return LogicalDeviceCreateResult{ .device = std::move( logical_device ), .graphics = graphics, .present = present };
 }
@@ -294,16 +294,23 @@ struct FrameRenderingInfos
 {
     std::vector<FrameSyncPrimitives> sync_primitives;
     std::vector<vk::UniqueCommandBuffer> imgui_command_buffers;
+    std::vector<vkwrap::Buffer> uniform_buffers;
 };
 
 FrameRenderingInfos
-createRenderInfos( vk::Device logical_device, vkwrap::CommandPool& command_pool )
+createRenderInfos(
+    vk::Device logical_device,
+    vkwrap::CommandPool& command_pool,
+    ranges::range auto&& queues,
+    vkwrap::Mman& manager )
 {
     FrameRenderingInfos frame_render_info;
 
     auto frames = k_max_frames_in_flight;
+    auto buffer_builder = vkwrap::BufferBuilder{};
+    buffer_builder.withQueues( queues );
 
-    for ( [[maybe_unused]] auto&& i = uint32_t{ 0 }; i < frames; ++i )
+    for ( [[maybe_unused]] auto i = uint32_t{ 0 }; i < frames; ++i )
     {
         auto primitives = FrameSyncPrimitives{
             .image_availible_semaphore = logical_device.createSemaphoreUnique( {} ),
@@ -311,6 +318,12 @@ createRenderInfos( vk::Device logical_device, vkwrap::CommandPool& command_pool 
             .in_flight_fence = logical_device.createFenceUnique( { .flags = vk::FenceCreateFlagBits::eSignaled } ) };
 
         frame_render_info.sync_primitives.push_back( std::move( primitives ) );
+
+        auto buffer = buffer_builder.withSize( sizeof( UniformBufferObject ) )
+                          .withUsage( vk::BufferUsageFlagBits::eUniformBuffer )
+                          .make( manager );
+
+        frame_render_info.uniform_buffers.push_back( std::move( buffer ) );
     }
 
     frame_render_info.imgui_command_buffers = command_pool.createCmdBuffers( static_cast<uint32_t>( frames ) );
@@ -502,6 +515,37 @@ createIndexBuffer( ranges::range auto&& queues, const chunk::ChunkMesher& mesher
         vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst );
 }
 
+vkwrap::Pipeline
+createFilledPipeline()
+{
+}
+
+vkwrap::Sampler
+createTextureSampler( vk::PhysicalDevice physical_device, vk::Device logical_device )
+{
+    auto sampler_builder = vkwrap::SamplerBuilder{};
+
+    sampler_builder.withMagFilter( vk::Filter::eNearest )
+        .withMinFilter( vk::Filter::eLinear )
+        .withAddressModeU( vk::SamplerAddressMode::eRepeat )
+        .withAddressModeV( vk::SamplerAddressMode::eRepeat )
+        .withAddressModeW( vk::SamplerAddressMode::eRepeat )
+        .withAnisotropyEnable( VK_FALSE )
+        .withBorderColor( vk::BorderColor::eFloatOpaqueBlack )
+        .withUnnormalizedCoordinates( VK_FALSE )
+        .withCompareOp( vk::CompareOp::eAlways );
+
+    return sampler_builder.make( logical_device, physical_device );
+}
+
+constexpr auto k_pool_sizes = std::array{
+    vk::DescriptorPoolSize{
+        .type = vk::DescriptorType::eUniformBuffer,
+        .descriptorCount = static_cast<uint32_t>( k_max_frames_in_flight ) },
+    vk::DescriptorPoolSize{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorCount = static_cast<uint32_t>( k_max_frames_in_flight ) } };
+
 void
 runApplication( std::span<const char*> command_line_args )
 {
@@ -540,11 +584,14 @@ runApplication( std::span<const char*> command_line_args )
 
     auto swapchain = createSwapchain(
         physical_device.get(),
-        logical_device.get(),
+        logical_device,
         surface.get(),
         graphics_queue,
         present_queue,
         swapchain_requirements );
+
+    vkwrap::ShaderModule vert_shader_module{ "vertex_shader.spv", logical_device };
+    vkwrap::ShaderModule frag_shader_module{ "fragment_shader.spv", logical_device };
 
     chunk::ChunkMesher mesher{};
     mesher.meshRenderArea();
@@ -582,9 +629,6 @@ runApplication( std::span<const char*> command_line_args )
     vk::UniqueDescriptorSetLayout descriptor_set_layout =
         logical_device->createDescriptorSetLayoutUnique( descriptor_set_layout_info );
 
-    vkwrap::ShaderModule vert_shader_module{ "vertex_shader.spv", logical_device.get() };
-    vkwrap::ShaderModule frag_shader_module{ "fragment_shader.spv", logical_device.get() };
-
     auto vertex_info = mesher.getVertexInfo();
 
     vk::SubpassDependency dependency{
@@ -602,20 +646,20 @@ runApplication( std::span<const char*> command_line_args )
     auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
     auto pipeline = pipeline_builder.withVertexShader( vert_shader_module )
                         .withFragmentShader( frag_shader_module )
-                        .withPipelineLayout( logical_device.get(), std::array{ descriptor_set_layout.get() } )
+                        .withPipelineLayout( logical_device, std::array{ descriptor_set_layout.get() } )
                         .withAttributeDescriptions( vertex_info.attribute_descr )
                         .withBindingDescriptions( vertex_info.binding_descr )
                         .withColorAttachment( swapchain.getFormat() )
                         .withDepthAttachment( vk::Format::eD32Sfloat )
                         .withSubpassDependencies( std::array{ dependency } )
-                        .withRenderPass( logical_device.get() )
-                        .createPipeline( logical_device.get() );
+                        .withRenderPass( logical_device )
+                        .createPipeline( logical_device );
 
     auto render_pass = pipeline_builder.getRenderPass();
     auto pipeline_layout = pipeline_builder.getPipelineLayout();
 
     auto framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
-    auto render_infos = createRenderInfos( logical_device, command_pool );
+    auto render_infos = createRenderInfos( logical_device, command_pool, queues, manager );
 
     auto imgui_resources = imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
         .instance = vk_instance,
@@ -627,18 +671,7 @@ runApplication( std::span<const char*> command_line_args )
         .upload_context = one_time_cmd,
         .render_pass = render_pass } };
 
-    // create sampler
-    vkwrap::SamplerBuilder sampler_builder{};
-    auto sampler = sampler_builder.withMagFilter( vk::Filter::eNearest )
-                       .withMinFilter( vk::Filter::eLinear )
-                       .withAddressModeU( vk::SamplerAddressMode::eRepeat )
-                       .withAddressModeV( vk::SamplerAddressMode::eRepeat )
-                       .withAddressModeW( vk::SamplerAddressMode::eRepeat )
-                       .withAnisotropyEnable( VK_FALSE )
-                       .withBorderColor( vk::BorderColor::eFloatOpaqueBlack )
-                       .withUnnormalizedCoordinates( VK_FALSE )
-                       .withCompareOp( vk::CompareOp::eAlways )
-                       .make( logical_device, physical_device.get() );
+    auto sampler = createTextureSampler( physical_device.get(), logical_device );
 
     auto texture_image = createTextureImage( queues, manager );
     auto buffer_builder = vkwrap::BufferBuilder{};
@@ -646,33 +679,7 @@ runApplication( std::span<const char*> command_line_args )
     auto vertex_buffer = createVertexBuffer( queues, mesher, manager );
     auto index_buffer = createIndexBuffer( queues, mesher, manager );
 
-    std::array<vkwrap::Buffer, k_max_frames_in_flight> uniform_buffers{
-        buffer_builder.withSize( sizeof( UniformBufferObject ) )
-            .withQueues( std::array{ graphics_queue } )
-            .withUsage( vk::BufferUsageFlagBits::eUniformBuffer )
-            .make( manager ),
-        buffer_builder.withSize( sizeof( UniformBufferObject ) )
-            .withQueues( std::array{ graphics_queue } )
-            .withUsage( vk::BufferUsageFlagBits::eUniformBuffer )
-            .make( manager ),
-
-    };
-
-    auto pool_sizes = std::array{
-        vk::DescriptorPoolSize{
-            .type = vk::DescriptorType::eUniformBuffer,
-            .descriptorCount = static_cast<uint32_t>( k_max_frames_in_flight ) },
-        vk::DescriptorPoolSize{
-            .type = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = static_cast<uint32_t>( k_max_frames_in_flight ) } };
-
-    vk::DescriptorPoolCreateInfo pool_info{
-        .maxSets = static_cast<uint32_t>( k_max_frames_in_flight ),
-        .poolSizeCount = static_cast<uint32_t>( pool_sizes.size() ),
-        .pPoolSizes = pool_sizes.data(),
-    };
-
-    auto descriptor_pool = std::move( logical_device->createDescriptorPoolUnique( pool_info ) );
+    auto descriptor_pool = vkwrap::createDescriptorPool( logical_device, k_pool_sizes );
 
     std::vector<vk::DescriptorSetLayout> layouts( k_max_frames_in_flight, descriptor_set_layout.get() );
 
@@ -686,7 +693,7 @@ runApplication( std::span<const char*> command_line_args )
     for ( size_t i = 0; i < k_max_frames_in_flight; i++ )
     {
         vk::DescriptorBufferInfo buffer_info{
-            .buffer = uniform_buffers[ i ].get(),
+            .buffer = render_infos.uniform_buffers[ i ].get(),
             .offset = 0,
             .range = sizeof( UniformBufferObject ) };
 
@@ -823,7 +830,8 @@ runApplication( std::span<const char*> command_line_args )
 
             ubo.origin_pos = glm::vec2{ mesher.getRenderAreaRight().x, mesher.getRenderAreaRight().y };
 
-            uniform_buffers[ current_frame ].update( ubo, sizeof( ubo ) );
+            auto& uniform_buffer = render_infos.uniform_buffers.at( current_frame );
+            uniform_buffer.update( ubo, sizeof( ubo ) );
 
             auto [ acquire_result, image_index ] =
                 swapchain.acquireNextImage( current_frame_data.image_availible_semaphore.get() );
