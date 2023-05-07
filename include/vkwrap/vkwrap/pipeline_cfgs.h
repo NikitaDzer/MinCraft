@@ -152,7 +152,7 @@ template <typename Derived> class RasterizerCfg
         m_rasterizer.setPolygonMode( vk::PolygonMode::eFill );
         m_rasterizer.setLineWidth( 1.0f );
         m_rasterizer.setCullMode( vk::CullModeFlagBits::eBack );
-        m_rasterizer.setFrontFace( vk::FrontFace::eClockwise );
+        m_rasterizer.setFrontFace( vk::FrontFace::eCounterClockwise );
         m_rasterizer.setDepthBiasEnable( VK_FALSE );
         m_rasterizer.setDepthBiasConstantFactor( 0.0f );
         m_rasterizer.setDepthBiasClamp( 0.0f );
@@ -199,10 +199,9 @@ template <typename Derived> class InputAssemblyCfg
 template <typename Derived> class PipelineLayoutCfg
 {
   public:
-    template <typename Layout = ranges::empty_view<vk::UniqueDescriptorSetLayout>>
-    Derived& withPipelineLayout( vk::Device device, Layout&& layouts = {} ) &
+    template <typename Layout> Derived& withPipelineLayout( vk::Device device, Layout&& layouts = {} ) &
     {
-        m_layouts = ranges::views::transform( layouts, []( auto&& elem ) { return elem.get(); } ) | ranges::to_vector;
+        m_layouts = ranges::views::all( layouts ) | ranges::to_vector;
 
         vk::PipelineLayoutCreateInfo layout_create_info{
             .setLayoutCount = static_cast<uint32_t>( m_layouts.size() ),
@@ -217,6 +216,8 @@ template <typename Derived> class PipelineLayoutCfg
     {
         pipeline_create_info.setLayout( m_pipeline_layout.get() ); //
     }
+
+    vk::PipelineLayout getPipelineLayout() const { return m_pipeline_layout.get(); }
 
   protected:
     PipelineLayoutCfg() = default;
@@ -267,6 +268,29 @@ template <typename Derived> class BlendStateCfg
     vk::PipelineColorBlendStateCreateInfo m_color_blending;
 };
 
+template <typename Derived> class DepthStencilStateCfg
+{
+
+  public:
+    void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
+    {
+        pipeline_create_info.setPDepthStencilState( &m_depth_stencil );
+    }
+
+  protected:
+    DepthStencilStateCfg()
+    {
+        m_depth_stencil.setDepthTestEnable( VK_TRUE );
+        m_depth_stencil.setDepthWriteEnable( VK_TRUE );
+        m_depth_stencil.setDepthCompareOp( vk::CompareOp::eLess );
+        m_depth_stencil.setDepthBoundsTestEnable( VK_FALSE );
+        m_depth_stencil.setStencilTestEnable( VK_FALSE );
+    }
+
+  private:
+    vk::PipelineDepthStencilStateCreateInfo m_depth_stencil;
+};
+
 template <typename Derived> class RenderPassCfg
 {
   public:
@@ -284,9 +308,25 @@ template <typename Derived> class RenderPassCfg
         return static_cast<Derived&>( *this );
     };
 
-    template <typename SubpassDep> void withSubpassDependencies( SubpassDep&& dependecies )
+    Derived& withDepthAttachment( vk::Format depth_format ) &
+    {
+        m_depth_attachment.setFormat( depth_format );
+        m_depth_attachment.setSamples( vk::SampleCountFlagBits::e1 );
+        m_depth_attachment.setLoadOp( vk::AttachmentLoadOp::eClear );
+        m_depth_attachment.setStoreOp( vk::AttachmentStoreOp::eDontCare );
+        m_depth_attachment.setStencilLoadOp( vk::AttachmentLoadOp::eDontCare );
+        m_depth_attachment.setStencilStoreOp( vk::AttachmentStoreOp::eDontCare );
+        m_depth_attachment.setInitialLayout( vk::ImageLayout::eUndefined );
+        m_depth_attachment.setFinalLayout( vk::ImageLayout::eDepthStencilAttachmentOptimal );
+
+        return static_cast<Derived&>( *this );
+    }
+
+    template <typename SubpassDep> Derived& withSubpassDependencies( SubpassDep&& dependecies )
     {
         m_subpass_dependecies = ranges::views::all( dependecies ) | ranges::to_vector;
+
+        return static_cast<Derived&>( *this );
     }
 
     Derived& withRenderPass( vk::Device device ) &
@@ -295,14 +335,21 @@ template <typename Derived> class RenderPassCfg
             .attachment = 0,
             .layout = vk::ImageLayout::eColorAttachmentOptimal };
 
+        vk::AttachmentReference depth_attachment_ref{
+            .attachment = 1,
+            .layout = vk::ImageLayout::eDepthStencilAttachmentOptimal };
+
         vk::SubpassDescription subpass{
             .pipelineBindPoint = vk::PipelineBindPoint::eGraphics,
             .colorAttachmentCount = 1,
-            .pColorAttachments = &color_attachment_ref };
+            .pColorAttachments = &color_attachment_ref,
+            .pDepthStencilAttachment = &depth_attachment_ref };
+
+        auto attachments = std::array{ m_color_attachment, m_depth_attachment };
 
         vk::RenderPassCreateInfo render_pass_create_info{
-            .attachmentCount = 1,
-            .pAttachments = &m_color_attachment,
+            .attachmentCount = static_cast<uint32_t>( attachments.size() ),
+            .pAttachments = attachments.data(),
             .subpassCount = 1,
             .pSubpasses = &subpass,
             .dependencyCount = static_cast<uint32_t>( m_subpass_dependecies.size() ),
@@ -333,6 +380,7 @@ template <typename Derived> class RenderPassCfg
   private:
     std::vector<vk::SubpassDependency> m_subpass_dependecies;
     vk::AttachmentDescription m_color_attachment;
+    vk::AttachmentDescription m_depth_attachment;
     vk::UniqueRenderPass m_render_pass;
 };
 

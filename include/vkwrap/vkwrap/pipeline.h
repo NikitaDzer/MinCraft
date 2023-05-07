@@ -82,6 +82,7 @@ template <template <typename> typename... Cfgs> class PipelineBuilder : public C
 };
 
 using DefaultPipelineBuilder = PipelineBuilder<
+    cfgs::DepthStencilStateCfg,
     cfgs::ShaderCfg,
     cfgs::ViewportScissorCfg,
     cfgs::RasterizerCfg,
