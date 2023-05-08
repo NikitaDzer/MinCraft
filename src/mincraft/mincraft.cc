@@ -145,7 +145,7 @@ parseOptions( std::span<const char*> command_line_args )
 }
 
 vkwrap::PhysicalDevice
-pickPhysicalDevice( vk::Instance instance, vk::SurfaceKHR surface, vkwrap::SwapchainReqs swapchain_requirements )
+pickPhysicalDevice( vk::Instance instance, vkwrap::SwapchainReqs swapchain_requirements )
 {
     vkwrap::PhysicalDeviceSelector physical_selector;
 
@@ -396,7 +396,7 @@ checkKtxResult( ktx_error_code_e ec )
 
 class UniqueKtxTexture
 {
-    static ktxTexture* createHandle( const std::filesystem::path& filepath, ktxTextureCreateFlags flags )
+    static ktxTexture* createHandle( const std::filesystem::path& filepath )
     {
         ktxTexture* handle = nullptr;
         auto res = ktxTexture_CreateFromNamedFile( filepath.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &handle );
@@ -405,8 +405,8 @@ class UniqueKtxTexture
     }
 
   public:
-    UniqueKtxTexture( const std::filesystem::path& filepath, ktxTextureCreateFlags flags )
-        : m_handle{ createHandle( filepath, flags ) }
+    UniqueKtxTexture( const std::filesystem::path& filepath )
+        : m_handle{ createHandle( filepath ) }
     {
     }
 
@@ -441,7 +441,7 @@ createTextureImage(
     vkwrap::Mman& manager,
     const std::filesystem::path& filepath = "texture.ktx" )
 {
-    auto ktx_texture = UniqueKtxTexture{ filepath, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT };
+    auto ktx_texture = UniqueKtxTexture{ filepath };
 
     auto image_builder = vkwrap::ImageBuilder{};
     auto texture_image =
@@ -678,7 +678,7 @@ void
 initializeIo( GLFWwindow* window )
 {
     glfw::input::MouseHandler::instance( window ).setNormal();
-    auto& keyboard = glfw::input::KeyboardHandler::instance( window );
+    glfw::input::KeyboardHandler::instance( window );
 }
 
 auto
@@ -722,11 +722,19 @@ physicsLoop(
         mouse.poll();
     }
 
+    const bool use_keyboard = !ImGui::GetIO().WantCaptureKeyboard;
+
     constexpr auto angular_per_delta_mouse = glm::radians( 0.1f );
     constexpr auto angular_per_delta_time = glm::radians( 25.0f );
     constexpr auto linear_per_delta_time = 5.0f;
 
-    const auto calculate_movement = [ &keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
+    const auto calculate_movement =
+        [ &keyboard, use_keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
+        if ( !use_keyboard )
+        {
+            return 0.0f;
+        }
+
         return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
             1.0f * static_cast<int>( keyboard.isPressed( minus ) );
     };
@@ -914,7 +922,7 @@ runApplication( std::span<const char*> command_line_args )
     auto vk_instance = createInstance( glfw_instance, options.validation ).instance;
     auto surface = window.createSurface( vk_instance );
     auto swapchain_requirements = getSwapchainRequirements( surface.get(), options.uncapped_fps );
-    auto physical_device = pickPhysicalDevice( vk_instance, surface.get(), swapchain_requirements );
+    auto physical_device = pickPhysicalDevice( vk_instance, swapchain_requirements );
 
     auto [ logical_device, graphics_queue, present_queue ] =
         createLogicalDeviceQueues( physical_device.get(), surface.get() );

@@ -23,14 +23,12 @@ elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
         -Wunused
         -Woverloaded-virtual
         -Wpedantic
-        -Wconversion
-        -Wsign-conversion
         -Wmisleading-indentation
         -Wnull-dereference
-        -Wdouble-promotion
         -Wformat=2
         -Wimplicit-fallthrough
         -Wno-missing-field-initializers
+        -Wno-nullability-extension
     )
 elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
     add_compile_options (
@@ -43,14 +41,11 @@ elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
         -Wunused
         -Woverloaded-virtual
         -Wpedantic
-        -Wconversion
-        -Wsign-conversion
         -Wmisleading-indentation
         -Wduplicated-cond
         -Wduplicated-branches
         -Wlogical-op
         -Wnull-dereference
-        -Wdouble-promotion
         -Wformat=2
         -Wimplicit-fallthrough
         -Wno-missing-field-initializers

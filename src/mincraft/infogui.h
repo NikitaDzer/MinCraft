@@ -16,7 +16,7 @@ namespace detail
 class InstanceInfo
 {
   public:
-    InstanceInfo( vk::Instance instance )
+    InstanceInfo()
         : m_version{ static_cast<vkwrap::VulkanVersion>( vk::enumerateInstanceVersion() ) },
           m_extensions{ vk::enumerateInstanceExtensionProperties() },
           m_layers{ vk::enumerateInstanceLayerProperties() }
@@ -86,9 +86,9 @@ using PhysicalDevicesInfo = std::vector<PhysicalDeviceInfo>;
 class VulkanInformation
 {
   public:
-    VulkanInformation( vk::Instance instance, vk::SurfaceKHR surface )
-        : instance{ instance },
-          physical_devices{ PhysicalDeviceInfo::allFromInstance( instance, surface ) }
+    VulkanInformation( vk::Instance instance_param, vk::SurfaceKHR surface )
+        : instance{},
+          physical_devices{ PhysicalDeviceInfo::allFromInstance( instance_param, surface ) }
     {
     }
 
