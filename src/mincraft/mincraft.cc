@@ -253,10 +253,10 @@ getSwapchainRequirements( vk::SurfaceKHR surface, bool uncapped_always = false )
         { { .property = { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 },
           { .property = { vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 } } );
 
-    const auto weight_immediate = ( uncapped_always ? 0 : 10000 );
+    const auto weight_immediate = ( uncapped_always ? 0 : 100 );
     auto modes = std::to_array<vkwrap::SwapchainReqsBuilder::WeightMode>(
-        { { .property = vk::PresentModeKHR::eFifo, .weight = 1000 }, //
-          { .property = vk::PresentModeKHR::eMailbox, .weight = 0 },
+        { { .property = vk::PresentModeKHR::eFifo, .weight = 50 }, //
+          { .property = vk::PresentModeKHR::eMailbox, .weight = weight_immediate },
           { .property = vk::PresentModeKHR::eImmediate, .weight = weight_immediate } } );
 
     auto requirement_builder = vkwrap::SwapchainReqsBuilder{};
