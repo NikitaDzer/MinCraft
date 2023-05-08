@@ -6,7 +6,55 @@ if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBU
     message ( FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it." )
 endif ()
 
-add_compile_options( -pedantic )
+if ( MSVC )
+    add_compile_options( /W4 )
+elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
+    add_compile_options (
+        -Wall
+        -Wextra
+        -pedantic
+        -Wshadow
+        -Wnon-virtual-dtor
+        -Wcast-align
+        -Wunused
+        -Woverloaded-virtual
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wmisleading-indentation
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+        -Wno-missing-field-initializers
+    )
+elseif ( "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" )
+    add_compile_options (
+        -Wall
+        -Wextra
+        -pedantic
+        -Wshadow
+        -Wnon-virtual-dtor
+        -Wcast-align
+        -Wunused
+        -Woverloaded-virtual
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wmisleading-indentation
+        -Wduplicated-cond
+        -Wduplicated-branches
+        -Wlogical-op
+        -Wnull-dereference
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+        -Wno-missing-field-initializers
+    )
+else ()
+    message(FATAL_ERROR "Unsupported compiler: [${CMAKE_CXX_COMPILER_ID}]")
+endif ()
+
 option ( LINT OFF )
 
 if ( ${LINT} )
