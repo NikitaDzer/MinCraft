@@ -11,6 +11,7 @@
 #include "vkwrap/instance.h"
 #include "vkwrap/pipeline.h"
 #include "vkwrap/queues.h"
+#include "vkwrap/render_pass.h"
 #include "vkwrap/sampler.h"
 #include "vkwrap/swapchain.h"
 
@@ -31,16 +32,15 @@
 
 #include "camera.h"
 #include "glm_include.h"
+#include "info_gui.h"
+
+#include <ktx.h>
+#include <ktxvulkan.h>
 
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/algorithm/find_if.hpp>
 #include <range/v3/view/iota.hpp>
 #include <range/v3/view/single.hpp>
-
-#include <ktx.h>
-#include <ktxvulkan.h>
-
-#include "infogui.h"
 
 #include <algorithm>
 #include <atomic>
@@ -849,22 +849,38 @@ createAndUpdateDescriptorSets(
     return descriptor_sets;
 }
 
+struct GuiConfiguation
+{
+    bool draw_lines;
+};
+
 class MasterGui
 {
+  private:
+    void drawConfigMenu()
+    {
+        ImGui::Begin( "Configuration" );
+        ImGui::Checkbox( "Draw lines", &m_config.draw_lines );
+        ImGui::End();
+    }
+
   public:
     MasterGui( vk::Instance instance, vk::SurfaceKHR surface )
         : m_vkinfo_tab{ instance, surface }
     {
     }
 
-    void draw()
+    GuiConfiguation draw()
     {
         ImGui::ShowDemoWindow();
         m_vkinfo_tab.draw();
+        drawConfigMenu();
+        return m_config;
     }
 
   private:
     imgw::VulkanInformationTab m_vkinfo_tab;
+    GuiConfiguation m_config;
 };
 
 constexpr auto k_subpass_dependency = vk::SubpassDependency{
@@ -894,6 +910,60 @@ meshChunks()
     } );
 
     return mesher_future;
+}
+
+struct PipelineCreateResult
+{
+    vkwrap::Pipeline pipeline;
+    vk::UniquePipelineLayout layout;
+};
+
+PipelineCreateResult
+createPipeline(
+    vk::Device logical_device,
+    vk::DescriptorSetLayout set_layout,
+    vk::RenderPass render_pass,
+    vk::PolygonMode mode )
+{
+    auto pipeline_layout = vkwrap::createPipelineLayout( logical_device, std::array{ set_layout } );
+
+    auto vert_shader_module = vkwrap::ShaderModule{ "vertex_shader.spv", logical_device };
+    auto frag_shader_module = vkwrap::ShaderModule{ "fragment_shader.spv", logical_device };
+    auto vertex_info = chunk::ChunkMesher::getVertexInfo();
+
+    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
+    auto pipeline = pipeline_builder.withVertexShader( vert_shader_module )
+                        .withFragmentShader( frag_shader_module )
+                        .withPipelineLayout( pipeline_layout.get() )
+                        .withAttributeDescriptions( vertex_info.attribute_descr )
+                        .withBindingDescriptions( vertex_info.binding_descr )
+                        .withRenderPass( render_pass )
+                        .withPolygonMode( mode )
+                        .createPipeline( logical_device );
+
+    return PipelineCreateResult{ std::move( pipeline ), std::move( pipeline_layout ) };
+}
+
+PipelineCreateResult
+createLinePipeline( vk::Device logical_device, vk::DescriptorSetLayout set_layout, vk::RenderPass render_pass )
+{
+    auto pipeline_layout = vkwrap::createPipelineLayout( logical_device, std::array{ set_layout } );
+
+    auto vert_shader_module = vkwrap::ShaderModule{ "vertex_shader.spv", logical_device };
+    auto frag_shader_module = vkwrap::ShaderModule{ "fragment_shader.spv", logical_device };
+    auto vertex_info = chunk::ChunkMesher::getVertexInfo();
+
+    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
+    auto pipeline = pipeline_builder.withVertexShader( vert_shader_module )
+                        .withFragmentShader( frag_shader_module )
+                        .withPipelineLayout( pipeline_layout.get() )
+                        .withAttributeDescriptions( vertex_info.attribute_descr )
+                        .withBindingDescriptions( vertex_info.binding_descr )
+                        .withRenderPass( render_pass )
+                        .withPolygonMode( vk::PolygonMode::eLine )
+                        .createPipeline( logical_device );
+
+    return PipelineCreateResult{ std::move( pipeline ), std::move( pipeline_layout ) };
 }
 
 void
@@ -942,9 +1012,6 @@ runApplication( std::span<const char*> command_line_args )
         present_queue,
         swapchain_requirements );
 
-    vkwrap::ShaderModule vert_shader_module{ "vertex_shader.spv", logical_device };
-    vkwrap::ShaderModule frag_shader_module{ "fragment_shader.spv", logical_device };
-
     auto manager = vkwrap::Mman{
         k_vulkan_version,
         vk_instance,
@@ -955,24 +1022,17 @@ runApplication( std::span<const char*> command_line_args )
 
     auto depth_image = createDepthBuffer( swapchain, queues, manager );
     auto set_layout = createDescriptorSetLayout( logical_device );
-    auto vertex_info = chunk::ChunkMesher::getVertexInfo();
 
-    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
-    auto pipeline = pipeline_builder.withVertexShader( vert_shader_module )
-                        .withFragmentShader( frag_shader_module )
-                        .withPipelineLayout( logical_device, std::array{ set_layout.get() } )
-                        .withAttributeDescriptions( vertex_info.attribute_descr )
-                        .withBindingDescriptions( vertex_info.binding_descr )
-                        .withColorAttachment( swapchain.getFormat() )
-                        .withDepthAttachment( vk::Format::eD32Sfloat )
-                        .withSubpassDependencies( std::array{ k_subpass_dependency } )
-                        .withRenderPass( logical_device )
-                        .createPipeline( logical_device );
+    auto render_pass_builder = vkwrap::SimpleRenderPassBuilder{};
+    auto render_pass = render_pass_builder.withSubpassDependencies( std::array{ k_subpass_dependency } )
+                           .withColorAttachment( swapchain.getFormat() )
+                           .withDepthAttachment( vk::Format::eD32Sfloat )
+                           .make( logical_device );
 
-    auto render_pass = pipeline_builder.getRenderPass();
-    auto pipeline_layout = pipeline_builder.getPipelineLayout();
+    auto fill_pipeline = createPipeline( logical_device, set_layout.get(), render_pass.get(), vk::PolygonMode::eFill );
+    auto line_pipeline = createPipeline( logical_device, set_layout.get(), render_pass.get(), vk::PolygonMode::eLine );
 
-    auto framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
+    auto framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass.get() );
     auto render_infos = createRenderInfos( logical_device, command_pool, queues, manager );
 
     initializeIo( window ); // Initialize GLFW IO before creating ImGui to keep the callbacks, because the backend ImGui
@@ -986,7 +1046,7 @@ runApplication( std::span<const char*> command_line_args )
         .graphics = graphics_queue,
         .swapchain = swapchain,
         .upload_context = one_time_cmd,
-        .render_pass = render_pass } };
+        .render_pass = render_pass.get() } };
 
     auto sampler = createTextureSampler( physical_device.get(), logical_device );
     auto texture_image = createTextureImage( queues, manager );
@@ -1004,67 +1064,77 @@ runApplication( std::span<const char*> command_line_args )
         logical_device->waitIdle();
         swapchain.recreate();
         depth_image = createDepthBuffer( swapchain, queues, manager );
-        framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass );
+        framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass.get() );
     };
 
     auto mesher = mesher_future.get();
     auto vertex_buffer = createVertexBuffer( queues, mesher, manager );
     auto index_buffer = createIndexBuffer( queues, mesher, manager );
 
+    struct RenderConfig
+    {
+        UniformBufferObject ubo;
+        bool draw_lines;
+    };
+
     uint32_t current_frame = 0;
 
-    auto fill_command_buffer = [ & ]( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent ) {
-        const auto clear_values = std::array{
-            vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
-            vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
+    auto fill_command_buffer =
+        [ & ]( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent, RenderConfig config ) {
+            const auto clear_values = std::array{
+                vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
+                vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
 
-        const auto render_pass_info = vk::RenderPassBeginInfo{
-            .renderPass = render_pass,
-            .framebuffer = framebuffers.at( image_index ).get(),
-            .renderArea = { vk::Offset2D{ 0, 0 }, extent },
-            .clearValueCount = static_cast<uint32_t>( clear_values.size() ),
-            .pClearValues = clear_values.data() };
+            const auto render_pass_info = vk::RenderPassBeginInfo{
+                .renderPass = render_pass.get(),
+                .framebuffer = framebuffers.at( image_index ).get(),
+                .renderArea = { vk::Offset2D{ 0, 0 }, extent },
+                .clearValueCount = static_cast<uint32_t>( clear_values.size() ),
+                .pClearValues = clear_values.data() };
 
-        cmd.reset();
-        cmd.begin( vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse } );
-        cmd.beginRenderPass( render_pass_info, vk::SubpassContents::eInline );
+            cmd.reset();
+            cmd.begin( vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse } );
+            cmd.beginRenderPass( render_pass_info, vk::SubpassContents::eInline );
 
-        cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
-        cmd.bindVertexBuffers( 0, vertex_buffer.get(), vk::DeviceSize{ 0 } );
-        cmd.bindIndexBuffer( index_buffer.get(), 0, chunk::ChunkMesher::k_index_type );
+            cmd.bindPipeline(
+                vk::PipelineBindPoint::eGraphics,
+                ( config.draw_lines ? line_pipeline.pipeline : fill_pipeline.pipeline ) );
 
-        const auto [ width, height ] = extent;
+            cmd.bindVertexBuffers( 0, vertex_buffer.get(), vk::DeviceSize{ 0 } );
+            cmd.bindIndexBuffer( index_buffer.get(), 0, chunk::ChunkMesher::k_index_type );
 
-        // Negative viewport coordinates. This is quite legal and well-formed. See
-        // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_maintenance1.html
-        // This is used to flip the coordinate system without modifying the transformation matrices
-        const auto viewport = vk::Viewport{
-            .x = 0.0f,
-            .y = static_cast<float>( height ),
-            .width = static_cast<float>( width ),
-            .height = -static_cast<float>( height ),
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f };
+            const auto [ width, height ] = extent;
 
-        const auto scissor = vk::Rect2D{ .offset = { 0, 0 }, .extent = extent };
+            // Negative viewport coordinates. This is quite legal and well-formed. See
+            // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_maintenance1.html
+            // This is used to flip the coordinate system without modifying the transformation matrices
+            const auto viewport = vk::Viewport{
+                .x = 0.0f,
+                .y = static_cast<float>( height ),
+                .width = static_cast<float>( width ),
+                .height = -static_cast<float>( height ),
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f };
 
-        cmd.setViewport( 0, viewport );
-        cmd.setScissor( 0, scissor );
+            const auto scissor = vk::Rect2D{ .offset = { 0, 0 }, .extent = extent };
 
-        cmd.bindDescriptorSets(
-            vk::PipelineBindPoint::eGraphics,
-            pipeline_layout,
-            0,
-            descriptor_sets.at( current_frame ).get(),
-            {} );
+            cmd.setViewport( 0, viewport );
+            cmd.setScissor( 0, scissor );
 
-        cmd.drawIndexed( static_cast<uint32_t>( mesher.getIndicesCount() ), 1, 0, 0, 0 );
+            cmd.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                ( config.draw_lines ? line_pipeline.layout : fill_pipeline.layout ).get(),
+                0,
+                descriptor_sets.at( current_frame ).get(),
+                {} );
 
-        imgui_resources.fillCommandBuffer( cmd );
+            cmd.drawIndexed( static_cast<uint32_t>( mesher.getIndicesCount() ), 1, 0, 0, 0 );
 
-        cmd.endRenderPass();
-        cmd.end();
-    };
+            imgui_resources.fillCommandBuffer( cmd );
+
+            cmd.endRenderPass();
+            cmd.end();
+        };
 
     auto camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 15.0f } };
     auto keyboard = createKeyboardReader( window );
@@ -1077,27 +1147,26 @@ runApplication( std::span<const char*> command_line_args )
         std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
         prev_timepoint = curr_timepoint;
 
-        gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
-
+        auto config = gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
         auto ubo = physicsLoop( extent, window, camera, keyboard, delta_time.count() );
 
         auto [ x, y ] = mesher.getRenderAreaRight();
         ubo.origin_pos = glm::vec2{ x, y };
 
-        return ubo;
+        return RenderConfig{ ubo, config.draw_lines };
     };
 
     auto render_frame = [ &,
                           &logical_device = logical_device,
                           &graphics_queue = graphics_queue,
-                          &present_queue = present_queue ]( UniformBufferObject ubo ) {
+                          &present_queue = present_queue ]( RenderConfig config ) {
         auto& current_frame_data = render_infos.sync_primitives.at( current_frame );
         auto& command_buffer = render_infos.imgui_command_buffers.at( current_frame );
         logical_device->waitForFences( current_frame_data.in_flight_fence.get(), VK_TRUE, UINT64_MAX );
 
         const auto extent = swapchain.getExtent();
         auto& uniform_buffer = render_infos.uniform_buffers.at( current_frame );
-        uniform_buffer.update( ubo, sizeof( ubo ) );
+        uniform_buffer.update( config.ubo, sizeof( UniformBufferObject ) );
 
         auto [ acquire_result, image_index ] =
             swapchain.acquireNextImage( current_frame_data.image_availible_semaphore.get() );
@@ -1108,7 +1177,7 @@ runApplication( std::span<const char*> command_line_args )
             return;
         }
 
-        fill_command_buffer( command_buffer.get(), image_index, extent );
+        fill_command_buffer( command_buffer.get(), image_index, extent, config );
 
         const auto cmds = std::array{ *command_buffer };
 

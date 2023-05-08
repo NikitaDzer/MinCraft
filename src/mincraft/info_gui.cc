@@ -1,4 +1,4 @@
-#include "infogui.h"
+#include "info_gui.h"
 
 #include "vkwrap/core.h"
 #include "vkwrap/device.h"

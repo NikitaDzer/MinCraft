@@ -233,7 +233,7 @@ suppress_warnings ( gui_impl )
 # Main app target
 set ( MINCRAFT_SOURCES
     src/mincraft/mincraft.cc
-    src/mincraft/infogui.cc
+    src/mincraft/info_gui.cc
 )
 
 add_executable ( mincraft ${MINCRAFT_SOURCES} )
