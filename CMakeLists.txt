@@ -1,6 +1,10 @@
 cmake_minimum_required ( VERSION 3.13 )
 project ( MinCraft )
 
+if ( ${CMAKE_VERSION} VERSION_GREATER "3.24" )
+    cmake_policy( SET CMP0135 NEW ) # Fix warning https://cmake.org/cmake/help/latest/policy/CMP0135.html
+endif ()
+
 option ( INSOURCEBUILD OFF ) # Prevent in-source style builds
 if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBUILD} )
     message ( FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it." )
@@ -248,5 +252,3 @@ add_dependencies ( mincraft vertex_shader fragment_shader )
 add_custom_command( TARGET mincraft POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_directory
                     ${CMAKE_SOURCE_DIR}/textures $<TARGET_FILE_DIR:mincraft> )
-
-
