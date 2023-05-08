@@ -100,6 +100,12 @@ tryConvertFormat( const vk::ArrayWrapper1D<T, N>& var )
     return fmt::format( "[{}]", fmt::join( var, ", " ) );
 }
 
+auto
+tryConvertFormat( vk::Extent2D extent )
+{
+    return fmt::format( "[{}, {}]", extent.width, extent.height );
+}
+
 template <typename T>
 auto
 tryConvertFormat( T&& var )
@@ -319,6 +325,56 @@ displayPhysicalDeviceFeatures( const vk::PhysicalDeviceFeatures& features )
     }
 }
 
+#define PRINT_COMMON_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( object.member ) )
+
+void
+displaySurfaceInfo( const detail::SurfaceInfo& surface )
+{
+    if ( ImGui::CollapsingHeader( "Surface" ) )
+    {
+        indent();
+
+        auto&& capabilities = surface.capabilities();
+
+        PRINT_COMMON_MEMBER( capabilities, currentExtent );
+        PRINT_COMMON_MEMBER( capabilities, currentTransform );
+        PRINT_COMMON_MEMBER( capabilities, maxImageArrayLayers );
+        PRINT_COMMON_MEMBER( capabilities, maxImageCount );
+        PRINT_COMMON_MEMBER( capabilities, maxImageExtent );
+        PRINT_COMMON_MEMBER( capabilities, minImageCount );
+        PRINT_COMMON_MEMBER( capabilities, minImageExtent );
+        PRINT_COMMON_MEMBER( capabilities, supportedCompositeAlpha );
+        PRINT_COMMON_MEMBER( capabilities, supportedTransforms );
+        PRINT_COMMON_MEMBER( capabilities, supportedUsageFlags );
+
+        if ( ImGui::CollapsingHeader( "Modes" ) )
+        {
+            indent();
+
+            for ( auto&& mode : surface.modes() )
+            {
+                formatText( "{}", vk::to_string( mode ) );
+            }
+
+            unindent();
+        }
+
+        if ( ImGui::CollapsingHeader( "Formats" ) )
+        {
+            indent();
+
+            for ( auto&& format : surface.format() )
+            {
+                formatText( "[{}, {}]", vk::to_string( format.format ), vk::to_string( format.colorSpace ) );
+            }
+
+            unindent();
+        }
+    }
+
+    unindent();
+}
+
 void
 displayPhysicalDeviceInformation( const detail::PhysicalDeviceInfo& info )
 {
@@ -337,6 +393,7 @@ displayPhysicalDeviceInformation( const detail::PhysicalDeviceInfo& info )
         displayPhysicalDeviceLimitsInformation( properties.limits );
         displayPhysicalDeviceExtensions( info.extensions() );
         displayPhysicalDeviceFeatures( info.features() );
+        displaySurfaceInfo( detail::SurfaceInfo{ info.device(), info.surface() } );
 
         unindent();
     }
@@ -363,10 +420,14 @@ displayPhysicalDevicesInformation( const detail::PhysicalDevicesInfo& info )
 } // namespace
 
 std::vector<detail::PhysicalDeviceInfo>
-detail::PhysicalDeviceInfo::allFromInstance( vk::Instance instance )
+detail::PhysicalDeviceInfo::allFromInstance( vk::Instance instance, vk::SurfaceKHR surface )
 {
     auto devices = instance.enumeratePhysicalDevices();
-    return ranges::views::transform( devices, []( auto&& device ) { return PhysicalDeviceInfo{ device }; } ) |
+    return ranges::views::transform(
+               devices,
+               [ surface ]( auto&& device ) {
+                   return PhysicalDeviceInfo{ device, surface };
+               } ) |
         ranges::to_vector;
 }
 
@@ -380,5 +441,4 @@ VulkanInformationTab::draw()
 
     ImGui::End();
 }
-
 }; // namespace imgw

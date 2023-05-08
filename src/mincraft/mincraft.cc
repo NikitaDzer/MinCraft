@@ -115,6 +115,7 @@ createInstance( const glfw::Instance& glfw_instance, bool validation )
 struct AppOptions
 {
     bool validation = false;
+    bool uncapped_fps = false;
 };
 
 std::optional<AppOptions>
@@ -123,7 +124,8 @@ parseOptions( std::span<const char*> command_line_args )
     popl::OptionParser op( "Allowed options" );
 
     auto help_option = op.add<popl::Switch>( "h", "help", "Print this help message" );
-    auto validation_option = op.add<popl::Switch>( "d", "debug", "" );
+    auto validation_option = op.add<popl::Switch>( "d", "debug", "Use validation layers" );
+    auto uncapped_option = op.add<popl::Switch>( "f", "uncap", "Uncapped fps always" );
 
     op.parse( command_line_args.size(), command_line_args.data() );
 
@@ -139,7 +141,7 @@ parseOptions( std::span<const char*> command_line_args )
     bool validation = validation_option->is_set();
 #endif
 
-    return AppOptions{ .validation = validation };
+    return AppOptions{ .validation = validation, .uncapped_fps = uncapped_option->is_set() };
 }
 
 vkwrap::PhysicalDevice
@@ -245,15 +247,17 @@ createFramebuffers(
 static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
 
 vkwrap::SwapchainReqs
-getSwapchainRequirements( vk::SurfaceKHR surface )
+getSwapchainRequirements( vk::SurfaceKHR surface, bool uncapped_always = false )
 {
     auto formats = std::to_array<vkwrap::SwapchainReqsBuilder::WeightFormat>(
         { { .property = { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 },
           { .property = { vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear }, .weight = 0 } } );
 
+    const auto weight_immediate = ( uncapped_always ? 0 : 100 );
     auto modes = std::to_array<vkwrap::SwapchainReqsBuilder::WeightMode>(
         { { .property = vk::PresentModeKHR::eFifo, .weight = 1000 }, //
-          { .property = vk::PresentModeKHR::eMailbox, .weight = 0 } } );
+          { .property = vk::PresentModeKHR::eMailbox, .weight = 0 },
+          { .property = vk::PresentModeKHR::eImmediate, .weight = weight_immediate } } );
 
     auto requirement_builder = vkwrap::SwapchainReqsBuilder{};
     requirement_builder.withMinImageCount( k_max_frames_in_flight )
@@ -840,8 +844,8 @@ createAndUpdateDescriptorSets(
 class MasterGui
 {
   public:
-    MasterGui( vk::Instance instance )
-        : m_vkinfo_tab{ instance }
+    MasterGui( vk::Instance instance, vk::SurfaceKHR surface )
+        : m_vkinfo_tab{ instance, surface }
     {
     }
 
@@ -909,7 +913,7 @@ runApplication( std::span<const char*> command_line_args )
 
     auto vk_instance = createInstance( glfw_instance, options.validation ).instance;
     auto surface = window.createSurface( vk_instance );
-    auto swapchain_requirements = getSwapchainRequirements( surface.get() );
+    auto swapchain_requirements = getSwapchainRequirements( surface.get(), options.uncapped_fps );
     auto physical_device = pickPhysicalDevice( vk_instance, surface.get(), swapchain_requirements );
 
     auto [ logical_device, graphics_queue, present_queue ] =
@@ -1058,7 +1062,7 @@ runApplication( std::span<const char*> command_line_args )
     auto keyboard = createKeyboardReader( window );
     auto prev_timepoint = std::chrono::high_resolution_clock::now();
 
-    auto gui = MasterGui{ vk_instance.get() };
+    auto gui = MasterGui{ vk_instance.get(), surface.get() };
 
     auto application_loop = [ &gui, &mesher, &camera, &window, &keyboard, &prev_timepoint ]( vk::Extent2D extent ) {
         auto curr_timepoint = std::chrono::high_resolution_clock::now();
