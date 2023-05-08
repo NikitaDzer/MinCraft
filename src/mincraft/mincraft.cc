@@ -37,6 +37,11 @@
 #include <range/v3/view/iota.hpp>
 #include <range/v3/view/single.hpp>
 
+#include <ktx.h>
+#include <ktxvulkan.h>
+
+#include "infogui.h"
+
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
@@ -47,9 +52,6 @@
 #include <sstream>
 #include <string>
 #include <utility>
-
-#include <ktx.h>
-#include <ktxvulkan.h>
 
 namespace
 {
@@ -835,10 +837,22 @@ createAndUpdateDescriptorSets(
     return descriptor_sets;
 }
 
-void
-drawGui()
+class MasterGui
 {
-    ImGui::ShowDemoWindow();
+  public:
+    MasterGui( vk::Instance instance )
+        : m_vkinfo_tab{ instance }
+    {
+    }
+
+    void draw()
+    {
+        ImGui::ShowDemoWindow();
+        m_vkinfo_tab.draw();
+    }
+
+  private:
+    imgw::VulkanInformationTab m_vkinfo_tab;
 };
 
 constexpr auto k_subpass_dependency = vk::SubpassDependency{
@@ -1044,12 +1058,14 @@ runApplication( std::span<const char*> command_line_args )
     auto keyboard = createKeyboardReader( window );
     auto prev_timepoint = std::chrono::high_resolution_clock::now();
 
-    auto application_loop = [ &mesher, &camera, &window, &keyboard, &prev_timepoint ]( vk::Extent2D extent ) {
+    auto gui = MasterGui{ vk_instance.get() };
+
+    auto application_loop = [ &gui, &mesher, &camera, &window, &keyboard, &prev_timepoint ]( vk::Extent2D extent ) {
         auto curr_timepoint = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
         prev_timepoint = curr_timepoint;
 
-        drawGui(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
+        gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
 
         auto ubo = physicsLoop( extent, window, camera, keyboard, delta_time.count() );
 

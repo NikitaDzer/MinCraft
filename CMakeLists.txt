@@ -186,10 +186,11 @@ suppress_warnings ( gui_impl )
 # Main app target
 set ( MINCRAFT_SOURCES
     src/mincraft/mincraft.cc
+    src/mincraft/infogui.cc
 )
 
 add_executable ( mincraft ${MINCRAFT_SOURCES} )
-target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl KTX::ktx chunk glm )
+target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl KTX::ktx chunk glm Boost::boost )
 target_enable_linter ( mincraft )
 target_compile_features ( mincraft PUBLIC cxx_std_20 )
 target_include_directories ( mincraft PRIVATE include/imgui )
