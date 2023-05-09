@@ -443,10 +443,7 @@ class UniqueKtxTexture
 };
 
 vkwrap::Image
-createTextureImage(
-    ranges::range auto&& queues,
-    vkwrap::Mman& manager,
-    const std::filesystem::path& filepath = "texture.ktx" )
+createTextureImage( ranges::range auto&& queues, vkwrap::Mman& manager, const std::filesystem::path& filepath )
 {
     auto ktx_texture = UniqueKtxTexture{ filepath };
 
@@ -1056,7 +1053,7 @@ runApplication( std::span<const char*> command_line_args )
         .render_pass = render_pass.get() } };
 
     auto sampler = createTextureSampler( physical_device.get(), logical_device );
-    auto texture_image = createTextureImage( queues, manager );
+    auto texture_image = createTextureImage( queues, manager, "texture.ktx2" );
     auto descriptor_pool = vkwrap::createDescriptorPool( logical_device, k_pool_sizes );
 
     auto descriptor_sets = createAndUpdateDescriptorSets(

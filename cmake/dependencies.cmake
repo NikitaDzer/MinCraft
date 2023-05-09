@@ -20,7 +20,6 @@ FetchContent_Declare (
     spdlog_lib
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
     GIT_TAG v1.11.0
-    FIND_PACKAGE_ARGS NAMES spdlog
 )
 
 FetchContent_Declare (
