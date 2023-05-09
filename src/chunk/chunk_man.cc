@@ -21,8 +21,9 @@ ChunkMan::ChunkMan( const pos::ChunkPos& origin_pos )
     {
         for ( auto y = min_y; y <= max_y; y++ )
         {
-            m_chunks.emplace( pos::ChunkPos{ x, y }, raw_block_ides_ptr );
-            Chunk tmp_chunk{ raw_block_ides_ptr };
+            auto position = pos::ChunkPos{ x, y };
+            auto tmp_chunk = Chunk{ raw_block_ides_ptr, position };
+            m_chunks.emplace( position, tmp_chunk );
             simpleChunkGen( tmp_chunk );
             raw_block_ides_ptr += Chunk::k_block_count;
         }

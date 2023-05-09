@@ -29,7 +29,16 @@ FetchContent_Declare (
     FIND_PACKAGE_ARGS NAMES glm
 )
 
-FetchContent_MakeAvailable ( ranges_lib spdlog_lib glm_lib )
+FetchContent_Declare (
+    perlin_lib
+    GIT_REPOSITORY https://github.com/Reputeless/PerlinNoise.git
+    GIT_TAG v3.0.0
+)
+
+FetchContent_MakeAvailable ( ranges_lib spdlog_lib glm_lib perlin_lib )
+
+add_library( perlin INTERFACE )
+target_include_directories( perlin INTERFACE ${perlin_lib_SOURCE_DIR} )
 
 # Delegate to fetchContent
 find_package ( vma_lib 3.0.1 REQUIRED )

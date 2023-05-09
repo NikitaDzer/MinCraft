@@ -1140,7 +1140,7 @@ runApplication( std::span<const char*> command_line_args )
             cmd.end();
         };
 
-    auto camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 15.0f } };
+    auto camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 32.0f } };
     auto keyboard = createKeyboardReader( window );
     auto prev_timepoint = std::chrono::high_resolution_clock::now();
 

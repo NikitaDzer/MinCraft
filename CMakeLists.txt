@@ -124,6 +124,7 @@ add_library( chunk ${CHUNK_SOURCES} )
 target_include_directories( chunk PUBLIC include/chunk include/common )
 target_enable_linter( chunk )
 target_compile_features( chunk PUBLIC cxx_std_20 )
+target_link_libraries( chunk PRIVATE perlin range-v3 )
 
 function( add_example_executable TARGET_NAME SOURCE )
     add_executable ( ${TARGET_NAME} ${SOURCE} )
