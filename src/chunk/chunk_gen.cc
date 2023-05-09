@@ -6,8 +6,6 @@
 #include <range/v3/view/cartesian_product.hpp>
 #include <range/v3/view/iota.hpp>
 
-#include <spdlog/spdlog.h>
-
 #include <cstdlib>
 #include <limits>
 #include <random>
@@ -25,8 +23,6 @@ perlinChunkGen( Chunk& chunk )
 
     const auto iota = ranges::views::iota( 0, Chunk::k_max_width_length );
     const auto pos = chunk.getPosition();
-
-    spdlog::debug( "{}, {}", pos.x * Chunk::k_max_width_length, pos.y * Chunk::k_max_width_length );
 
     for ( auto&& [ local_x, local_y ] : ranges::views::cartesian_product( iota, iota ) )
     {
