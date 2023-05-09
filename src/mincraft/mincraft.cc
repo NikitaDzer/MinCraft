@@ -802,7 +802,9 @@ createDescriptorSetLayout( vk::Device logical_device )
     return logical_device.createDescriptorSetLayoutUnique( descriptor_set_layout_info );
 }
 
-std::vector<vk::UniqueDescriptorSet>
+using UniqueDescriptorSets = std::vector<vk::UniqueDescriptorSet>;
+
+UniqueDescriptorSets
 createAndUpdateDescriptorSets(
     vk::Device logical_device,
     vk::DescriptorSetLayout layout,
@@ -947,27 +949,308 @@ createPipeline(
     return PipelineCreateResult{ std::move( pipeline ), std::move( pipeline_layout ) };
 }
 
-PipelineCreateResult
-createLinePipeline( vk::Device logical_device, vk::DescriptorSetLayout set_layout, vk::RenderPass render_pass )
+vk::Viewport
+getViewport( vk::Extent2D extent )
 {
-    auto pipeline_layout = vkwrap::createPipelineLayout( logical_device, std::array{ set_layout } );
+    auto [ width, height ] = extent;
 
-    auto vert_shader_module = vkwrap::ShaderModule{ "vertex_shader.spv", logical_device };
-    auto frag_shader_module = vkwrap::ShaderModule{ "fragment_shader.spv", logical_device };
-    auto vertex_info = chunk::ChunkMesher::getVertexInfo();
-
-    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
-    auto pipeline = pipeline_builder.withVertexShader( vert_shader_module )
-                        .withFragmentShader( frag_shader_module )
-                        .withPipelineLayout( pipeline_layout.get() )
-                        .withAttributeDescriptions( vertex_info.attribute_descr )
-                        .withBindingDescriptions( vertex_info.binding_descr )
-                        .withRenderPass( render_pass )
-                        .withPolygonMode( vk::PolygonMode::eLine )
-                        .createPipeline( logical_device );
-
-    return PipelineCreateResult{ std::move( pipeline ), std::move( pipeline_layout ) };
+    return vk::Viewport{
+        .x = 0.0f,
+        .y = static_cast<float>( height ),
+        .width = static_cast<float>( width ),
+        .height = -static_cast<float>( height ),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f };
 }
+
+glfw::wnd::Window
+createWindow()
+{
+    return glfw::wnd::Window{ glfw::wnd::WindowConfig{ .width = 1280, .height = 720, .title = "MinCraft" } };
+}
+
+struct RenderConfig
+{
+    UniformBufferObject ubo;
+    bool draw_lines;
+};
+
+class MinCraftApplication
+{
+  private:
+    vkwrap::PhysicalDevice initializePhysicalDevice( AppOptions options )
+    {
+        const auto swapchain_requirements = getSwapchainRequirements( surface.get(), options.uncapped_fps );
+        return pickPhysicalDevice( vk_instance.instance, swapchain_requirements );
+    }
+
+    vkwrap::LogicalDevice initializeLogicalDevice()
+    {
+        auto result = createLogicalDeviceQueues( physical_device.get(), surface.get() );
+        graphics_queue = result.graphics;
+        present_queue = result.present;
+        return std::move( result ).device;
+    }
+
+    std::array<vkwrap::Queue, 2> queues() const { return { graphics_queue, present_queue }; }
+
+    vkwrap::Swapchain initializeSwapchain( AppOptions options )
+    {
+        const auto swapchain_requirements = getSwapchainRequirements( surface.get(), options.uncapped_fps );
+
+        return createSwapchain(
+            physical_device.get(),
+            logical_device,
+            surface.get(),
+            graphics_queue,
+            present_queue,
+            swapchain_requirements );
+    }
+
+    vkwrap::Mman initializeMemoryManager()
+    {
+        return vkwrap::Mman{
+            k_vulkan_version,
+            vk_instance.instance,
+            physical_device.get(),
+            logical_device,
+            graphics_queue.get(),
+            command_pool.get() };
+    }
+
+    vk::UniqueRenderPass initializeRenderPass()
+    {
+        auto render_pass_builder = vkwrap::SimpleRenderPassBuilder{};
+        return render_pass_builder.withSubpassDependencies( std::array{ k_subpass_dependency } )
+            .withColorAttachment( swapchain.getFormat() )
+            .withDepthAttachment( vk::Format::eD32Sfloat )
+            .make( logical_device );
+    }
+
+    imgw::ImGuiResources initializeImGuiResources()
+    {
+        initializeIo( window ); // Initialize GLFW IO before creating ImGui to keep the callbacks, because the backend
+                                // ImGui has for GLFW overrides the callbacks and saves those that were previously set.
+
+        auto one_time_cmd = vkwrap::OneTimeCommand{ command_pool, graphics_queue.get() };
+
+        return imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
+            .instance = vk_instance.instance,
+            .window = window.get(),
+            .physical_device = physical_device.get(),
+            .logical_device = logical_device,
+            .graphics = graphics_queue,
+            .swapchain = swapchain,
+            .upload_context = one_time_cmd,
+            .render_pass = render_pass.get() } };
+    }
+
+    UniqueDescriptorSets initializeDescriptorSets()
+    {
+        return createAndUpdateDescriptorSets(
+            logical_device,
+            set_layout.get(),
+            descriptor_pool.get(),
+            render_infos.uniform_buffers,
+            sampler.get(),
+            texture_image.getView() );
+    }
+
+  public:
+    MinCraftApplication( AppOptions options )
+        : vk_instance{ createInstance( glfw_instance, options.validation ) },
+          physical_device{ initializePhysicalDevice( options ) },
+          swapchain{ initializeSwapchain( options ) }
+    {
+    }
+
+  private:
+    RenderConfig appLoop( vk::Extent2D extent )
+    {
+        auto curr_timepoint = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
+        prev_timepoint = curr_timepoint;
+
+        auto config = gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
+        auto ubo = physicsLoop( extent, window, camera, keyboard, delta_time.count() );
+
+        auto [ x, y ] = mesher.getRenderAreaRight();
+        ubo.origin_pos = glm::vec2{ x, y };
+
+        return RenderConfig{ ubo, config.draw_lines };
+    };
+
+    auto recreateSwapchainWrapped()
+    {
+        logical_device->waitIdle();
+        swapchain.recreate();
+        depth_image = createDepthBuffer( swapchain, queues(), memory_manager );
+        framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass.get() );
+    };
+
+    void renderFrame( RenderConfig config )
+    {
+        auto& current_frame_data = render_infos.sync_primitives.at( current_frame );
+        auto& command_buffer = render_infos.imgui_command_buffers.at( current_frame );
+        [[maybe_unused]] auto res =
+            logical_device->waitForFences( current_frame_data.in_flight_fence.get(), VK_TRUE, UINT64_MAX );
+
+        const auto extent = swapchain.getExtent();
+        auto& uniform_buffer = render_infos.uniform_buffers.at( current_frame );
+        uniform_buffer.update( config.ubo, sizeof( UniformBufferObject ) );
+
+        auto [ acquire_result, image_index ] =
+            swapchain.acquireNextImage( current_frame_data.image_availible_semaphore.get() );
+
+        if ( acquire_result == vk::Result::eErrorOutOfDateKHR )
+        {
+            recreateSwapchainWrapped();
+            return;
+        }
+
+        fillCommandBuffer( command_buffer.get(), image_index, extent, config );
+        vk::PipelineStageFlags wait_stages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+        const auto submit_info = vk::SubmitInfo{
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = std::addressof( *current_frame_data.image_availible_semaphore ),
+            .pWaitDstStageMask = &wait_stages,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &command_buffer.get(),
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = std::addressof( *current_frame_data.render_finished_semaphore ) };
+
+        logical_device->resetFences( current_frame_data.in_flight_fence.get() );
+        graphics_queue.submit( submit_info, *current_frame_data.in_flight_fence );
+
+        vk::Result result_present = present_queue.presentKHRWithOutOfDate(
+            swapchain.get(),
+            current_frame_data.render_finished_semaphore.get(),
+            image_index );
+
+        if ( shouldRecreateSwapchain( result_present ) )
+        {
+            recreateSwapchainWrapped();
+        }
+
+        current_frame = ( current_frame + 1 ) % k_max_frames_in_flight;
+    };
+
+    void fillCommandBuffer( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent, RenderConfig config )
+    {
+        const auto clear_values = std::array{
+            vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
+            vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
+
+        const auto render_pass_info = vk::RenderPassBeginInfo{
+            .renderPass = render_pass.get(),
+            .framebuffer = framebuffers.at( image_index ).get(),
+            .renderArea = { vk::Offset2D{ 0, 0 }, extent },
+            .clearValueCount = static_cast<uint32_t>( clear_values.size() ),
+            .pClearValues = clear_values.data() };
+
+        cmd.reset();
+        cmd.begin( vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse } );
+        cmd.beginRenderPass( render_pass_info, vk::SubpassContents::eInline );
+
+        cmd.bindPipeline(
+            vk::PipelineBindPoint::eGraphics,
+            ( config.draw_lines ? line_pipeline.pipeline : fill_pipeline.pipeline ) );
+
+        cmd.bindVertexBuffers( 0, vertex_buffer.get(), vk::DeviceSize{ 0 } );
+        cmd.bindIndexBuffer( index_buffer.get(), 0, chunk::ChunkMesher::k_index_type );
+
+        // Negative viewport coordinates. This is quite legal and well-formed. See
+        // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_maintenance1.html
+        // This is used to flip the coordinate system without modifying the transformation matrices
+        const auto viewport = getViewport( extent );
+
+        const auto scissor = vk::Rect2D{ .offset = { 0, 0 }, .extent = extent };
+
+        cmd.setViewport( 0, viewport );
+        cmd.setScissor( 0, scissor );
+
+        cmd.bindDescriptorSets(
+            vk::PipelineBindPoint::eGraphics,
+            ( config.draw_lines ? line_pipeline.layout : fill_pipeline.layout ).get(),
+            0,
+            descriptor_sets.at( current_frame ).get(),
+            {} );
+
+        cmd.drawIndexed( static_cast<uint32_t>( mesher.getIndicesCount() ), 1, 0, 0, 0 );
+        imgui_resources.fillCommandBuffer( cmd );
+
+        cmd.endRenderPass();
+        cmd.end();
+    };
+
+  public:
+    void drawLoop()
+    {
+        imgui_resources.newFrame();
+        auto ubo = appLoop( swapchain.getExtent() );
+        imgui_resources.renderFrame();
+        renderFrame( ubo );
+    };
+
+    void shutDown() { logical_device->waitIdle(); }
+    bool running() const { return window.running(); }
+
+  private:
+    using HighResTimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+  private:
+    std::future<chunk::ChunkMesher> mesher_future = meshChunks();
+    glfw::Instance glfw_instance = {};
+    CreateInstanceResult vk_instance;
+
+    glfw::wnd::Window window = createWindow();
+    ::wnd::UniqueSurface surface = window.createSurface( vk_instance.instance );
+
+    vkwrap::PhysicalDevice physical_device;
+    vkwrap::Queue graphics_queue = {};
+    vkwrap::Queue present_queue = {};
+    vkwrap::LogicalDevice logical_device = initializeLogicalDevice();
+
+    vkwrap::CommandPool command_pool = {
+        logical_device,
+        graphics_queue,
+        vk::CommandPoolCreateFlagBits::eResetCommandBuffer };
+
+    vkwrap::Swapchain swapchain;
+    vkwrap::Mman memory_manager = { initializeMemoryManager() };
+
+    vkwrap::Image depth_image = createDepthBuffer( swapchain, queues(), memory_manager );
+    vk::UniqueDescriptorSetLayout set_layout = createDescriptorSetLayout( logical_device );
+    vk::UniqueRenderPass render_pass = initializeRenderPass();
+
+    PipelineCreateResult fill_pipeline =
+        createPipeline( logical_device, set_layout.get(), render_pass.get(), vk::PolygonMode::eFill );
+    PipelineCreateResult line_pipeline =
+        createPipeline( logical_device, set_layout.get(), render_pass.get(), vk::PolygonMode::eLine );
+
+    Framebuffers framebuffers =
+        createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass.get() );
+
+    FrameRenderingInfos render_infos = createRenderInfos( logical_device, command_pool, queues(), memory_manager );
+    imgw::ImGuiResources imgui_resources = initializeImGuiResources();
+    vkwrap::Sampler sampler = createTextureSampler( physical_device.get(), logical_device );
+    vkwrap::Image texture_image = createTextureImage( queues(), memory_manager, "texture.ktx2" );
+    vk::UniqueDescriptorPool descriptor_pool = vkwrap::createDescriptorPool( logical_device, k_pool_sizes );
+    UniqueDescriptorSets descriptor_sets = initializeDescriptorSets();
+
+    chunk::ChunkMesher mesher = mesher_future.get();
+    vkwrap::Buffer vertex_buffer = createVertexBuffer( queues(), mesher, memory_manager );
+    vkwrap::Buffer index_buffer = createIndexBuffer( queues(), mesher, memory_manager );
+
+    uint32_t current_frame = 0;
+
+    utils3d::Camera camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 32.0f } };
+    KeyboardStateTracker keyboard = createKeyboardReader( window );
+    HighResTimePoint prev_timepoint = std::chrono::high_resolution_clock::now();
+
+    MasterGui gui = MasterGui{ vk_instance.instance.get(), surface.get() };
+};
 
 void
 runApplication( std::span<const char*> command_line_args )
@@ -987,246 +1270,17 @@ runApplication( std::span<const char*> command_line_args )
     // Or `export SPDLOG_LEVEL=warn` to print only warnings and errors
     vkwrap::initializeLoader(); // Load basic functions that are instance independent
 
-    auto mesher_future = meshChunks();
+    auto application = MinCraftApplication{ options };
 
-    auto glfw_instance = glfw::Instance{};
-    auto window = glfw::wnd::Window{ glfw::wnd::WindowConfig{ .width = 1280, .height = 720, .title = "MinCraft" } };
-
-    auto vk_instance = createInstance( glfw_instance, options.validation ).instance;
-    auto surface = window.createSurface( vk_instance );
-    auto swapchain_requirements = getSwapchainRequirements( surface.get(), options.uncapped_fps );
-    auto physical_device = pickPhysicalDevice( vk_instance, swapchain_requirements );
-
-    auto [ logical_device, graphics_queue, present_queue ] =
-        createLogicalDeviceQueues( physical_device.get(), surface.get() );
-
-    auto queues = std::array{ graphics_queue, present_queue };
-
-    auto command_pool =
-        vkwrap::CommandPool{ logical_device, graphics_queue, vk::CommandPoolCreateFlagBits::eResetCommandBuffer };
-
-    auto one_time_cmd = vkwrap::OneTimeCommand{ command_pool, graphics_queue.get() };
-
-    auto swapchain = createSwapchain(
-        physical_device.get(),
-        logical_device,
-        surface.get(),
-        graphics_queue,
-        present_queue,
-        swapchain_requirements );
-
-    auto manager = vkwrap::Mman{
-        k_vulkan_version,
-        vk_instance,
-        physical_device.get(),
-        logical_device,
-        graphics_queue.get(),
-        command_pool.get() };
-
-    auto depth_image = createDepthBuffer( swapchain, queues, manager );
-    auto set_layout = createDescriptorSetLayout( logical_device );
-
-    auto render_pass_builder = vkwrap::SimpleRenderPassBuilder{};
-    auto render_pass = render_pass_builder.withSubpassDependencies( std::array{ k_subpass_dependency } )
-                           .withColorAttachment( swapchain.getFormat() )
-                           .withDepthAttachment( vk::Format::eD32Sfloat )
-                           .make( logical_device );
-
-    auto fill_pipeline = createPipeline( logical_device, set_layout.get(), render_pass.get(), vk::PolygonMode::eFill );
-    auto line_pipeline = createPipeline( logical_device, set_layout.get(), render_pass.get(), vk::PolygonMode::eLine );
-
-    auto framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass.get() );
-    auto render_infos = createRenderInfos( logical_device, command_pool, queues, manager );
-
-    initializeIo( window ); // Initialize GLFW IO before creating ImGui to keep the callbacks, because the backend ImGui
-                            // has for GLFW overrides the callbacks and saves those that were previously set.
-
-    auto imgui_resources = imgw::ImGuiResources{ imgw::ImGuiResources::ImGuiResourcesInitInfo{
-        .instance = vk_instance,
-        .window = window.get(),
-        .physical_device = physical_device.get(),
-        .logical_device = logical_device,
-        .graphics = graphics_queue,
-        .swapchain = swapchain,
-        .upload_context = one_time_cmd,
-        .render_pass = render_pass.get() } };
-
-    auto sampler = createTextureSampler( physical_device.get(), logical_device );
-    auto texture_image = createTextureImage( queues, manager, "texture.ktx2" );
-    auto descriptor_pool = vkwrap::createDescriptorPool( logical_device, k_pool_sizes );
-
-    auto descriptor_sets = createAndUpdateDescriptorSets(
-        logical_device,
-        set_layout.get(),
-        descriptor_pool.get(),
-        render_infos.uniform_buffers,
-        sampler.get(),
-        texture_image.getView() );
-
-    auto recreate_swapchain_wrapped = [ &, &logical_device = logical_device ]() {
-        logical_device->waitIdle();
-        swapchain.recreate();
-        depth_image = createDepthBuffer( swapchain, queues, manager );
-        framebuffers = createFramebuffers( swapchain, depth_image.getView(), logical_device, render_pass.get() );
-    };
-
-    auto mesher = mesher_future.get();
-    auto vertex_buffer = createVertexBuffer( queues, mesher, manager );
-    auto index_buffer = createIndexBuffer( queues, mesher, manager );
-
-    struct RenderConfig
-    {
-        UniformBufferObject ubo;
-        bool draw_lines;
-    };
-
-    uint32_t current_frame = 0;
-
-    auto fill_command_buffer =
-        [ & ]( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent, RenderConfig config ) {
-            const auto clear_values = std::array{
-                vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
-                vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
-
-            const auto render_pass_info = vk::RenderPassBeginInfo{
-                .renderPass = render_pass.get(),
-                .framebuffer = framebuffers.at( image_index ).get(),
-                .renderArea = { vk::Offset2D{ 0, 0 }, extent },
-                .clearValueCount = static_cast<uint32_t>( clear_values.size() ),
-                .pClearValues = clear_values.data() };
-
-            cmd.reset();
-            cmd.begin( vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse } );
-            cmd.beginRenderPass( render_pass_info, vk::SubpassContents::eInline );
-
-            cmd.bindPipeline(
-                vk::PipelineBindPoint::eGraphics,
-                ( config.draw_lines ? line_pipeline.pipeline : fill_pipeline.pipeline ) );
-
-            cmd.bindVertexBuffers( 0, vertex_buffer.get(), vk::DeviceSize{ 0 } );
-            cmd.bindIndexBuffer( index_buffer.get(), 0, chunk::ChunkMesher::k_index_type );
-
-            const auto [ width, height ] = extent;
-
-            // Negative viewport coordinates. This is quite legal and well-formed. See
-            // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_maintenance1.html
-            // This is used to flip the coordinate system without modifying the transformation matrices
-            const auto viewport = vk::Viewport{
-                .x = 0.0f,
-                .y = static_cast<float>( height ),
-                .width = static_cast<float>( width ),
-                .height = -static_cast<float>( height ),
-                .minDepth = 0.0f,
-                .maxDepth = 1.0f };
-
-            const auto scissor = vk::Rect2D{ .offset = { 0, 0 }, .extent = extent };
-
-            cmd.setViewport( 0, viewport );
-            cmd.setScissor( 0, scissor );
-
-            cmd.bindDescriptorSets(
-                vk::PipelineBindPoint::eGraphics,
-                ( config.draw_lines ? line_pipeline.layout : fill_pipeline.layout ).get(),
-                0,
-                descriptor_sets.at( current_frame ).get(),
-                {} );
-
-            cmd.drawIndexed( static_cast<uint32_t>( mesher.getIndicesCount() ), 1, 0, 0, 0 );
-
-            imgui_resources.fillCommandBuffer( cmd );
-
-            cmd.endRenderPass();
-            cmd.end();
-        };
-
-    auto camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 32.0f } };
-    auto keyboard = createKeyboardReader( window );
-    auto prev_timepoint = std::chrono::high_resolution_clock::now();
-
-    auto gui = MasterGui{ vk_instance.get(), surface.get() };
-
-    auto application_loop = [ &gui, &mesher, &camera, &window, &keyboard, &prev_timepoint ]( vk::Extent2D extent ) {
-        auto curr_timepoint = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
-        prev_timepoint = curr_timepoint;
-
-        auto config = gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
-        auto ubo = physicsLoop( extent, window, camera, keyboard, delta_time.count() );
-
-        auto [ x, y ] = mesher.getRenderAreaRight();
-        ubo.origin_pos = glm::vec2{ x, y };
-
-        return RenderConfig{ ubo, config.draw_lines };
-    };
-
-    auto render_frame = [ &,
-                          &logical_device = logical_device,
-                          &graphics_queue = graphics_queue,
-                          &present_queue = present_queue ]( RenderConfig config ) {
-        auto& current_frame_data = render_infos.sync_primitives.at( current_frame );
-        auto& command_buffer = render_infos.imgui_command_buffers.at( current_frame );
-        logical_device->waitForFences( current_frame_data.in_flight_fence.get(), VK_TRUE, UINT64_MAX );
-
-        const auto extent = swapchain.getExtent();
-        auto& uniform_buffer = render_infos.uniform_buffers.at( current_frame );
-        uniform_buffer.update( config.ubo, sizeof( UniformBufferObject ) );
-
-        auto [ acquire_result, image_index ] =
-            swapchain.acquireNextImage( current_frame_data.image_availible_semaphore.get() );
-
-        if ( acquire_result == vk::Result::eErrorOutOfDateKHR )
-        {
-            recreate_swapchain_wrapped();
-            return;
-        }
-
-        fill_command_buffer( command_buffer.get(), image_index, extent, config );
-
-        const auto cmds = std::array{ *command_buffer };
-
-        vk::PipelineStageFlags wait_stages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-
-        const auto submit_info = vk::SubmitInfo{
-            .waitSemaphoreCount = 1,
-            .pWaitSemaphores = std::addressof( *current_frame_data.image_availible_semaphore ),
-            .pWaitDstStageMask = &wait_stages,
-            .commandBufferCount = cmds.size(),
-            .pCommandBuffers = cmds.data(),
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores = std::addressof( *current_frame_data.render_finished_semaphore ) };
-
-        logical_device->resetFences( *current_frame_data.in_flight_fence );
-        graphics_queue.submit( submit_info, *current_frame_data.in_flight_fence );
-
-        vk::Result result_present = present_queue.presentKHRWithOutOfDate(
-            swapchain.get(),
-            current_frame_data.render_finished_semaphore.get(),
-            image_index );
-
-        if ( shouldRecreateSwapchain( result_present ) )
-        {
-            recreate_swapchain_wrapped();
-        }
-
-        current_frame = ( current_frame + 1 ) % k_max_frames_in_flight;
-    };
-
-    auto draw_loop = [ & ]() {
-        imgui_resources.newFrame();
-        auto ubo = application_loop( swapchain.getExtent() );
-        imgui_resources.renderFrame();
-        render_frame( ubo );
-    };
-
-    auto renderer_thread = std::jthread{ [ &, &logical_device = logical_device ]( std::stop_token stop ) {
+    auto renderer_thread = std::jthread{ [ &application ]( std::stop_token stop ) {
         while ( !stop.stop_requested() )
         {
-            draw_loop();
+            application.drawLoop();
         }
-        logical_device->waitIdle(); // To shut down nicely
+        application.shutDown(); // To shut down nicely
     } };
 
-    while ( window.running() )
+    while ( application.running() )
     {
         glfwPollEvents();
     }
