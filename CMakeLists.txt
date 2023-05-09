@@ -1,10 +1,6 @@
 cmake_minimum_required ( VERSION 3.13 )
 project ( MinCraft )
 
-if ( ${CMAKE_VERSION} VERSION_GREATER "3.24" )
-    cmake_policy( SET CMP0135 NEW ) # Fix warning https://cmake.org/cmake/help/latest/policy/CMP0135.html
-endif ()
-
 option ( INSOURCEBUILD OFF ) # Prevent in-source style builds
 if ( (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR}) AND NOT ${INSOURCEBUILD} )
     message ( FATAL_ERROR "In-source building disabled. Provide -DINSOURCEBUILD option if you are sure about it." )
@@ -90,66 +86,9 @@ if ( THREAD_SANITIZE AND SANITIZE )
     message(FATAL_ERROR "Thread and address sanitizer can't be used together")
 endif ()
 
-function ( add_spirv_shader TARGET_NAME INPUT_FILE )
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
-        COMMAND ${glslc} -c ${INPUT_FILE} -o ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv
-        MAIN_DEPENDENCY ${INPUT_FILE}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-    add_custom_target ( ${TARGET_NAME} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv )
-    set ( ${TARGET_NAME}_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.spv PARENT_SCOPE )
-endfunction ()
-
-function ( suppress_warnings TARGET_NAME )
-    get_target_property( target_options ${TARGET_NAME} COMPILE_OPTIONS )
-
-    if ( MSVC )
-        list( REMOVE_ITEM target_options /W4 )
-    else ()
-        list( APPEND target_options -w )
-    endif ()
-
-    set_property( TARGET ${TARGET_NAME} PROPERTY COMPILE_OPTIONS ${target_options} )
-endfunction ()
-
-# Quality of life external libs
-set( RANGES_CXX_STD 20 )
-add_subdirectory ( 3rd-party/range-v3 EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/spdlog EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/popl EXCLUDE_FROM_ALL )
-add_subdirectory ( 3rd-party/glm EXCLUDE_FROM_ALL )
-
-# External dependecies
-find_package ( glfw3 REQUIRED )
-find_package ( Vulkan 1.3 REQUIRED )
-find_package ( Boost 1.61.0 REQUIRED )
-find_package ( Threads REQUIRED )
-find_program ( glslc NAMES glslc HINTS Vulkan::glslc REQUIRED )
-
-include ( FetchContent )
-
-FetchContent_Declare (
-   ktxlib       
-   URL https://github.com/KhronosGroup/KTX-Software/releases/download/v4.1.0/KTX-Software-4.1.0-Linux-x86_64.tar.bz2
-   URL_HASH SHA1=20494aa8e62749a6daabab583b03c4d8e8aed535
-)
-
-FetchContent_MakeAvailable ( ktxlib )
-find_package ( Ktx 4.1.0 EXACT REQUIRED PATHS ${ktxlib_SOURCE_DIR}/lib/cmake/ktx/)
-
-# -v- VulkanMemoryAllocator configuration -v-
-set( VMA_STATIC_VULKAN_FUNCTIONS OFF )
-set( VMA_DYNAMIC_VULKAN_FUNCTIONS ON )
-
-# Force CMake to override lib's options with ours. 
-set( CMAKE_POLICY_DEFAULT_CMP0077 NEW )
-
-add_subdirectory ( 3rd-party/VulkanMemoryAllocator EXCLUDE_FROM_ALL )
-
-target_compile_features( VulkanMemoryAllocator PRIVATE cxx_std_20 )
-suppress_warnings( VulkanMemoryAllocator )
-# -^- VulkanMemoryAllocator configuration -^-
+include ( cmake/functions.cmake )
+include ( cmake/dependencies.cmake )
+include ( cmake/imgui.cmake )
 
 function ( add_spirv_shader TARGET_NAME INPUT_FILE )
     add_custom_command(
@@ -213,23 +152,6 @@ if ( ${CHUNKS_TEST} )
     target_link_libraries( chunks_test PRIVATE chunk )
 endif ()
 
-set ( GUI_SOURCES 
-    3rd-party/imgui/imgui.cpp
-    3rd-party/imgui/imgui_demo.cpp
-    3rd-party/imgui/imgui_draw.cpp
-    3rd-party/imgui/imgui_tables.cpp
-    3rd-party/imgui/imgui_widgets.cpp
-    3rd-party/imgui/backends/imgui_impl_glfw.cpp
-    3rd-party/imgui/backends/imgui_impl_vulkan.cpp
-)
-
-add_library ( gui_impl ${GUI_SOURCES} )
-target_include_directories ( gui_impl PUBLIC 
-    3rd-party/imgui 
-    3rd-party/imgui/backends
-)
-suppress_warnings ( gui_impl )
-
 # Main app target
 set ( MINCRAFT_SOURCES
     src/mincraft/mincraft.cc
@@ -237,7 +159,7 @@ set ( MINCRAFT_SOURCES
 )
 
 add_executable ( mincraft ${MINCRAFT_SOURCES} )
-target_link_libraries ( mincraft PRIVATE vkwrap popl gui_impl KTX::ktx chunk glm Boost::boost )
+target_link_libraries ( mincraft PRIVATE vkwrap gui_impl KTX::ktx chunk glm Boost::boost Boost::program_options )
 target_enable_linter ( mincraft )
 target_compile_features ( mincraft PUBLIC cxx_std_20 )
 target_include_directories ( mincraft PRIVATE include/imgui )

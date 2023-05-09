@@ -24,18 +24,18 @@
 
 #include "gui/gui.h"
 
-#include <spdlog/cfg/env.h>
-#include <spdlog/fmt/bundled/core.h>
-#include <spdlog/fmt/bundled/format.h>
-
-#include <popl/popl.hpp>
-
 #include "camera.h"
 #include "glm_include.h"
 #include "info_gui.h"
 
 #include <ktx.h>
 #include <ktxvulkan.h>
+
+#include <spdlog/cfg/env.h>
+#include <spdlog/fmt/bundled/core.h>
+#include <spdlog/fmt/bundled/format.h>
+
+#include <boost/program_options.hpp>
 
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/algorithm/find_if.hpp>
@@ -118,30 +118,37 @@ struct AppOptions
     bool uncapped_fps = false;
 };
 
+namespace po = boost::program_options;
+
 std::optional<AppOptions>
 parseOptions( std::span<const char*> command_line_args )
 {
-    popl::OptionParser op( "Allowed options" );
+    po::options_description desc( "Available options" );
+    desc.add_options()( "help,h", "Print this help message" )( "debug,d", "Use validation layers" )(
+        "f,uncap",
+        "Uncapped fps always" );
 
-    auto help_option = op.add<popl::Switch>( "h", "help", "Print this help message" );
-    auto validation_option = op.add<popl::Switch>( "d", "debug", "Use validation layers" );
-    auto uncapped_option = op.add<popl::Switch>( "f", "uncap", "Uncapped fps always" );
+    po::variables_map vm;
+    po::store( po::parse_command_line( command_line_args.size(), command_line_args.data(), desc ), vm );
+    po::notify( vm );
 
-    op.parse( command_line_args.size(), command_line_args.data() );
-
-    if ( help_option->is_set() )
+    if ( vm.count( "help" ) )
     {
-        fmt::print( "{}", op.help() );
+        std::stringstream ss;
+        ss << desc;
+        fmt::print( "{}", ss.str() );
         return std::nullopt;
     }
 
 #ifndef NDEBUG
-    bool validation = true; // Enable validation layers in debug build
+    const bool validation = true; // Enable validation layers in debug build
 #else
-    bool validation = validation_option->is_set();
+    const bool validation = vm.count( "debug" );
 #endif
 
-    return AppOptions{ .validation = validation, .uncapped_fps = uncapped_option->is_set() };
+    const bool uncapped = vm.count( "uncap" );
+
+    return AppOptions{ .validation = validation, .uncapped_fps = uncapped };
 }
 
 vkwrap::PhysicalDevice
