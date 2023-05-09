@@ -125,7 +125,7 @@ parseOptions( std::span<const char*> command_line_args )
 {
     po::options_description desc( "Available options" );
     desc.add_options()( "help,h", "Print this help message" )( "debug,d", "Use validation layers" )(
-        "f,uncap",
+        "uncap,u",
         "Uncapped fps always" );
 
     po::variables_map vm;
@@ -663,14 +663,13 @@ vkwrap::Sampler
 createTextureSampler( vk::PhysicalDevice physical_device, vk::Device logical_device )
 {
     auto sampler_builder = vkwrap::SamplerBuilder{};
-    auto anisotropy_supported = physical_device.getFeatures().samplerAnisotropy;
 
     sampler_builder.withMagFilter( vk::Filter::eNearest )
         .withMinFilter( vk::Filter::eLinear )
         .withAddressModeU( vk::SamplerAddressMode::eRepeat )
         .withAddressModeV( vk::SamplerAddressMode::eRepeat )
         .withAddressModeW( vk::SamplerAddressMode::eRepeat )
-        .withAnisotropyEnable( anisotropy_supported )
+        .withAnisotropyEnable( VK_FALSE )
         .withBorderColor( vk::BorderColor::eFloatOpaqueBlack )
         .withUnnormalizedCoordinates( VK_FALSE )
         .withCompareOp( vk::CompareOp::eAlways );
