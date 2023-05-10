@@ -197,3 +197,13 @@ if ( ${CHUNKS_TEST} )
     add_example_executable( chunks_test examples/chunks_test.cc )
     target_link_libraries( chunks_test PRIVATE chunk )
 endif ()
+
+option ( MINCRAFT_BUILD_DOCS OFF )
+if ( MINCRAFT_BUILD_DOCS )
+    find_package ( 
+        Doxygen REQUIRED 
+        OPTIONAL_COMPONENTS mscgen dia
+    )
+
+    doxygen_add_docs ( mincraft_docs include/vkwrap include/chunk include/glfw ALL )
+endif ()
