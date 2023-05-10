@@ -120,7 +120,7 @@ tryConvertFormat( T&& var )
     }
 }
 
-#define PRINT_LIMITS_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( object.member ) )
+#define PRINT_LIMITS_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( ( object.member ) ) )
 
 void
 displayPhysicalDeviceLimitsInformation( const vk::PhysicalDeviceLimits& limits )
@@ -255,7 +255,7 @@ displayPhysicalDeviceExtensions( ranges::range auto&& extensions )
     }
 }
 
-#define PRINT_FEATURES_MEMBER( object, member ) formatText( #member ": {}", object.member )
+#define PRINT_FEATURES_MEMBER( object, member ) formatText( #member ": {}", ( object.member ) )
 
 void
 displayPhysicalDeviceFeatures( const vk::PhysicalDeviceFeatures& features )
@@ -334,7 +334,7 @@ displaySurfaceInfo( const detail::SurfaceInfo& surface )
     {
         indent();
 
-        auto&& capabilities = surface.capabilities();
+        const auto& capabilities = surface.capabilities();
 
         PRINT_COMMON_MEMBER( capabilities, currentExtent );
         PRINT_COMMON_MEMBER( capabilities, currentTransform );
@@ -378,7 +378,7 @@ displaySurfaceInfo( const detail::SurfaceInfo& surface )
 void
 displayPhysicalDeviceInformation( const detail::PhysicalDeviceInfo& info )
 {
-    auto&& properties = info.properties();
+    const auto& properties = info.properties();
 
     if ( ImGui::CollapsingHeader( properties.deviceName ) )
     {
@@ -408,7 +408,7 @@ displayPhysicalDevicesInformation( const detail::PhysicalDevicesInfo& info )
 
         for ( auto&& device : info )
         {
-            auto&& properties = device.properties();
+            const auto& properties = device.properties();
             formatText( "{}: {}", vk::to_string( properties.deviceType ), properties.deviceName );
             displayPhysicalDeviceInformation( device );
         }
@@ -432,7 +432,7 @@ detail::PhysicalDeviceInfo::allFromInstance( vk::Instance instance, vk::SurfaceK
 }
 
 void
-VulkanInformationTab::draw()
+VulkanInformationTab::draw() const
 {
     ImGui::Begin( "Vulkan information" );
 

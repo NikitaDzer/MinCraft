@@ -939,7 +939,8 @@ class MinCraftApplication
             camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
         }
 
-        glm::quat yaw_rotation = glm::identity<glm::quat>(), pitch_rotation = glm::identity<glm::quat>();
+        glm::quat yaw_rotation = glm::identity<glm::quat>();
+        glm::quat pitch_rotation = glm::identity<glm::quat>();
         if ( !show_cursor )
         {
             auto mouse_events = pollMouseWithLog( mouse );
@@ -1155,12 +1156,12 @@ runApplication( std::span<const char*> command_line_args )
 {
     AppOptions options;
 
-    if ( auto parsed = parseOptions( command_line_args ); !parsed )
-    {
-        return;
-    } else
+    if ( auto parsed = parseOptions( command_line_args ); parsed )
     {
         options = parsed.value();
+    } else
+    {
+        return;
     }
 
     spdlog::cfg::load_env_levels();

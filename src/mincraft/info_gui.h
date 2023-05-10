@@ -107,7 +107,7 @@ class VulkanInformationTab
     {
     }
 
-    void draw();
+    void draw() const;
 
   private:
     detail::VulkanInformation m_information;
