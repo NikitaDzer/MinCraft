@@ -204,15 +204,6 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
     return LogicalDeviceCreateResult{ .device = std::move( logical_device ), .graphics = graphics, .present = present };
 }
 
-vk::Extent2D
-getWindowExtent( const glfw::wnd::Window& window )
-{
-    auto framebuffer_size = window.getFramebufferSize();
-    return vk::Extent2D{
-        .width = static_cast<uint32_t>( framebuffer_size.width ),
-        .height = static_cast<uint32_t>( framebuffer_size.height ) };
-}
-
 using Framebuffers = std::vector<vkwrap::Framebuffer>;
 
 struct SwapchainRecreateResult
@@ -528,98 +519,6 @@ createIndexBuffer( ranges::range auto&& queues, const chunk::ChunkMesher& mesher
         vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst );
 }
 
-class KeyboardStateTracker
-{
-  public:
-    KeyboardStateTracker( GLFWwindow* window )
-        : m_handler_ptr{ &glfw::input::KeyboardHandler::instance( window ) }
-    {
-        assert( window );
-    }
-
-    KeyboardStateTracker( glfw::input::KeyboardHandler& handler )
-        : m_handler_ptr{ &handler }
-    {
-    }
-
-  public:
-    template <ranges::range Range>
-        requires std::same_as<ranges::range_value_t<Range>, glfw::input::KeyIndex>
-    void monitor( Range&& keys )
-    {
-        m_state_map.clear();
-        for ( auto&& key : keys )
-        {
-            m_state_map.insert( std::pair{ key, glfw::input::ButtonState::k_released } );
-        }
-
-        m_handler_ptr->monitor( keys );
-    }
-
-    auto loggingPoll() const
-    {
-        std::stringstream ss;
-
-        auto print = [ &ss ]( std::string key, auto info ) {
-            ss << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
-            if ( info.hasBeenPressed() )
-            {
-                for ( auto i = 0; auto&& press : info.presses() )
-                {
-                    auto action_string = glfw::input::buttonActionToString( press.action );
-                    ss << fmt::format( "Event [{}], State: {}\n", i++, action_string );
-                }
-            }
-        };
-
-        auto poll_result = m_handler_ptr->poll();
-
-        for ( auto&& [ key, info ] : poll_result )
-        {
-            auto* name_cstr = glfwGetKeyName( key, 0 );
-
-            if ( !name_cstr )
-            {
-                continue;
-            }
-
-            std::string_view key_name = name_cstr;
-            print( std::string{ key_name }, info );
-        }
-
-        if ( auto msg = ss.str(); !msg.empty() )
-        {
-            spdlog::debug( msg );
-        }
-
-        return poll_result;
-    }
-
-    void update()
-    {
-        for ( auto&& [ key, info ] : loggingPoll() )
-        {
-            m_state_map[ key ] = info.current;
-        }
-    }
-
-    glfw::input::ButtonState getState( glfw::input::KeyIndex key ) const
-    {
-        if ( auto found = m_state_map.find( key ); found != m_state_map.end() )
-        {
-            return found->second;
-        }
-
-        throw std::out_of_range{ "KeyboardStateTracker::getState(key): key not found" };
-    }
-
-    bool isPressed( glfw::input::KeyIndex key ) { return getState( key ) == glfw::input::ButtonState::k_pressed; }
-
-  private:
-    glfw::input::KeyboardHandler* m_handler_ptr;
-    std::unordered_map<glfw::input::KeyIndex, glfw::input::ButtonState> m_state_map;
-};
-
 auto
 pollMouseWithLog( glfw::input::MouseHandler& mouse )
 {
@@ -687,7 +586,7 @@ initializeIo( GLFWwindow* window )
 auto
 createKeyboardReader( GLFWwindow* window )
 {
-    auto keyboard = KeyboardStateTracker{ window };
+    auto keyboard = glfw::input::KeyboardStateTracker{ window };
     keyboard.monitor( std::array{
         GLFW_KEY_W,
         GLFW_KEY_A,
@@ -700,81 +599,6 @@ createKeyboardReader( GLFWwindow* window )
         GLFW_KEY_LEFT_ALT } );
     return keyboard;
 }
-
-auto
-physicsLoop(
-    vk::Extent2D extent,
-    GLFWwindow* window,
-    utils3d::Camera& camera,
-    KeyboardStateTracker& keyboard,
-    float delta_t // Time taken to render previous frame
-)
-{
-    keyboard.update();
-    auto& mouse = glfw::input::MouseHandler::instance( window );
-
-    auto show_cursor = keyboard.isPressed( GLFW_KEY_LEFT_ALT );
-
-    if ( !show_cursor && !ImGui::GetIO().WantCaptureMouse )
-    {
-        ImGui::SetMouseCursor( ImGuiMouseCursor_None );
-        mouse.setHidden();
-    } else
-    {
-        mouse.setNormal();
-        mouse.poll();
-    }
-
-    const bool use_keyboard = !ImGui::GetIO().WantCaptureKeyboard;
-
-    constexpr auto angular_per_delta_mouse = glm::radians( 0.1f );
-    constexpr auto angular_per_delta_time = glm::radians( 25.0f );
-    constexpr auto linear_per_delta_time = 5.0f;
-
-    const auto calculate_movement =
-        [ &keyboard, use_keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
-        if ( !use_keyboard )
-        {
-            return 0.0f;
-        }
-
-        return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
-            1.0f * static_cast<int>( keyboard.isPressed( minus ) );
-    };
-
-    const auto fwd_movement = calculate_movement( GLFW_KEY_W, GLFW_KEY_S );
-    const auto side_movement = calculate_movement( GLFW_KEY_D, GLFW_KEY_A );
-    const auto up_movement = calculate_movement( GLFW_KEY_SPACE, GLFW_KEY_C );
-
-    const auto dir_movement =
-        fwd_movement * camera.getDir() + side_movement * camera.getSideways() + up_movement * camera.getUp();
-
-    const auto roll_movement = calculate_movement( GLFW_KEY_Q, GLFW_KEY_E );
-    if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0f, 0.05f ) )
-    {
-        camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
-    }
-
-    glm::quat yaw_rotation = glm::identity<glm::quat>(), pitch_rotation = glm::identity<glm::quat>();
-    if ( !show_cursor )
-    {
-        auto mouse_events = pollMouseWithLog( mouse );
-        auto [ dx, dy ] = mouse_events.movement;
-
-        yaw_rotation = glm::angleAxis<float>( dx * angular_per_delta_mouse, camera.getUp() );
-        pitch_rotation = glm::angleAxis<float>( dy * angular_per_delta_mouse, camera.getSideways() );
-    }
-
-    const auto roll_rotation =
-        glm::angleAxis<float>( roll_movement * angular_per_delta_time * delta_t, camera.getDir() );
-    const auto resulting_rotation = yaw_rotation * pitch_rotation * roll_rotation;
-    camera.rotate( resulting_rotation );
-
-    auto [ view, proj ] = camera.getMatrices( extent.width, extent.height );
-    auto ubo = UniformBufferObject{ .model = glm::mat4x4{ 1.0f }, .view = view, .proj = proj, .origin_pos = {} };
-
-    return ubo;
-};
 
 vk::UniqueDescriptorSetLayout
 createDescriptorSetLayout( vk::Device logical_device )
@@ -1065,6 +889,83 @@ class MinCraftApplication
     }
 
   private:
+    auto physicsLoop(
+        vk::Extent2D extent,
+        float delta_t // Time taken to render previous frame
+    )
+    {
+        keyboard.update();
+        auto& mouse = glfw::input::MouseHandler::instance( window );
+
+        auto show_cursor = keyboard.isPressed( GLFW_KEY_LEFT_ALT );
+
+        if ( !show_cursor && !ImGui::GetIO().WantCaptureMouse )
+        {
+            ImGui::SetMouseCursor( ImGuiMouseCursor_None );
+            mouse.setHidden();
+        } else
+        {
+            mouse.setNormal();
+            mouse.poll();
+        }
+
+        const bool use_keyboard = !ImGui::GetIO().WantCaptureKeyboard;
+
+        constexpr auto angular_per_delta_mouse = glm::radians( 0.1f );
+        constexpr auto angular_per_delta_time = glm::radians( 25.0f );
+        constexpr auto linear_per_delta_time = 5.0f;
+
+        const auto calculate_movement =
+            [ this, use_keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
+            if ( !use_keyboard )
+            {
+                return 0.0f;
+            }
+
+            return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
+                1.0f * static_cast<int>( keyboard.isPressed( minus ) );
+        };
+
+        const auto fwd_movement = calculate_movement( GLFW_KEY_W, GLFW_KEY_S );
+        const auto side_movement = calculate_movement( GLFW_KEY_D, GLFW_KEY_A );
+        const auto up_movement = calculate_movement( GLFW_KEY_SPACE, GLFW_KEY_C );
+
+        const auto dir_movement =
+            fwd_movement * camera.getDir() + side_movement * camera.getSideways() + up_movement * camera.getUp();
+
+        const auto roll_movement = calculate_movement( GLFW_KEY_Q, GLFW_KEY_E );
+        if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0f, 0.05f ) )
+        {
+            camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
+        }
+
+        glm::quat yaw_rotation = glm::identity<glm::quat>(), pitch_rotation = glm::identity<glm::quat>();
+        if ( !show_cursor )
+        {
+            auto mouse_events = pollMouseWithLog( mouse );
+            auto [ dx, dy ] = mouse_events.movement;
+
+            yaw_rotation = glm::angleAxis<float>( dx * angular_per_delta_mouse, camera.getUp() );
+            pitch_rotation = glm::angleAxis<float>( dy * angular_per_delta_mouse, camera.getSideways() );
+        }
+
+        const auto roll_rotation =
+            glm::angleAxis<float>( roll_movement * angular_per_delta_time * delta_t, camera.getDir() );
+        const auto resulting_rotation = yaw_rotation * pitch_rotation * roll_rotation;
+        camera.rotate( resulting_rotation );
+
+        auto [ view, proj ] = camera.getMatrices( extent.width, extent.height );
+        auto [ x, y ] = mesher.getRenderAreaRight();
+
+        auto ubo = UniformBufferObject{
+            .model = glm::mat4x4{ 1.0f },
+            .view = view,
+            .proj = proj,
+            .origin_pos = glm::vec2{ x, y } };
+
+        return ubo;
+    };
+
     RenderConfig appLoop( vk::Extent2D extent )
     {
         auto curr_timepoint = std::chrono::high_resolution_clock::now();
@@ -1072,10 +973,7 @@ class MinCraftApplication
         prev_timepoint = curr_timepoint;
 
         auto config = gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
-        auto ubo = physicsLoop( extent, window, camera, keyboard, delta_time.count() );
-
-        auto [ x, y ] = mesher.getRenderAreaRight();
-        ubo.origin_pos = glm::vec2{ x, y };
+        auto ubo = physicsLoop( extent, delta_time.count() );
 
         return RenderConfig{ ubo, config.draw_lines };
     };
@@ -1246,7 +1144,7 @@ class MinCraftApplication
     uint32_t current_frame = 0;
 
     utils3d::Camera camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 32.0f } };
-    KeyboardStateTracker keyboard = createKeyboardReader( window );
+    glfw::input::KeyboardStateTracker keyboard = createKeyboardReader( window );
     HighResTimePoint prev_timepoint = std::chrono::high_resolution_clock::now();
 
     MasterGui gui = MasterGui{ vk_instance.instance.get(), surface.get() };
@@ -1295,15 +1193,17 @@ try
     runApplication( std::span{ argv, static_cast<size_t>( argc ) } );
 } catch ( vkwrap::UnsupportedError& e )
 {
-    fmt::print( "Unsupported error: {}\n", e.what() );
+    std::stringstream ss;
+    ss << fmt::format( "Unsupported error: {}\n", e.what() );
     for ( unsigned i = 0; auto&& entry : e )
     {
-        fmt::print( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.tag ), entry.name );
+        ss << fmt::format( "[{}]. {}: {}\n", i++, vkwrap::unsupportedTagToStr( entry.tag ), entry.name );
     }
+    spdlog::error( ss.str() );
 } catch ( vk::Error& e )
 {
-    fmt::print( "Vulkan error: {}\n", e.what() );
+    spdlog::error( "Vulkan error: {}\n", e.what() );
 } catch ( std::exception& e )
 {
-    fmt::print( "Error: {}\n", e.what() );
+    spdlog::error( "Error: {}\n", e.what() );
 }

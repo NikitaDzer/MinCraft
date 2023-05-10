@@ -14,14 +14,6 @@
 namespace utils
 {
 
-template <Hashable T>
-constexpr void
-hashCombine( std::size_t& seed, const T& v )
-{
-    std::hash<T> hasher;
-    seed ^= hasher( v ) + 0x9e3779b9 + ( seed << 6 ) + ( seed >> 2 );
-}
-
 // Convert to bool
 constexpr bool
 toBool( const ExplicitlyConvertibleTo<bool> auto& arg )

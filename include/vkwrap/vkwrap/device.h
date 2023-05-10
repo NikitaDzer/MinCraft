@@ -28,6 +28,8 @@
 #include <range/v3/view/zip.hpp>
 #include <range/v3/view/zip_with.hpp>
 
+#include <boost/functional/hash.hpp>
+
 #include <cassert>
 #include <cstddef>
 #include <functional>
@@ -111,7 +113,7 @@ template <> struct hash<vkwrap::PhysicalDeviceInfo>
 
         for ( auto&& uid : info.identifier.deviceUUID )
         {
-            utils::hashCombine( seed, uid );
+            boost::hash_combine( seed, uid );
         }
 
         return seed;

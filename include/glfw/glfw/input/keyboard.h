@@ -98,4 +98,96 @@ class KeyboardHandler
     static inline detail::GlobalHandlerTable<std::unique_ptr<KeyboardHandler>> s_handler_table;
 };
 
+class KeyboardStateTracker
+{
+  public:
+    KeyboardStateTracker( GLFWwindow* window )
+        : m_handler_ptr{ &glfw::input::KeyboardHandler::instance( window ) }
+    {
+        assert( window );
+    }
+
+    KeyboardStateTracker( glfw::input::KeyboardHandler& handler )
+        : m_handler_ptr{ &handler }
+    {
+    }
+
+  public:
+    template <ranges::range Range>
+        requires std::same_as<ranges::range_value_t<Range>, glfw::input::KeyIndex>
+    void monitor( Range&& keys )
+    {
+        m_state_map.clear();
+        for ( auto&& key : keys )
+        {
+            m_state_map.insert( std::pair{ key, glfw::input::ButtonState::k_released } );
+        }
+
+        m_handler_ptr->monitor( keys );
+    }
+
+    auto loggingPoll() const
+    {
+        std::stringstream ss;
+
+        auto print = [ &ss ]( std::string key, auto info ) {
+            ss << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
+            if ( info.hasBeenPressed() )
+            {
+                for ( auto i = 0; auto&& press : info.presses() )
+                {
+                    auto action_string = glfw::input::buttonActionToString( press.action );
+                    ss << fmt::format( "Event [{}], State: {}\n", i++, action_string );
+                }
+            }
+        };
+
+        auto poll_result = m_handler_ptr->poll();
+
+        for ( auto&& [ key, info ] : poll_result )
+        {
+            auto* name_cstr = glfwGetKeyName( key, 0 );
+
+            if ( !name_cstr )
+            {
+                continue;
+            }
+
+            std::string_view key_name = name_cstr;
+            print( std::string{ key_name }, info );
+        }
+
+        if ( auto msg = ss.str(); !msg.empty() )
+        {
+            spdlog::debug( msg );
+        }
+
+        return poll_result;
+    }
+
+    void update()
+    {
+        for ( auto&& [ key, info ] : loggingPoll() )
+        {
+            m_state_map[ key ] = info.current;
+        }
+    }
+
+    glfw::input::ButtonState getState( glfw::input::KeyIndex key ) const
+    {
+        if ( auto found = m_state_map.find( key ); found != m_state_map.end() )
+        {
+            return found->second;
+        }
+
+        throw std::out_of_range{ "KeyboardStateTracker::getState(key): key not found" };
+    }
+
+    bool isPressed( glfw::input::KeyIndex key ) { return getState( key ) == glfw::input::ButtonState::k_pressed; }
+
+  private:
+    glfw::input::KeyboardHandler* m_handler_ptr;
+    std::unordered_map<glfw::input::KeyIndex, glfw::input::ButtonState> m_state_map;
+};
+
 }; // namespace glfw::input

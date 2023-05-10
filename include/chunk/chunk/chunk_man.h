@@ -3,6 +3,8 @@
 #include "chunk/chunk.h"
 #include "utils/misc.h"
 
+#include <boost/functional/hash.hpp>
+
 #include <memory>
 
 /**
@@ -17,8 +19,8 @@ template <> struct hash<pos::ChunkPos>
     {
         std::hash<decltype( chunk_pos.x )> hasher;
         size_t seed = 0;
-        utils::hashCombine( seed, hasher( chunk_pos.x ) );
-        utils::hashCombine( seed, hasher( chunk_pos.y ) );
+        boost::hash_combine( seed, hasher( chunk_pos.x ) );
+        boost::hash_combine( seed, hasher( chunk_pos.y ) );
         return seed;
     }
 }; // struct ChunkHasher
