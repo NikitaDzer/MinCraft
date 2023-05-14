@@ -105,3 +105,11 @@ add_custom_command(
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/textures
             $<TARGET_FILE_DIR:mincraft>)
+
+option(MINCRAFT_BUILD_DOCS OFF)
+if(MINCRAFT_BUILD_DOCS)
+    find_package(Doxygen REQUIRED OPTIONAL_COMPONENTS mscgen dia)
+
+    doxygen_add_docs(mincraft_docs include/vkwrap include/chunk include/glfw
+                     ALL)
+endif()
