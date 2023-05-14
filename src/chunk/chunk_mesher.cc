@@ -6,7 +6,7 @@ namespace chunk
 void
 ChunkMesher::addFace( const auto& face_info )
 {
-    uint32_t vertex_count = static_cast<uint32_t>( m_vertices.size() );
+    const auto vertex_count = static_cast<uint32_t>( m_vertices.size() );
 
     m_vertices.emplace_back( face_info.v1, face_info.block_id, 0, 0 );
     m_vertices.emplace_back( face_info.v2, face_info.block_id, face_info.width, 0 );
@@ -79,8 +79,8 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
         int height = 0;
 
         // work with plane OUV ( U = { Y, Z, X }, V = { Z, X, Y } )
-        size_t u = ( dim + 1 ) % dim_count;
-        size_t v = ( dim + 2 ) % dim_count;
+        const size_t u = ( dim + 1 ) % dim_count;
+        const size_t v = ( dim + 2 ) % dim_count;
 
         // axis array
         std::array<int, 3> axis{};
@@ -117,8 +117,8 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
                         ? chunk.at( axis[ x ] + dir[ x ], axis[ y ] + dir[ y ], axis[ z ] + dir[ z ] )
                         : BlockID::k_none;
 
-                    bool block_current = ( at_xyz == BlockID::k_none );
-                    bool block_compare = ( at_xyz_dir == BlockID::k_none );
+                    const bool block_current = ( at_xyz == BlockID::k_none );
+                    const bool block_compare = ( at_xyz_dir == BlockID::k_none );
 
                     cmp_map[ block_index ] = ( block_current != block_compare );
                     face_map[ block_index ] = block_compare ? at_xyz : at_xyz_dir;
@@ -135,8 +135,8 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
             {
                 for ( int i = 0; i < u_limits; )
                 {
-                    bool mask = cmp_map[ block_index ];
-                    bool orientation = normal_map[ block_index ];
+                    const bool mask = cmp_map[ block_index ];
+                    const bool orientation = normal_map[ block_index ];
                     auto face_id = face_map[ block_index ];
 
                     if ( !mask )
@@ -187,7 +187,7 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
                     du[ u ] = width;
                     dv[ v ] = height;
 
-                    FaceInfo face_info{
+                    const FaceInfo face_info{
                         // clang-format off
                         .is_front_face = normal_map[ block_index ],
             .block_id = face_map[ block_index ],

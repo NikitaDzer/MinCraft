@@ -50,7 +50,7 @@ ChunkMan::changeOriginPos( const pos::ChunkPos& new_origin )
 {
     constexpr auto chunk_distance_diff = 1;
 
-    pos::ChunkPos player_direction{ new_origin.x - m_origin_pos.x, new_origin.y - m_origin_pos.y };
+    const pos::ChunkPos player_direction{ new_origin.x - m_origin_pos.x, new_origin.y - m_origin_pos.y };
 
     // At once the player position should be changed only by 1 chunk
     assert(

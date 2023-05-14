@@ -26,12 +26,12 @@ perlinChunkGen( Chunk& chunk )
 
     for ( auto&& [ local_x, local_y ] : ranges::views::cartesian_product( iota, iota ) )
     {
-        float absoulute_x = pos.x * Chunk::k_max_width_length + local_x;
-        float absoulute_y = pos.y * Chunk::k_max_width_length + local_y;
+        const float absoulute_x = pos.x * Chunk::k_max_width_length + local_x;
+        const float absoulute_y = pos.y * Chunk::k_max_width_length + local_y;
 
         for ( auto z : ranges::views::iota( 0, Chunk::k_max_height ) )
         {
-            float rel_height = static_cast<float>( z ) / Chunk::k_max_height;
+            const float rel_height = static_cast<float>( z ) / Chunk::k_max_height;
 
             BlockID block = BlockID::k_none;
             auto frequency = 0.03f;

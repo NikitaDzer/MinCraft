@@ -89,7 +89,7 @@ WindowImpl::framebufferSizeCallback(
     int height //
 )
 {
-    WindowImpl& window = getHandle( glfw_window );
+    const WindowImpl& window = getHandle( glfw_window );
 
     ::glfw::detail::logAction(
         "Framebuffer resize",
@@ -150,7 +150,7 @@ WindowImpl::createSurface( const vk::Instance& instance ) const
 {
     assert( instance );
 
-    VkSurfaceKHR surface;
+    VkSurfaceKHR surface = nullptr;
     glfwCreateWindowSurface(
         static_cast<VkInstance>( instance ),
         m_handle.get(),

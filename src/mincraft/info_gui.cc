@@ -120,7 +120,7 @@ tryConvertFormat( T&& var )
     }
 }
 
-#define PRINT_LIMITS_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( ( object.member ) ) )
+#define PRINT_LIMITS_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( ( ( object ).member ) ) )
 
 void
 displayPhysicalDeviceLimitsInformation( const vk::PhysicalDeviceLimits& limits )
@@ -255,7 +255,7 @@ displayPhysicalDeviceExtensions( ranges::range auto&& extensions )
     }
 }
 
-#define PRINT_FEATURES_MEMBER( object, member ) formatText( #member ": {}", ( object.member ) )
+#define PRINT_FEATURES_MEMBER( object, member ) formatText( #member ": {}", ( ( object ).member ) )
 
 void
 displayPhysicalDeviceFeatures( const vk::PhysicalDeviceFeatures& features )
@@ -325,7 +325,7 @@ displayPhysicalDeviceFeatures( const vk::PhysicalDeviceFeatures& features )
     }
 }
 
-#define PRINT_COMMON_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( object.member ) )
+#define PRINT_COMMON_MEMBER( object, member ) formatText( #member ": {}", tryConvertFormat( ( object ).member ) )
 
 void
 displaySurfaceInfo( const detail::SurfaceInfo& surface )
