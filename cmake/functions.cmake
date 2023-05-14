@@ -1,8 +1,8 @@
 function(suppress_warnings TARGET_NAME)
     get_target_property(target_options ${TARGET_NAME} COMPILE_OPTIONS)
 
-    if(target_options MATCHES "target_options-NOTFOUND")
-        return()
+    if(target_options STREQUAL "target_options-NOTFOUND")
+        set(target_options "")
     endif()
 
     if(MSVC)

@@ -248,7 +248,12 @@ class PhysicalDeviceSelector
             weight = Weight::k_bad_weight;
         }
 
-        weight += m_types.at( properties.deviceType );
+        const auto get_type_weight = [ this ]( vk::PhysicalDeviceType type ) -> Weight {
+            auto found = m_types.find( type );
+            return ( found != m_types.end() ? found->second : Weight{ Weight::k_bad_weight } );
+        };
+
+        weight += get_type_weight( properties.deviceType );
         return { elem, weight };
     } // calculateWeight
 
