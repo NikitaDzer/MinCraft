@@ -2,20 +2,42 @@ include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 
 set(RANGES_CXX_STD 20)
-FetchContent_Declare(
-    ranges_lib
-    GIT_REPOSITORY https://github.com/ericniebler/range-v3
-    GIT_TAG 0.12.0
-    FIND_PACKAGE_ARGS
-    NAMES
-    range-v3)
+
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24") # Faster fetching with
+                                                  # delegating to find_package
+                                                  # if version allows
+    FetchContent_Declare(
+        ranges_lib
+        GIT_REPOSITORY https://github.com/ericniebler/range-v3
+        GIT_TAG 0.12.0
+        FIND_PACKAGE_ARGS
+        NAMES
+        range-v3)
+
+    FetchContent_Declare(
+        glm_lib
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG 0.9.9.8
+        FIND_PACKAGE_ARGS
+        NAMES
+        glm)
+else() # Fallback for lower versions
+    FetchContent_Declare(
+        ranges_lib
+        GIT_REPOSITORY https://github.com/ericniebler/range-v3
+        GIT_TAG 0.12.0)
+
+    FetchContent_Declare(
+        glm_lib
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG 0.9.9.8)
+endif()
 
 FetchContent_Declare(
     vma_lib
     GIT_REPOSITORY
         https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-    GIT_TAG v3.0.1
-    OVERRIDE_FIND_PACKAGE)
+    GIT_TAG v3.0.1)
 
 FetchContent_Declare(
     spdlog_lib
@@ -23,25 +45,14 @@ FetchContent_Declare(
     GIT_TAG v1.11.0)
 
 FetchContent_Declare(
-    glm_lib
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG 0.9.9.8
-    FIND_PACKAGE_ARGS
-    NAMES
-    glm)
-
-FetchContent_Declare(
     perlin_lib
     GIT_REPOSITORY https://github.com/Reputeless/PerlinNoise.git
     GIT_TAG v3.0.0)
 
-FetchContent_MakeAvailable(ranges_lib spdlog_lib glm_lib perlin_lib)
+FetchContent_MakeAvailable(ranges_lib spdlog_lib glm_lib perlin_lib vma_lib)
 
 add_library(perlin INTERFACE)
 target_include_directories(perlin INTERFACE ${perlin_lib_SOURCE_DIR})
-
-# Delegate to fetchContent
-find_package(vma_lib 3.0.1 REQUIRED)
 
 # -v- VulkanMemoryAllocator configuration -v-
 set(VMA_STATIC_VULKAN_FUNCTIONS OFF)
@@ -56,7 +67,7 @@ suppress_warnings(VulkanMemoryAllocator)
 
 # Hacky workaround for using ktxlib without compiling from source
 
-if(${CMAKE_VERSION} VERSION_GREATER "3.24")
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24")
     cmake_policy(SET CMP0135 NEW
     )# Fix warning https://cmake.org/cmake/help/latest/policy/CMP0135.html
 endif()
