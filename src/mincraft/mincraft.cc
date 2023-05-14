@@ -371,7 +371,7 @@ shouldRecreateSwapchain( vk::Result result )
 class KtxError : public std::runtime_error
 {
   public:
-    KtxError( ktx_error_code_e ec )
+    explicit KtxError( ktx_error_code_e ec )
         : std::runtime_error{ ktxErrorString( ec ) },
           m_ec{ ec }
     {
@@ -403,12 +403,12 @@ class UniqueKtxTexture
     }
 
   public:
-    UniqueKtxTexture( const std::filesystem::path& filepath )
+    explicit UniqueKtxTexture( const std::filesystem::path& filepath )
         : m_handle{ createHandle( filepath ) }
     {
     }
 
-    ktxTexture* get() const { return m_handle.get(); }
+    [[nodiscard]] ktxTexture* get() const { return m_handle.get(); }
     ktxTexture* operator->() { return get(); }
 
     ktx_uint8_t* getData() { return ktxTexture_GetData( m_handle.get() ); }
@@ -619,7 +619,7 @@ createDescriptorSetLayout( vk::Device logical_device )
         .pImmutableSamplers = nullptr };
 
     std::array<vk::DescriptorSetLayoutBinding, 2> bindings = { ubo_layout_binding, sampler_layout_binding };
-    vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_info{
+    vk::DescriptorSetLayoutCreateInfo const descriptor_set_layout_info{
         .bindingCount = static_cast<uint32_t>( bindings.size() ),
         .pBindings = bindings.data() };
 
@@ -709,7 +709,7 @@ class MasterGui
 
   private:
     imgw::VulkanInformationTab m_vkinfo_tab;
-    GuiConfiguation m_config;
+    GuiConfiguation m_config{};
 };
 
 constexpr auto k_subpass_dependency = vk::SubpassDependency{
@@ -779,12 +779,12 @@ getViewport( vk::Extent2D extent )
     auto [ width, height ] = extent;
 
     return vk::Viewport{
-        .x = 0.0f,
+        .x = 0.0F,
         .y = static_cast<float>( height ),
         .width = static_cast<float>( width ),
         .height = -static_cast<float>( height ),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f };
+        .minDepth = 0.0F,
+        .maxDepth = 1.0F };
 }
 
 glfw::wnd::Window
@@ -881,7 +881,7 @@ class MinCraftApplication
     }
 
   public:
-    MinCraftApplication( AppOptions options )
+    explicit MinCraftApplication( AppOptions options )
         : vk_instance{ createInstance( glfw_instance, options.validation ) },
           physical_device{ initializePhysicalDevice( options ) },
           swapchain{ initializeSwapchain( options ) }
@@ -911,19 +911,19 @@ class MinCraftApplication
 
         const bool use_keyboard = !ImGui::GetIO().WantCaptureKeyboard;
 
-        constexpr auto angular_per_delta_mouse = glm::radians( 0.1f );
-        constexpr auto angular_per_delta_time = glm::radians( 25.0f );
-        constexpr auto linear_per_delta_time = 5.0f;
+        constexpr auto angular_per_delta_mouse = glm::radians( 0.1F );
+        constexpr auto angular_per_delta_time = glm::radians( 25.0F );
+        constexpr auto linear_per_delta_time = 5.0F;
 
         const auto calculate_movement =
             [ this, use_keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
             if ( !use_keyboard )
             {
-                return 0.0f;
+                return 0.0F;
             }
 
-            return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
-                1.0f * static_cast<int>( keyboard.isPressed( minus ) );
+            return 1.0F * static_cast<int>( keyboard.isPressed( plus ) ) -
+                1.0F * static_cast<int>( keyboard.isPressed( minus ) );
         };
 
         const auto fwd_movement = calculate_movement( GLFW_KEY_W, GLFW_KEY_S );
@@ -934,13 +934,13 @@ class MinCraftApplication
             fwd_movement * camera.getDir() + side_movement * camera.getSideways() + up_movement * camera.getUp();
 
         const auto roll_movement = calculate_movement( GLFW_KEY_Q, GLFW_KEY_E );
-        if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0f, 0.05f ) )
+        if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0F, 0.05F ) )
         {
             camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
         }
 
-        glm::quat yaw_rotation = glm::identity<glm::quat>();
-        glm::quat pitch_rotation = glm::identity<glm::quat>();
+        auto yaw_rotation = glm::identity<glm::quat>();
+        auto pitch_rotation = glm::identity<glm::quat>();
         if ( !show_cursor )
         {
             auto mouse_events = pollMouseWithLog( mouse );
@@ -959,7 +959,7 @@ class MinCraftApplication
         auto [ x, y ] = mesher.getRenderAreaRight();
 
         auto ubo = UniformBufferObject{
-            .model = glm::mat4x4{ 1.0f },
+            .model = glm::mat4x4{ 1.0F },
             .view = view,
             .proj = proj,
             .origin_pos = glm::vec2{ x, y } };
@@ -970,7 +970,7 @@ class MinCraftApplication
     RenderConfig appLoop( vk::Extent2D extent )
     {
         auto curr_timepoint = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
+        const std::chrono::duration<float> delta_time = curr_timepoint - prev_timepoint;
         prev_timepoint = curr_timepoint;
 
         auto config = gui.draw(); // Get configuration and pass it to physicsLoop; TODO [Sergei]
@@ -1008,7 +1008,7 @@ class MinCraftApplication
         }
 
         fillCommandBuffer( command_buffer.get(), image_index, extent, config );
-        vk::PipelineStageFlags wait_stages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        vk::PipelineStageFlags const wait_stages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
         const auto submit_info = vk::SubmitInfo{
             .waitSemaphoreCount = 1,
@@ -1022,7 +1022,7 @@ class MinCraftApplication
         logical_device->resetFences( current_frame_data.in_flight_fence.get() );
         graphics_queue.submit( submit_info, *current_frame_data.in_flight_fence );
 
-        vk::Result result_present = present_queue.presentKHRWithOutOfDate(
+        vk::Result const result_present = present_queue.presentKHRWithOutOfDate(
             swapchain.get(),
             current_frame_data.render_finished_semaphore.get(),
             image_index );
@@ -1039,7 +1039,7 @@ class MinCraftApplication
     {
         const auto clear_values = std::array{
             vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
-            vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
+            vk::ClearValue{ .depthStencil = { .depth = 1.0F, .stencil = 0 } } };
 
         const auto render_pass_info = vk::RenderPassBeginInfo{
             .renderPass = render_pass.get(),
@@ -1144,7 +1144,7 @@ class MinCraftApplication
 
     uint32_t current_frame = 0;
 
-    utils3d::Camera camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 32.0f } };
+    utils3d::Camera camera = utils3d::Camera{ glm::vec3{ 0.0F, 0.0F, 32.0F } };
     glfw::input::KeyboardStateTracker keyboard = createKeyboardReader( window );
     HighResTimePoint prev_timepoint = std::chrono::high_resolution_clock::now();
 
@@ -1171,7 +1171,7 @@ runApplication( std::span<const char*> command_line_args )
 
     auto application = MinCraftApplication{ options };
 
-    auto renderer_thread = std::jthread{ [ &application ]( std::stop_token stop ) {
+    auto renderer_thread = std::jthread{ [ &application ]( const std::stop_token& stop ) {
         while ( !stop.stop_requested() )
         {
             application.drawLoop();

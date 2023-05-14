@@ -135,17 +135,17 @@ for ( int i = 0; i < max_i; i++ )
 
 switch( value )
 {
-	case CASE_1:
-	// Your code
-	
-	// Note: if you use fallthrough specify it explicitly with comment
-	// Otherwise always use break
-	case CASE_2:
-	// Your code
-	break;
-	// Always use default case
-	default:
-	// Your code
+    case CASE_1:
+    // Your code
+    
+    // Note: if you use fallthrough specify it explicitly with comment
+    // Otherwise always use break
+    case CASE_2:
+    // Your code
+    break;
+    // Always use default case
+    default:
+    // Your code
 }
 ```
 

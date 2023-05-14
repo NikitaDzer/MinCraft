@@ -241,10 +241,10 @@ template <typename Derived> class BlendStateCfg
     {
         // clang-format off
         m_color_blend_attachment.setColorWriteMask(
-	    vk::ColorComponentFlagBits::eA |
-	    vk::ColorComponentFlagBits::eR |
-	    vk::ColorComponentFlagBits::eG |
-	    vk::ColorComponentFlagBits::eB );
+        vk::ColorComponentFlagBits::eA |
+        vk::ColorComponentFlagBits::eR |
+        vk::ColorComponentFlagBits::eG |
+        vk::ColorComponentFlagBits::eB );
         // clang-format on
 
         m_color_blend_attachment.setBlendEnable( VK_FALSE );

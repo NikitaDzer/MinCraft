@@ -190,14 +190,14 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
                     FaceInfo face_info{
                         // clang-format off
                         .is_front_face = normal_map[ block_index ],
-			.block_id = face_map[ block_index ],
-			.width = width,
+            .block_id = face_map[ block_index ],
+            .width = width,
                         .height = height,
-			.v1 = toRenderAreaBlockPos(
-			    axis[ x ],
-			    axis[ y ],
-			    axis[ z ],
-			    chunk_pos ),
+            .v1 = toRenderAreaBlockPos(
+                axis[ x ],
+                axis[ y ],
+                axis[ z ],
+                chunk_pos ),
                         .v2 = toRenderAreaBlockPos(
                             axis[ x ] + du[ x ],
                             axis[ y ] + du[ y ],
@@ -208,11 +208,11 @@ ChunkMesher::greedyMesh( const pos::ChunkPos& chunk_pos, const Chunk& chunk )
                             axis[ y ] + dv[ y ],
                             axis[ z ] + dv[ z ],
                             chunk_pos ),
-			.v4 = toRenderAreaBlockPos(
-			    axis[ x ] + du[ x ] + dv[ x ],
-			    axis[ y ] + du[ y ] + dv[ y ],
-			    axis[ z ] + du[ z ] + dv[ z ],
-			    chunk_pos )
+            .v4 = toRenderAreaBlockPos(
+                axis[ x ] + du[ x ] + dv[ x ],
+                axis[ y ] + du[ y ] + dv[ y ],
+                axis[ z ] + du[ z ] + dv[ z ],
+                chunk_pos )
                         // clang-format on
                     };
 
