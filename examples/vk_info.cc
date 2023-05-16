@@ -197,25 +197,6 @@ try
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
 
-    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
-
-    // choose one of format
-    vk::Format swap_chain_format{ vk::Format::eB8G8R8A8Srgb };
-    vkwrap::ShaderModule vertex_shader{ "vertex_shader.spv", logical_device.get() };
-    vkwrap::ShaderModule fragment_shader{ "fragment_shader.spv", logical_device.get() };
-
-    // [krisszzzz] Note that before render pass creating the color attachment should be set
-    // and optionally the subpass dependecies
-    // the createPipeline() is last function of list
-    auto pipeline = pipeline_builder.withVertexShader( vertex_shader )
-                        .withFragmentShader( fragment_shader )
-                        .withPipelineLayout( logical_device.get(), std::array<vk::DescriptorSetLayout, 1>{} )
-                        .withColorAttachment( swap_chain_format )
-                        .withRenderPass( logical_device.get() )
-                        .createPipeline( logical_device.get() );
-
-    fmt::print( "Pipeline creation sucess\n" );
-
     while ( window.running() )
     {
         glfwPollEvents();
