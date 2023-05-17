@@ -76,7 +76,7 @@ class MouseHandler
     } // instance
 
   public:
-    void setHidden() { glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN ); }
+    void setHidden() { glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN | GLFW_CURSOR_DISABLED ); }
     void setNormal() { glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL ); }
 
   public:

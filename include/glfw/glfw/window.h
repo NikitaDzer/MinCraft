@@ -76,7 +76,7 @@ class WindowImpl
 {
   private:
     // Call permissions: main thread.
-    static void destroyWindow( WindowHandle* glfwWindow );
+    static void destroyWindow( WindowHandle* glfw_window );
 
     // Call permissions: main thread.
     static WindowHandle* createWindow(
@@ -85,15 +85,15 @@ class WindowImpl
     );
 
     // Call permissions: any thread.
-    static WindowImpl& getHandle( WindowHandle* glfwWindow )
+    static WindowImpl& getHandle( WindowHandle* glfw_window )
     {
-        auto* ptr = reinterpret_cast<WindowImpl*>( glfwGetWindowUserPointer( glfwWindow ) );
+        auto* ptr = reinterpret_cast<WindowImpl*>( glfwGetWindowUserPointer( glfw_window ) );
         assert( ptr );
         return *ptr;
     } // getHandle
 
     static void framebufferSizeCallback(
-        WindowHandle* glfwWindow,
+        WindowHandle* glfw_window,
         int width,
         int height //
     );

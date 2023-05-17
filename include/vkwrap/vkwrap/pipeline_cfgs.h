@@ -1,12 +1,17 @@
 #pragma once
 
+#include "vkwrap/render_pass.h"
 #include "vkwrap/shader_module.h"
-#include <range/v3/range.hpp>
-#include <range/v3/view.hpp>
+
+#include <range/v3/range/concepts.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/all.hpp>
 
 namespace vkwrap
 {
-// contains classes that configure Vulkan Pipeline class
+
+// Contains classes that configure Vulkan Pipeline class
+
 namespace cfgs
 {
 
@@ -145,14 +150,20 @@ template <typename Derived> class ViewportScissorCfg
 template <typename Derived> class RasterizerCfg
 {
   public:
+    Derived& withPolygonMode( vk::PolygonMode mode ) &
+    {
+        m_polygon_mode = mode;
+        return static_cast<Derived&>( *this );
+    }
+
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
         m_rasterizer.setDepthClampEnable( VK_FALSE );
         m_rasterizer.setRasterizerDiscardEnable( VK_FALSE );
-        m_rasterizer.setPolygonMode( vk::PolygonMode::eFill );
+        m_rasterizer.setPolygonMode( m_polygon_mode );
         m_rasterizer.setLineWidth( 1.0f );
         m_rasterizer.setCullMode( vk::CullModeFlagBits::eBack );
-        m_rasterizer.setFrontFace( vk::FrontFace::eClockwise );
+        m_rasterizer.setFrontFace( vk::FrontFace::eCounterClockwise );
         m_rasterizer.setDepthBiasEnable( VK_FALSE );
         m_rasterizer.setDepthBiasConstantFactor( 0.0f );
         m_rasterizer.setDepthBiasClamp( 0.0f );
@@ -170,6 +181,7 @@ template <typename Derived> class RasterizerCfg
     ~RasterizerCfg() = default;
 
   private:
+    vk::PolygonMode m_polygon_mode = vk::PolygonMode::eFill;
     vk::PipelineRasterizationStateCreateInfo m_rasterizer;
 };
 
@@ -199,38 +211,27 @@ template <typename Derived> class InputAssemblyCfg
 template <typename Derived> class PipelineLayoutCfg
 {
   public:
-    template <typename Layout = ranges::empty_view<vk::UniqueDescriptorSetLayout>>
-    Derived& withPipelineLayout( vk::Device device, Layout&& layouts = {} ) &
+    Derived& withPipelineLayout( vk::PipelineLayout layout ) &
     {
-        m_layouts = ranges::views::transform( layouts, []( auto&& elem ) { return elem.get(); } ) | ranges::to_vector;
-
-        vk::PipelineLayoutCreateInfo layout_create_info{
-            .setLayoutCount = static_cast<uint32_t>( m_layouts.size() ),
-            .pSetLayouts = m_layouts.data() };
-
-        m_pipeline_layout = device.createPipelineLayoutUnique( layout_create_info );
-
+        m_pipeline_layout = layout;
         return static_cast<Derived&>( *this );
     }
 
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
-        pipeline_create_info.setLayout( m_pipeline_layout.get() ); //
+        pipeline_create_info.setLayout( m_pipeline_layout ); //
     }
 
   protected:
     PipelineLayoutCfg() = default;
-    // deleted because of vk::UniquePipelinelayout
-    PipelineLayoutCfg( const PipelineLayoutCfg& ) = delete;
-    PipelineLayoutCfg& operator=( const PipelineLayoutCfg& ) = delete;
-
+    PipelineLayoutCfg( const PipelineLayoutCfg& ) = default;
+    PipelineLayoutCfg& operator=( const PipelineLayoutCfg& ) = default;
     PipelineLayoutCfg& operator=( PipelineLayoutCfg&& ) = default;
     PipelineLayoutCfg( PipelineLayoutCfg&& ) = default;
     ~PipelineLayoutCfg() = default;
 
   private:
-    std::vector<vk::DescriptorSetLayout> m_layouts;
-    vk::UniquePipelineLayout m_pipeline_layout;
+    vk::PipelineLayout m_pipeline_layout;
 };
 
 template <typename Derived> class BlendStateCfg
@@ -240,10 +241,10 @@ template <typename Derived> class BlendStateCfg
     {
         // clang-format off
         m_color_blend_attachment.setColorWriteMask(
-	    vk::ColorComponentFlagBits::eA |
-	    vk::ColorComponentFlagBits::eR |
-	    vk::ColorComponentFlagBits::eG |
-	    vk::ColorComponentFlagBits::eB );
+        vk::ColorComponentFlagBits::eA |
+        vk::ColorComponentFlagBits::eR |
+        vk::ColorComponentFlagBits::eG |
+        vk::ColorComponentFlagBits::eB );
         // clang-format on
 
         m_color_blend_attachment.setBlendEnable( VK_FALSE );
@@ -267,53 +268,39 @@ template <typename Derived> class BlendStateCfg
     vk::PipelineColorBlendStateCreateInfo m_color_blending;
 };
 
+template <typename Derived> class DepthStencilStateCfg
+{
+
+  public:
+    void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
+    {
+        pipeline_create_info.setPDepthStencilState( &m_depth_stencil );
+    }
+
+  protected:
+    DepthStencilStateCfg()
+    {
+        m_depth_stencil.setDepthTestEnable( VK_TRUE );
+        m_depth_stencil.setDepthWriteEnable( VK_TRUE );
+        m_depth_stencil.setDepthCompareOp( vk::CompareOp::eLess );
+        m_depth_stencil.setDepthBoundsTestEnable( VK_FALSE );
+        m_depth_stencil.setStencilTestEnable( VK_FALSE );
+    }
+
+  private:
+    vk::PipelineDepthStencilStateCreateInfo m_depth_stencil;
+};
+
 template <typename Derived> class RenderPassCfg
 {
   public:
-    Derived& withColorAttachment( vk::Format swap_chain_format ) &
+    Derived& withRenderPass( vk::RenderPass render_pass ) &
     {
-        m_color_attachment.setFormat( swap_chain_format );
-        m_color_attachment.setSamples( vk::SampleCountFlagBits::e1 );
-        m_color_attachment.setLoadOp( vk::AttachmentLoadOp::eClear );
-        m_color_attachment.setStoreOp( vk::AttachmentStoreOp::eStore );
-        m_color_attachment.setStencilLoadOp( vk::AttachmentLoadOp::eDontCare );
-        m_color_attachment.setStencilStoreOp( vk::AttachmentStoreOp::eDontCare );
-        m_color_attachment.setInitialLayout( vk::ImageLayout::eUndefined );
-        m_color_attachment.setFinalLayout( vk::ImageLayout::ePresentSrcKHR );
-
-        return static_cast<Derived&>( *this );
-    };
-
-    template <typename SubpassDep> void withSubpassDependencies( SubpassDep&& dependecies )
-    {
-        m_subpass_dependecies = ranges::views::all( dependecies ) | ranges::to_vector;
-    }
-
-    Derived& withRenderPass( vk::Device device ) &
-    {
-        vk::AttachmentReference color_attachment_ref{
-            .attachment = 0,
-            .layout = vk::ImageLayout::eColorAttachmentOptimal };
-
-        vk::SubpassDescription subpass{
-            .pipelineBindPoint = vk::PipelineBindPoint::eGraphics,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &color_attachment_ref };
-
-        vk::RenderPassCreateInfo render_pass_create_info{
-            .attachmentCount = 1,
-            .pAttachments = &m_color_attachment,
-            .subpassCount = 1,
-            .pSubpasses = &subpass,
-            .dependencyCount = static_cast<uint32_t>( m_subpass_dependecies.size() ),
-            .pDependencies = m_subpass_dependecies.data() };
-
-        m_render_pass = device.createRenderPassUnique( render_pass_create_info );
-
+        m_render_pass = render_pass;
         return static_cast<Derived&>( *this );
     }
 
-    vk::RenderPass getRenderPass() const { return m_render_pass.get(); }
+    vk::RenderPass getRenderPass() const { return m_render_pass; }
 
     void make( vk::GraphicsPipelineCreateInfo& pipeline_create_info )
     {
@@ -325,15 +312,12 @@ template <typename Derived> class RenderPassCfg
     RenderPassCfg() = default;
     RenderPassCfg( RenderPassCfg&& ) = default;
     RenderPassCfg& operator=( RenderPassCfg&& ) = default;
-    // deleted because of vk::UniqueRenderPass
-    RenderPassCfg( const RenderPassCfg& ) = delete;
-    RenderPassCfg& operator=( const RenderPassCfg& ) = delete;
+    RenderPassCfg( const RenderPassCfg& ) = default;
+    RenderPassCfg& operator=( const RenderPassCfg& ) = default;
     ~RenderPassCfg() = default;
 
   private:
-    std::vector<vk::SubpassDependency> m_subpass_dependecies;
-    vk::AttachmentDescription m_color_attachment;
-    vk::UniqueRenderPass m_render_pass;
+    vk::RenderPass m_render_pass;
 };
 
 }; // namespace cfgs

@@ -21,8 +21,9 @@ ChunkMan::ChunkMan( const pos::ChunkPos& origin_pos )
     {
         for ( auto y = min_y; y <= max_y; y++ )
         {
-            m_chunks.emplace( pos::ChunkPos{ x, y }, raw_block_ides_ptr );
-            Chunk tmp_chunk{ raw_block_ides_ptr };
+            auto position = pos::ChunkPos{ x, y };
+            auto tmp_chunk = Chunk{ raw_block_ides_ptr, position };
+            m_chunks.emplace( position, tmp_chunk );
             simpleChunkGen( tmp_chunk );
             raw_block_ides_ptr += Chunk::k_block_count;
         }
@@ -49,7 +50,7 @@ ChunkMan::changeOriginPos( const pos::ChunkPos& new_origin )
 {
     constexpr auto chunk_distance_diff = 1;
 
-    pos::ChunkPos player_direction{ new_origin.x - m_origin_pos.x, new_origin.y - m_origin_pos.y };
+    const pos::ChunkPos player_direction{ new_origin.x - m_origin_pos.x, new_origin.y - m_origin_pos.y };
 
     // At once the player position should be changed only by 1 chunk
     assert(

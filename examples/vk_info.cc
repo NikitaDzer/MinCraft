@@ -5,6 +5,7 @@
 #include "common/vulkan_include.h"
 
 #include "vkwrap/buffer.h"
+#include "vkwrap/core.h"
 #include "vkwrap/device.h"
 #include "vkwrap/framebuffer.h"
 #include "vkwrap/image.h"
@@ -30,21 +31,6 @@
 namespace
 {
 
-std::string
-versionToString( uint32_t version )
-{
-    const auto ver_major = VK_VERSION_MAJOR( version );
-    const auto ver_minor = VK_VERSION_MINOR( version );
-    const auto ver_patch = VK_VERSION_PATCH( version );
-
-    return fmt::format(
-        "{}.{}.{}",
-        ver_major,
-        ver_minor,
-        ver_patch // This is a workaround for clang-format
-    );
-} // versionToString
-
 void
 printPhysicalDeviceProperties( const vk::PhysicalDevice& device )
 {
@@ -56,7 +42,7 @@ printPhysicalDeviceProperties( const vk::PhysicalDevice& device )
         properties.deviceID,
         vk::to_string( properties.deviceType ),
         properties.deviceName,
-        versionToString( properties.apiVersion ) //
+        vkwrap::versionToString( properties.apiVersion ) //
     );
 
     std::stringstream ss;
@@ -210,25 +196,6 @@ try
     }
 
     fmt::print( "\nNumber of callbacks = {}\n", counting_functor->m_call_count );
-
-    auto pipeline_builder = vkwrap::DefaultPipelineBuilder{};
-
-    // choose one of format
-    vk::Format swap_chain_format{ vk::Format::eB8G8R8A8Srgb };
-    vkwrap::ShaderModule vertex_shader{ "vertex_shader.spv", logical_device.get() };
-    vkwrap::ShaderModule fragment_shader{ "fragment_shader.spv", logical_device.get() };
-
-    // [krisszzzz] Note that before render pass creating the color attachment should be set
-    // and optionally the subpass dependecies
-    // the createPipeline() is last function of list
-    auto pipeline = pipeline_builder.withVertexShader( vertex_shader )
-                        .withFragmentShader( fragment_shader )
-                        .withPipelineLayout( logical_device.get() )
-                        .withColorAttachment( swap_chain_format )
-                        .withRenderPass( logical_device.get() )
-                        .createPipeline( logical_device.get() );
-
-    fmt::print( "Pipeline creation sucess\n" );
 
     while ( window.running() )
     {

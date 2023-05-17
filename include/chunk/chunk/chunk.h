@@ -21,8 +21,13 @@ enum class BlockID : uint16_t
 class Chunk
 {
   public:
-    Chunk( BlockID* chunk_begin )
-        : m_chunk_begin( chunk_begin ){};
+    Chunk( BlockID* chunk_begin, pos::ChunkPos position )
+        : m_chunk_begin( chunk_begin ),
+          m_position{ position }
+    {
+    }
+
+    pos::ChunkPos getPosition() const { return m_position; }
 
     const BlockID& operator[]( int index ) const&
     {
@@ -52,6 +57,7 @@ class Chunk
   private:
     // Pointer to the raw block ides in the array
     BlockID* m_chunk_begin;
+    pos::ChunkPos m_position;
 }; // class Chunk
 
 }; // namespace chunk

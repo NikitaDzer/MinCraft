@@ -1,6 +1,10 @@
 #pragma once
 
+#include "common/vulkan_include.h"
+
 #include "vkwrap/pipeline_cfgs.h"
+
+#include <concepts>
 #include <type_traits>
 
 namespace vkwrap
@@ -82,6 +86,7 @@ template <template <typename> typename... Cfgs> class PipelineBuilder : public C
 };
 
 using DefaultPipelineBuilder = PipelineBuilder<
+    cfgs::DepthStencilStateCfg,
     cfgs::ShaderCfg,
     cfgs::ViewportScissorCfg,
     cfgs::RasterizerCfg,
@@ -90,5 +95,19 @@ using DefaultPipelineBuilder = PipelineBuilder<
     cfgs::PipelineLayoutCfg,
     cfgs::BlendStateCfg,
     cfgs::RenderPassCfg>;
+
+template <ranges::range Range>
+    requires std::same_as<ranges::range_value_t<Range>, vk::DescriptorSetLayout>
+vk::UniquePipelineLayout
+createPipelineLayout( vk::Device device, Range&& layouts )
+{
+    auto layouts_vec = ranges::views::all( layouts ) | ranges::to_vector;
+
+    vk::PipelineLayoutCreateInfo layout_create_info{
+        .setLayoutCount = static_cast<uint32_t>( layouts_vec.size() ),
+        .pSetLayouts = layouts_vec.data() };
+
+    return device.createPipelineLayoutUnique( layout_create_info );
+}
 
 }; // namespace vkwrap

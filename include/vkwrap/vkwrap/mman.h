@@ -6,6 +6,7 @@
 #include "utils/misc.h"
 #include "utils/patchable.h"
 
+#include "vkwrap/command.h"
 #include "vkwrap/core.h"
 #include "vkwrap/error.h"
 #include "vkwrap/utils.h"
@@ -178,55 +179,6 @@ class Mman
         vk::Extent3D extent;
         uint32_t layers;
     }; // struct ImageInfo
-
-    class OneTimeCommand : private vk::UniqueCommandBuffer
-    {
-
-      private:
-        using Base = vk::UniqueCommandBuffer;
-
-      private:
-        vk::Queue m_queue;
-
-        void begin() const
-        {
-            // clang-format off
-            vk::CommandBufferBeginInfo begin_info{ 
-                .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit };
-            // clang-format on
-
-            Base::get().begin( begin_info );
-        } // begin
-
-        void end() const { Base::get().end(); }
-
-        void submit() const
-        {
-            vk::SubmitInfo submit_info{ .commandBufferCount = 1, .pCommandBuffers = &Base::get() };
-
-            m_queue.submit( std::array{ submit_info } );
-        } // submit
-
-        void wait() const { m_queue.waitIdle(); }
-
-      public:
-        OneTimeCommand( vk::UniqueCommandBuffer unique_cmd, vk::Queue queue )
-            : Base{ std::move( unique_cmd ) },
-              m_queue{ queue }
-        {
-        } // oneTimeCommand
-
-        void submitAndWait( std::function<void( vk::CommandBuffer& )> func )
-        {
-            begin();
-            func( Base::get() );
-            end();
-            submit();
-            wait();
-        } // submitAndWait
-
-        using Base::operator->;
-    }; // class OneTimeCommand
 
   public:
     // clang-format off

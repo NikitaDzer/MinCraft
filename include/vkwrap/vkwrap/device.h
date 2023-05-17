@@ -28,6 +28,8 @@
 #include <range/v3/view/zip.hpp>
 #include <range/v3/view/zip_with.hpp>
 
+#include <boost/functional/hash.hpp>
+
 #include <cassert>
 #include <cstddef>
 #include <functional>
@@ -111,7 +113,7 @@ template <> struct hash<vkwrap::PhysicalDeviceInfo>
 
         for ( auto&& uid : info.identifier.deviceUUID )
         {
-            utils::hashCombine( seed, uid );
+            boost::hash_combine( seed, uid );
         }
 
         return seed;
@@ -246,7 +248,12 @@ class PhysicalDeviceSelector
             weight = Weight::k_bad_weight;
         }
 
-        weight += m_types.at( properties.deviceType );
+        const auto get_type_weight = [ this ]( vk::PhysicalDeviceType type ) -> Weight {
+            auto found = m_types.find( type );
+            return ( found != m_types.end() ? found->second : Weight{ Weight::k_bad_weight } );
+        };
+
+        weight += get_type_weight( properties.deviceType );
         return { elem, weight };
     } // calculateWeight
 
@@ -288,15 +295,20 @@ class PhysicalDeviceSelector
 
 class LogicalDevice : private vk::UniqueDevice
 {
+  private:
+    using Base = vk::UniqueDevice;
+
   public:
-    using vk::UniqueDevice::operator bool;
-    using vk::UniqueDevice::operator->;
-    using vk::UniqueDevice::get;
+    using Base::operator bool;
+    using Base::operator->;
+    using Base::get;
 
     LogicalDevice( vk::UniqueDevice logical_device )
-        : vk::UniqueDevice{ std::move( logical_device ) }
+        : Base{ std::move( logical_device ) }
     {
     }
+
+    operator vk::Device() const { return get(); }
 }; // LogicalDevice
 
 class LogicalDeviceBuilder

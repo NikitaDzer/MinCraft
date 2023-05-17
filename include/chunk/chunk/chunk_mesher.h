@@ -164,7 +164,7 @@ class ChunkMesher
      * Get description of the vertex format that used for meshing
      */
 
-    VertexInfo getVertexInfo() const;
+    static VertexInfo getVertexInfo();
 
     uint32_t getVerticesCount() const { return m_vertices.size(); }
 

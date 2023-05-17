@@ -3,6 +3,8 @@
 #include "chunk/chunk.h"
 #include "utils/misc.h"
 
+#include <boost/functional/hash.hpp>
+
 #include <memory>
 
 /**
@@ -17,8 +19,8 @@ template <> struct hash<pos::ChunkPos>
     {
         std::hash<decltype( chunk_pos.x )> hasher;
         size_t seed = 0;
-        utils::hashCombine( seed, hasher( chunk_pos.x ) );
-        utils::hashCombine( seed, hasher( chunk_pos.y ) );
+        boost::hash_combine( seed, hasher( chunk_pos.x ) );
+        boost::hash_combine( seed, hasher( chunk_pos.y ) );
         return seed;
     }
 }; // struct ChunkHasher
@@ -37,7 +39,7 @@ class ChunkMan
 
   public:
     // Max chunks that can be viewed by the player
-    static constexpr auto k_render_distance = 63;
+    static constexpr auto k_render_distance = 10;
     // the region is a square with the side equal to 2 * k_render_distance + 1
     static constexpr auto k_chunks_count = ( 2 * k_render_distance + 1 ) * ( 2 * k_render_distance + 1 );
     static constexpr auto k_blocks_count = k_chunks_count * Chunk::k_block_count;
