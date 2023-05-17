@@ -400,7 +400,7 @@ displayPhysicalDeviceInformation( const detail::PhysicalDeviceInfo& info )
 }
 
 void
-displayPhysicalDevicesInformation( const detail::PhysicalDevicesInfo& info )
+displayPhysicalDevicesInformation( const detail::PhysicalDeviceInfos& info )
 {
     if ( ImGui::CollapsingHeader( "Physical devices" ) )
     {
@@ -432,7 +432,7 @@ detail::PhysicalDeviceInfo::allFromInstance( vk::Instance instance, vk::SurfaceK
 }
 
 void
-VulkanInformationTab::draw() const
+VulkanInfoTab::draw() const
 {
     ImGui::Begin( "Vulkan information" );
 

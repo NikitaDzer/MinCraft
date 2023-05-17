@@ -16,10 +16,10 @@
 namespace vkwrap
 {
 
-class SimpleRenderPassBuilder
+class RenderPassBuilder
 {
   public:
-    SimpleRenderPassBuilder& withColorAttachment( vk::Format swapchain_format ) &
+    RenderPassBuilder& withColorAttachment( vk::Format swapchain_format ) &
     {
         auto attachment = vk::AttachmentDescription{
             .format = swapchain_format,
@@ -34,13 +34,13 @@ class SimpleRenderPassBuilder
         return withColorAttachment( attachment );
     };
 
-    SimpleRenderPassBuilder& withColorAttachment( vk::AttachmentDescription attachment ) &
+    RenderPassBuilder& withColorAttachment( vk::AttachmentDescription attachment ) &
     {
         m_color_attachments.push_back( attachment );
         return *this;
     };
 
-    SimpleRenderPassBuilder& withDepthAttachment( vk::Format depth_format ) &
+    RenderPassBuilder& withDepthAttachment( vk::Format depth_format ) &
     {
         m_depth_attachment = vk::AttachmentDescription{
             .format = depth_format,
@@ -57,7 +57,7 @@ class SimpleRenderPassBuilder
 
     template <ranges::range Range>
         requires std::same_as<ranges::range_value_t<Range>, vk::SubpassDependency>
-    SimpleRenderPassBuilder& withSubpassDependencies( Range&& dependecies )
+    RenderPassBuilder& withSubpassDependencies( Range&& dependecies )
     {
         ranges::copy( dependecies, ranges::back_inserter( m_subpass_dependecies ) );
         return *this;
@@ -65,13 +65,12 @@ class SimpleRenderPassBuilder
 
     vk::UniqueRenderPass make( vk::Device device )
     {
+        const auto create_attachment_reference = []( auto index ) {
+            return vk::AttachmentReference{ .attachment = index, .layout = vk::ImageLayout::eColorAttachmentOptimal };
+        };
+
         auto color_attachment_references = ranges::views::iota( uint32_t{ 0 }, m_color_attachments.size() ) |
-            ranges::views::transform( []( auto index ) {
-                                               return vk::AttachmentReference{
-                                                   .attachment = index,
-                                                   .layout = vk::ImageLayout::eColorAttachmentOptimal };
-                                           } ) |
-            ranges::to_vector;
+            ranges::views::transform( create_attachment_reference ) | ranges::to_vector;
 
         const auto depth_attachment_reference = vk::AttachmentReference{
             .attachment = static_cast<uint32_t>( m_color_attachments.size() ),
@@ -99,7 +98,7 @@ class SimpleRenderPassBuilder
     }
 
   public:
-    SimpleRenderPassBuilder() = default;
+    RenderPassBuilder() = default;
 
   private:
     std::vector<vk::SubpassDependency> m_subpass_dependecies;

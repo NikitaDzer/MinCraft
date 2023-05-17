@@ -40,7 +40,9 @@ class CommandPool : private vk::UniqueCommandPool
     using Base::operator*;
     using Base::get;
 
-    auto createCmdBuffers( uint32_t count, vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary )
+    std::vector<vk::UniqueCommandBuffer> createCmdBuffers(
+        uint32_t count,
+        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary )
     {
         auto allocate_info =
             vk::CommandBufferAllocateInfo{ .commandPool = get(), .level = level, .commandBufferCount = count };

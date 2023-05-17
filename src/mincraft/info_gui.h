@@ -81,12 +81,12 @@ class PhysicalDeviceInfo
     vk::SurfaceKHR m_surface;
 };
 
-using PhysicalDevicesInfo = std::vector<PhysicalDeviceInfo>;
+using PhysicalDeviceInfos = std::vector<PhysicalDeviceInfo>;
 
-class VulkanInformation
+class VulkanInfo
 {
   public:
-    VulkanInformation( vk::Instance instance_param, vk::SurfaceKHR surface )
+    VulkanInfo( vk::Instance instance_param, vk::SurfaceKHR surface )
         : instance{},
           physical_devices{ PhysicalDeviceInfo::allFromInstance( instance_param, surface ) }
     {
@@ -94,15 +94,15 @@ class VulkanInformation
 
   public:
     InstanceInfo instance;
-    PhysicalDevicesInfo physical_devices;
+    PhysicalDeviceInfos physical_devices;
 };
 
 } // namespace detail
 
-class VulkanInformationTab
+class VulkanInfoTab
 {
   public:
-    VulkanInformationTab( vk::Instance instance, vk::SurfaceKHR surface )
+    VulkanInfoTab( vk::Instance instance, vk::SurfaceKHR surface )
         : m_information{ instance, surface }
     {
     }
@@ -110,7 +110,7 @@ class VulkanInformationTab
     void draw() const;
 
   private:
-    detail::VulkanInformation m_information;
+    detail::VulkanInfo m_information;
 };
 
 }; // namespace imgw

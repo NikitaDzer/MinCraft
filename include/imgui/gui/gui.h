@@ -29,7 +29,7 @@ class ImGuiUniqueLibraryResource
 {
   public:
     ImGuiUniqueLibraryResource() = default;
-    ImGuiUniqueLibraryResource( ImGuiResourceFlagType )
+    explicit ImGuiUniqueLibraryResource( ImGuiResourceFlagType )
         : m_initialized{ true }
     {
     }
@@ -40,8 +40,8 @@ class ImGuiUniqueLibraryResource
     ImGuiUniqueLibraryResource( const ImGuiUniqueLibraryResource& ) = delete;
     ImGuiUniqueLibraryResource& operator=( const ImGuiUniqueLibraryResource& ) = delete;
 
-    ImGuiUniqueLibraryResource( ImGuiUniqueLibraryResource&& rhs ) { swap( rhs ); }
-    ImGuiUniqueLibraryResource& operator=( ImGuiUniqueLibraryResource&& rhs )
+    ImGuiUniqueLibraryResource( ImGuiUniqueLibraryResource&& rhs ) noexcept { swap( rhs ); }
+    ImGuiUniqueLibraryResource& operator=( ImGuiUniqueLibraryResource&& rhs ) noexcept
     {
         swap( rhs );
         return *this;
@@ -63,7 +63,7 @@ class ImGuiUniqueLibraryResource
     bool m_initialized = false;
 };
 
-constexpr auto k_default_descriptor_count = uint32_t{ 1000 };
+constexpr uint32_t k_default_descriptor_count = 1000;
 
 constexpr auto k_imgui_pool_sizes = std::to_array<vk::DescriptorPoolSize>(
     { { vk::DescriptorType::eSampler, k_default_descriptor_count },
@@ -83,7 +83,7 @@ class ImGuiResources
   private:
     static void checkVkResult( VkResult c_res )
     {
-        vk::Result result = vk::Result{ c_res };
+        auto result = vk::Result{ c_res };
         auto error_message = vk::to_string( result );
         vk::resultCheck( result, error_message.c_str() );
     }
@@ -111,6 +111,8 @@ class ImGuiResources
         vkwrap::OneTimeCommand& upload_context,
         vk::RenderPass render_pass )
     {
+        assert( window );
+
         // Step 1. Initialize library for glfw and misc imgui stuff
         IMGUI_CHECKVERSION(); // Verify that compiled imgui binary matches the header
         ImGui::CreateContext();
@@ -144,7 +146,7 @@ class ImGuiResources
     struct ImGuiResourcesInitInfo
     {
         vk::Instance instance;
-        GLFWwindow* window;
+        GLFWwindow* window = nullptr;
         vk::PhysicalDevice physical_device;
         vk::Device logical_device;
         vkwrap::Queue graphics;
@@ -153,7 +155,7 @@ class ImGuiResources
         vk::RenderPass render_pass;
     };
 
-    ImGuiResources( ImGuiResourcesInitInfo info )
+    explicit ImGuiResources( ImGuiResourcesInitInfo info )
         : m_descriptor_pool{ info.logical_device, k_imgui_pool_sizes },
           m_library_resource{ initializeLibrary(
               info.instance,

@@ -128,11 +128,11 @@ parseOptions( std::span<const char*> command_line_args )
         "uncap,u",
         "Uncapped fps always" );
 
-    po::variables_map vm;
-    po::store( po::parse_command_line( command_line_args.size(), command_line_args.data(), desc ), vm );
-    po::notify( vm );
+    po::variables_map v_map;
+    po::store( po::parse_command_line( command_line_args.size(), command_line_args.data(), desc ), v_map );
+    po::notify( v_map );
 
-    if ( vm.count( "help" ) )
+    if ( v_map.count( "help" ) )
     {
         std::stringstream ss;
         ss << desc;
@@ -143,10 +143,10 @@ parseOptions( std::span<const char*> command_line_args )
 #ifndef NDEBUG
     const bool validation = true; // Enable validation layers in debug build
 #else
-    const bool validation = vm.count( "debug" );
+    const bool validation = v_map.count( "debug" );
 #endif
 
-    const bool uncapped = vm.count( "uncap" );
+    const bool uncapped = v_map.count( "uncap" );
 
     return AppOptions{ .validation = validation, .uncapped_fps = uncapped };
 }
@@ -156,13 +156,11 @@ pickPhysicalDevice( vk::Instance instance, vkwrap::SwapchainReqs swapchain_requi
 {
     vkwrap::PhysicalDeviceSelector physical_selector;
 
-    // Calculate weights depending on the requirements. Should be expanded to check for Format capabilities e.t.c. Help
-    // needed :)
     auto weight_functor = [ &swapchain_requirements ]( vkwrap::PhysicalDeviceInfo info ) {
         return swapchain_requirements.calculateWeight( info.device.get() );
     };
 
-    physical_selector.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    physical_selector.withExtensions( vkwrap::Swapchain::getRequiredExtensions() )
         .withTypes( std::array{ vk::PhysicalDeviceType::eDiscreteGpu, vk::PhysicalDeviceType::eIntegratedGpu } )
         .withVersion( vkwrap::VulkanVersion::e_version_1_3 )
         .withWeight( weight_functor );
@@ -193,7 +191,7 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
 
     auto supported_features = physical_device.getFeatures();
 
-    device_builder.withExtensions( std::array{ VK_KHR_SWAPCHAIN_EXTENSION_NAME } )
+    device_builder.withExtensions( vkwrap::Swapchain::getRequiredExtensions() )
         .withGraphicsQueue( graphics )
         .withPresentQueue( surface, present )
         .withFeatures( supported_features );
@@ -242,7 +240,7 @@ createFramebuffers(
     return framebuffers;
 }
 
-static constexpr auto k_max_frames_in_flight = uint32_t{ 2 };
+static constexpr uint32_t k_max_frames_in_flight = 2;
 
 vkwrap::SwapchainReqs
 getSwapchainRequirements( vk::SurfaceKHR surface, bool uncapped_always = false )
@@ -322,7 +320,7 @@ createRenderInfos(
     auto buffer_builder = vkwrap::BufferBuilder{};
     buffer_builder.withQueues( queues );
 
-    for ( [[maybe_unused]] auto i = uint32_t{ 0 }; i < frames; ++i )
+    for ( uint32_t i = 0; i < frames; ++i )
     {
         auto primitives = FrameSyncPrimitives{
             .image_availible_semaphore = logical_device.createSemaphoreUnique( {} ),
@@ -412,9 +410,10 @@ class UniqueKtxTexture
     ktxTexture* operator->() { return get(); }
 
     ktx_uint8_t* getData() { return ktxTexture_GetData( m_handle.get() ); }
+    const ktx_uint8_t* getData() const { return ktxTexture_GetData( m_handle.get() ); }
     ktx_size_t getSize() { return ktxTexture_GetDataSize( m_handle.get() ); }
 
-    ktx_size_t getImageOffset( ktx_size_t level, ktx_size_t layer, ktx_size_t /* maybe */ slice )
+    ktx_size_t getImageOffset( ktx_size_t level, ktx_size_t layer, ktx_size_t slice )
     {
         ktx_size_t offset = 0;
         auto res = ktxTexture_GetImageOffset( m_handle.get(), level, layer, slice, &offset );
@@ -603,25 +602,24 @@ createKeyboardReader( GLFWwindow* window )
 vk::UniqueDescriptorSetLayout
 createDescriptorSetLayout( vk::Device logical_device )
 {
-    // create descriptor set layout
-    const auto ubo_layout_binding = vk::DescriptorSetLayoutBinding{
+    constexpr auto k_ubo_layout_binding = vk::DescriptorSetLayoutBinding{
         .binding = 0,
         .descriptorType = vk::DescriptorType::eUniformBuffer,
         .descriptorCount = 1,
         .stageFlags = vk::ShaderStageFlagBits::eVertex,
     };
 
-    const auto sampler_layout_binding = vk::DescriptorSetLayoutBinding{
+    constexpr auto k_sampler_layout_binding = vk::DescriptorSetLayoutBinding{
         .binding = 1,
         .descriptorType = vk::DescriptorType::eCombinedImageSampler,
         .descriptorCount = 1,
         .stageFlags = vk::ShaderStageFlagBits::eFragment,
         .pImmutableSamplers = nullptr };
 
-    std::array<vk::DescriptorSetLayoutBinding, 2> bindings = { ubo_layout_binding, sampler_layout_binding };
-    vk::DescriptorSetLayoutCreateInfo const descriptor_set_layout_info{
-        .bindingCount = static_cast<uint32_t>( bindings.size() ),
-        .pBindings = bindings.data() };
+    constexpr auto k_bindings = std::array{ k_ubo_layout_binding, k_sampler_layout_binding };
+    const vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_info{
+        .bindingCount = static_cast<uint32_t>( k_bindings.size() ),
+        .pBindings = k_bindings.data() };
 
     return logical_device.createDescriptorSetLayoutUnique( descriptor_set_layout_info );
 }
@@ -637,9 +635,9 @@ createAndUpdateDescriptorSets(
     vk::Sampler sampler,
     vk::ImageView texture_view )
 {
-    auto layouts = std::vector<vk::DescriptorSetLayout>{ k_max_frames_in_flight, layout };
+    const auto layouts = std::vector<vk::DescriptorSetLayout>{ k_max_frames_in_flight, layout };
 
-    auto alloc_info = vk::DescriptorSetAllocateInfo{
+    const auto alloc_info = vk::DescriptorSetAllocateInfo{
         .descriptorPool = pool,
         .descriptorSetCount = k_max_frames_in_flight,
         .pSetLayouts = layouts.data() };
@@ -651,7 +649,7 @@ createAndUpdateDescriptorSets(
         .imageView = texture_view,
         .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal };
 
-    for ( auto i = uint32_t{ 0 }; i < k_max_frames_in_flight; ++i )
+    for ( uint32_t i = 0; i < k_max_frames_in_flight; ++i )
     {
         const auto buffer_info = vk::DescriptorBufferInfo{
             .buffer = uniform_buffers.at( i ).get(),
@@ -708,7 +706,7 @@ class MasterGui
     }
 
   private:
-    imgw::VulkanInformationTab m_vkinfo_tab;
+    imgw::VulkanInfoTab m_vkinfo_tab;
     GuiConfiguation m_config{};
 };
 
@@ -779,12 +777,12 @@ getViewport( vk::Extent2D extent )
     auto [ width, height ] = extent;
 
     return vk::Viewport{
-        .x = 0.0F,
+        .x = 0.0f,
         .y = static_cast<float>( height ),
         .width = static_cast<float>( width ),
         .height = -static_cast<float>( height ),
-        .minDepth = 0.0F,
-        .maxDepth = 1.0F };
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f };
 }
 
 glfw::wnd::Window
@@ -844,7 +842,7 @@ class MinCraftApplication
 
     vk::UniqueRenderPass initializeRenderPass()
     {
-        auto render_pass_builder = vkwrap::SimpleRenderPassBuilder{};
+        auto render_pass_builder = vkwrap::RenderPassBuilder{};
         return render_pass_builder.withSubpassDependencies( std::array{ k_subpass_dependency } )
             .withColorAttachment( swapchain.getFormat() )
             .withDepthAttachment( vk::Format::eD32Sfloat )
@@ -911,19 +909,19 @@ class MinCraftApplication
 
         const bool use_keyboard = !ImGui::GetIO().WantCaptureKeyboard;
 
-        constexpr auto angular_per_delta_mouse = glm::radians( 0.1F );
-        constexpr auto angular_per_delta_time = glm::radians( 25.0F );
-        constexpr auto linear_per_delta_time = 5.0F;
+        constexpr auto k_angular_per_delta_mouse = glm::radians( 0.1f );
+        constexpr auto k_angular_per_delta_time = glm::radians( 25.0f );
+        constexpr auto k_linear_per_delta_time = 5.0f;
 
         const auto calculate_movement =
             [ this, use_keyboard ]( glfw::input::KeyIndex plus, glfw::input::KeyIndex minus ) -> float {
             if ( !use_keyboard )
             {
-                return 0.0F;
+                return 0.0f;
             }
 
-            return 1.0F * static_cast<int>( keyboard.isPressed( plus ) ) -
-                1.0F * static_cast<int>( keyboard.isPressed( minus ) );
+            return 1.0f * static_cast<int>( keyboard.isPressed( plus ) ) -
+                1.0f * static_cast<int>( keyboard.isPressed( minus ) );
         };
 
         const auto fwd_movement = calculate_movement( GLFW_KEY_W, GLFW_KEY_S );
@@ -934,9 +932,9 @@ class MinCraftApplication
             fwd_movement * camera.getDir() + side_movement * camera.getSideways() + up_movement * camera.getUp();
 
         const auto roll_movement = calculate_movement( GLFW_KEY_Q, GLFW_KEY_E );
-        if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0F, 0.05F ) )
+        if ( glm::epsilonNotEqual( glm::length( dir_movement ), 0.0f, 0.05f ) )
         {
-            camera.translate( glm::normalize( dir_movement ) * linear_per_delta_time * delta_t );
+            camera.translate( glm::normalize( dir_movement ) * k_linear_per_delta_time * delta_t );
         }
 
         auto yaw_rotation = glm::identity<glm::quat>();
@@ -946,12 +944,12 @@ class MinCraftApplication
             auto mouse_events = pollMouseWithLog( mouse );
             auto [ dx, dy ] = mouse_events.movement;
 
-            yaw_rotation = glm::angleAxis<float>( dx * angular_per_delta_mouse, camera.getUp() );
-            pitch_rotation = glm::angleAxis<float>( dy * angular_per_delta_mouse, camera.getSideways() );
+            yaw_rotation = glm::angleAxis<float>( dx * k_angular_per_delta_mouse, camera.getUp() );
+            pitch_rotation = glm::angleAxis<float>( dy * k_angular_per_delta_mouse, camera.getSideways() );
         }
 
         const auto roll_rotation =
-            glm::angleAxis<float>( roll_movement * angular_per_delta_time * delta_t, camera.getDir() );
+            glm::angleAxis<float>( roll_movement * k_angular_per_delta_time * delta_t, camera.getDir() );
         const auto resulting_rotation = yaw_rotation * pitch_rotation * roll_rotation;
         camera.rotate( resulting_rotation );
 
@@ -959,7 +957,7 @@ class MinCraftApplication
         auto [ x, y ] = mesher.getRenderAreaRight();
 
         auto ubo = UniformBufferObject{
-            .model = glm::mat4x4{ 1.0F },
+            .model = glm::mat4x4{ 1.0f },
             .view = view,
             .proj = proj,
             .origin_pos = glm::vec2{ x, y } };
@@ -1022,7 +1020,7 @@ class MinCraftApplication
         logical_device->resetFences( current_frame_data.in_flight_fence.get() );
         graphics_queue.submit( submit_info, *current_frame_data.in_flight_fence );
 
-        vk::Result const result_present = present_queue.presentKHRWithOutOfDate(
+        const vk::Result result_present = present_queue.presentKHRWithOutOfDate(
             swapchain.get(),
             current_frame_data.render_finished_semaphore.get(),
             image_index );
@@ -1037,9 +1035,11 @@ class MinCraftApplication
 
     void fillCommandBuffer( vk::CommandBuffer& cmd, uint32_t image_index, vk::Extent2D extent, RenderConfig config )
     {
+        const auto gray_color = utils::hexToRGBA( 0x181818ff );
+
         const auto clear_values = std::array{
-            vk::ClearValue{ .color = { utils::hexToRGBA( 0x181818ff ) } },
-            vk::ClearValue{ .depthStencil = { .depth = 1.0F, .stencil = 0 } } };
+            vk::ClearValue{ .color = { gray_color } },
+            vk::ClearValue{ .depthStencil = { .depth = 1.0f, .stencil = 0 } } };
 
         const auto render_pass_info = vk::RenderPassBeginInfo{
             .renderPass = render_pass.get(),
@@ -1134,8 +1134,10 @@ class MinCraftApplication
     FrameRenderingInfos render_infos = createRenderInfos( logical_device, command_pool, queues(), memory_manager );
     imgw::ImGuiResources imgui_resources = initializeImGuiResources();
     vkwrap::Sampler sampler = createTextureSampler( physical_device.get(), logical_device );
-    vkwrap::Image texture_image = createTextureImage( queues(), memory_manager, "texture.ktx2" );
-    vk::UniqueDescriptorPool descriptor_pool = vkwrap::createDescriptorPool( logical_device, k_pool_sizes );
+
+    static constexpr std::string_view texture_path = "texture.ktx2";
+    vkwrap::Image texture_image = createTextureImage( queues(), memory_manager, std::filesystem::path{ texture_path } );
+    vkwrap::DescriptorPool descriptor_pool = vkwrap::DescriptorPool{ logical_device, k_pool_sizes };
     UniqueDescriptorSets descriptor_sets = initializeDescriptorSets();
 
     chunk::ChunkMesher mesher = mesher_future.get();
@@ -1144,7 +1146,7 @@ class MinCraftApplication
 
     uint32_t current_frame = 0;
 
-    utils3d::Camera camera = utils3d::Camera{ glm::vec3{ 0.0F, 0.0F, 32.0F } };
+    utils3d::Camera camera = utils3d::Camera{ glm::vec3{ 0.0f, 0.0f, 32.0f } };
     glfw::input::KeyboardStateTracker keyboard = createKeyboardReader( window );
     HighResTimePoint prev_timepoint = std::chrono::high_resolution_clock::now();
 
@@ -1156,7 +1158,7 @@ runApplication( std::span<const char*> command_line_args )
 {
     AppOptions options;
 
-    if ( auto parsed = parseOptions( command_line_args ); parsed )
+    if ( auto parsed = parseOptions( command_line_args ); parsed.has_value() )
     {
         options = parsed.value();
     } else

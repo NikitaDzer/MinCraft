@@ -11,23 +11,6 @@
 namespace vkwrap
 {
 
-template <ranges::range PoolSizes>
-    requires std::same_as<ranges::range_value_t<PoolSizes>, vk::DescriptorPoolSize>
-vk::UniqueDescriptorPool
-createDescriptorPool( vk::Device logical_device, PoolSizes pool_sizes )
-{
-    uint32_t max_sets = ranges::accumulate( pool_sizes, uint32_t{ 0 }, {}, &vk::DescriptorPoolSize::descriptorCount );
-
-    auto pool_sizes_vec = ranges::to_vector( pool_sizes );
-    auto descriptor_info = vk::DescriptorPoolCreateInfo{
-        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        .maxSets = max_sets,
-        .poolSizeCount = static_cast<uint32_t>( pool_sizes_vec.size() ),
-        .pPoolSizes = pool_sizes_vec.data() };
-
-    return logical_device.createDescriptorPoolUnique( descriptor_info );
-}
-
 class DescriptorPool : private vk::UniqueDescriptorPool
 {
   private:
@@ -38,6 +21,24 @@ class DescriptorPool : private vk::UniqueDescriptorPool
     using Base::operator->;
     using Base::operator*;
     using Base::get;
+
+  private:
+    template <ranges::range PoolSizes>
+        requires std::same_as<ranges::range_value_t<PoolSizes>, vk::DescriptorPoolSize>
+    static vk::UniqueDescriptorPool createDescriptorPool( vk::Device logical_device, PoolSizes pool_sizes )
+    {
+        uint32_t max_sets =
+            ranges::accumulate( pool_sizes, uint32_t{ 0 }, {}, &vk::DescriptorPoolSize::descriptorCount );
+
+        auto pool_sizes_vec = ranges::to_vector( pool_sizes );
+        auto descriptor_info = vk::DescriptorPoolCreateInfo{
+            .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+            .maxSets = max_sets,
+            .poolSizeCount = static_cast<uint32_t>( pool_sizes_vec.size() ),
+            .pPoolSizes = pool_sizes_vec.data() };
+
+        return logical_device.createDescriptorPoolUnique( descriptor_info );
+    }
 
   public:
     template <ranges::range PoolSizes>

@@ -130,7 +130,7 @@ class KeyboardStateTracker
     {
         std::stringstream ss;
 
-        auto print = [ &ss ]( std::string key, auto info ) {
+        auto print = [ &ss ]( /* Make a copy */ std::string key, auto info ) {
             ss << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
             if ( info.hasBeenPressed() )
             {
@@ -146,13 +146,14 @@ class KeyboardStateTracker
 
         for ( auto&& [ key, info ] : poll_result )
         {
-            auto* name_cstr = glfwGetKeyName( key, 0 );
+            auto* name_cstr = glfwGetKeyName( key, 0 /* Ignore scancode */ );
 
             if ( !name_cstr )
             {
                 continue;
             }
 
+            // Copy name because it can change
             std::string_view key_name = name_cstr;
             print( std::string{ key_name }, info );
         }
@@ -180,10 +181,10 @@ class KeyboardStateTracker
             return found->second;
         }
 
-        throw std::out_of_range{ "KeyboardStateTracker::getState(key): key not found" };
+        throw std::out_of_range{ "KeyboardStateTracker::getState: key not found" };
     }
 
-    bool isPressed( glfw::input::KeyIndex key ) { return getState( key ) == glfw::input::ButtonState::k_pressed; }
+    bool isPressed( glfw::input::KeyIndex key ) const { return getState( key ) == glfw::input::ButtonState::k_pressed; }
 
   private:
     glfw::input::KeyboardHandler* m_handler_ptr;
