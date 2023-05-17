@@ -130,7 +130,7 @@ class KeyboardStateTracker
     {
         std::stringstream ss;
 
-        auto print = [ &ss ]( /* Make a copy */ std::string key, auto info ) {
+        auto print = [ &ss ]( std::string_view key, auto info ) {
             ss << fmt::format( "Key: {}, State: {}\n", key, glfw::input::buttonStateToString( info.current ) );
             if ( info.hasBeenPressed() )
             {
@@ -153,9 +153,7 @@ class KeyboardStateTracker
                 continue;
             }
 
-            // Copy name because it can change
-            std::string_view key_name = name_cstr;
-            print( std::string{ key_name }, info );
+            print( name_cstr, info );
         }
 
         if ( auto msg = ss.str(); !msg.empty() )
