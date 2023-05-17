@@ -93,7 +93,6 @@ createInstance( const glfw::Instance& glfw_instance, bool validation )
 
     auto make_instance = [ &instance_builder ]() {
         auto instance = instance_builder.make();
-        VULKAN_HPP_DEFAULT_DISPATCHER.init( instance.get() );
         return instance;
     };
 
