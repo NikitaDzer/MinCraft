@@ -16,7 +16,6 @@
 #include "vkwrap/debug.h"
 #include "vkwrap/error.h"
 
-#include <spdlog/fmt/bundled/core.h>
 #include <spdlog/spdlog.h>
 
 #include <array>
@@ -61,8 +60,12 @@ struct InstanceImpl : protected vk::UniqueInstance
     {
         const auto supported_extensions = vk::enumerateInstanceExtensionProperties();
         const auto missing_extensions = utils::findAllMissing( supported_extensions, find, []( auto&& ext ) {
-            return std::string_view{ ext.extensionName };
+            // cast to const char* because decltype( extensionName ) == ArrayWrapper1D<char, 256>
+            // that lead to creation of string_view with size() == 256. Therefore the comparison between
+            // strings will be incorrect ( because comparison relies on string size as well )
+            return std::string_view{ reinterpret_cast<const char*>( &ext.extensionName ) };
         } );
+
         return SupportsResult{ missing_extensions.empty(), missing_extensions | ranges::to<StringVector> };
     } // supportsExtensions
 
@@ -70,9 +73,11 @@ struct InstanceImpl : protected vk::UniqueInstance
     {
         const auto supported_layers = vk::enumerateInstanceLayerProperties();
         const auto missing_layers = utils::findAllMissing( supported_layers, find, []( auto&& layer ) {
-            return std::string_view{ layer.layerName };
+            return std::string_view{ reinterpret_cast<const char*>( &layer.layerName ) };
         } );
+
         return SupportsResult{ missing_layers.empty(), missing_layers | ranges::to<StringVector> };
+
     } // supportsLayers
 
   private:

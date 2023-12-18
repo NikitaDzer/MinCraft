@@ -37,7 +37,7 @@ add_library(vkwrap ${VKWRAP_SOURCES})
 target_include_directories(vkwrap PUBLIC include/vkwrap include/common
                                          include/glfw)
 target_link_libraries(vkwrap PUBLIC range-v3 Boost::boost spdlog glfw
-                                    VulkanMemoryAllocator Vulkan::Vulkan)
+                                    Vulkan::Vulkan VulkanMemoryAllocatorImpl)
 target_enable_linter(vkwrap)
 target_compile_features(vkwrap PUBLIC cxx_std_20)
 

@@ -1,7 +1,14 @@
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 
+
+# -v- range-v3 configuration -v-
 set(RANGES_CXX_STD 20)
+# -^- range-v3 configuration -^-
+
+
+
+
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24") # Faster fetching with
                                                   # delegating to find_package
@@ -37,7 +44,7 @@ FetchContent_Declare(
     vma_lib
     GIT_REPOSITORY
         https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-    GIT_TAG v3.0.1)
+    GIT_TAG master)
 
 FetchContent_Declare(
     spdlog_lib
@@ -54,15 +61,12 @@ FetchContent_MakeAvailable(ranges_lib spdlog_lib glm_lib perlin_lib vma_lib)
 add_library(perlin INTERFACE)
 target_include_directories(perlin INTERFACE ${perlin_lib_SOURCE_DIR})
 
+
 # -v- VulkanMemoryAllocator configuration -v-
 set(VMA_STATIC_VULKAN_FUNCTIONS OFF)
 set(VMA_DYNAMIC_VULKAN_FUNCTIONS ON)
-
-# Force CMake to override lib's options with ours.
-set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-
-target_compile_features(VulkanMemoryAllocator PRIVATE cxx_std_20)
-suppress_warnings(VulkanMemoryAllocator)
+add_library(VulkanMemoryAllocatorImpl ${vma_lib_SOURCE_DIR}/src/VmaUsage.cpp)
+target_include_directories(VulkanMemoryAllocatorImpl PUBLIC ${vma_lib_SOURCE_DIR}/include)
 # -^- VulkanMemoryAllocator configuration -^-
 
 # Hacky workaround for using ktxlib without compiling from source

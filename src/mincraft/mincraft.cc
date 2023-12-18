@@ -196,7 +196,7 @@ createLogicalDeviceQueues( vk::PhysicalDevice physical_device, vk::SurfaceKHR su
         .withFeatures( supported_features );
 
     auto logical_device = device_builder.make( physical_device );
-    VULKAN_HPP_DEFAULT_DISPATCHER.init( logical_device );
+    VULKAN_HPP_DEFAULT_DISPATCHER.init( vk::Device( logical_device ) );
 
     return LogicalDeviceCreateResult{ .device = std::move( logical_device ), .graphics = graphics, .present = present };
 }

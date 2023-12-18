@@ -48,10 +48,11 @@ physicalDeviceSupportsExtensions( const vk::PhysicalDevice& physical_device, Ran
     assert( physical_device );
 
     auto supports = physical_device.enumerateDeviceExtensionProperties();
-    auto missing =
-        utils::findAllMissing( supports, std::forward<Range>( extensions ), &vk::ExtensionProperties::extensionName );
+    auto missing = utils::findAllMissing( supports, std::forward<Range>( extensions ), []( auto&& ext ) {
+        return std::string_view{ reinterpret_cast<const char*>( &ext.extensionName ) };
+    } );
 
-    return SupportsResult{ missing.empty(), missing };
+    return SupportsResult{ missing.empty(), missing | ranges::to<StringVector> };
 } // physicalDeviceSupportsExtensions
 
 inline uint32_t
